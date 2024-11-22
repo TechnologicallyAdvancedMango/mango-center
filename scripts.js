@@ -9,8 +9,8 @@ var autoClickerSpeed = 100;
 var autoClickerHasBeenBought = false;
 var autoBuyHasBeenBought = false;
 var multiplierCost = 15;
-var multiplier = 1;
-var clicks = 0;
+var multiplier = 1n;
+var clicks = 0n;
 var doAlerts = alertsCheckboxBYID.checked;
 var mouseMoved = false;
 
