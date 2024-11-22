@@ -122,10 +122,10 @@ function updateGame() {
   shopAutoclicker.className = "ac";
   shopAutoclicker.textontent = "Buy Autoclicker | Cost: 1000";
  }
-  localStorage.setItem('clicks', clicks);
-   localStorage.setItem('multiplier', multiplier);
-    localStorage.setItem('multiplierCost', multiplierCost);
-    localStorage.setItem('autoclickerBought', autoClickerHasBeenBought);
+  localStorage.setItem('clicks', clicks.toString());
+   localStorage.setItem('multiplier', multiplier.toString());
+    localStorage.setItem('multiplierCost', multiplierCost.toString());
+    localStorage.setItem('autoclickerBought', autoClickerHasBeenBought.toString());
 }
 
   function playSound(soundUrl) {
@@ -219,7 +219,7 @@ function updateGame() {
 localStorage.setItem('clicks', clicks.toString());
    localStorage.setItem('multiplier', multiplier.toString());
     localStorage.setItem('multiplierCost', multiplierCost.toString());
-    localStorage.setItem('autoClickerBought', autoClickerHasBeenBought);
+    localStorage.setItem('autoClickerBought', autoClickerHasBeenBought.toString());
     shopAutoclicker.className = "acp1"
   location.reload();
       };
