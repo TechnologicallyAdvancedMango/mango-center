@@ -101,7 +101,7 @@ function checkAchievements() {
 }
 
 // Check if the user's ID matches the dev ID
-if (userID === devID || devID2) {
+if (userID === devID || userID === devID2) {
     // If it does, give them access to the devtools
    document.getElementById("devTools").style.display = "block";
 }
