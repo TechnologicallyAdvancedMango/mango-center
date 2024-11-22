@@ -213,13 +213,13 @@ function updateGame() {
       autoClickerSpeed = 100;
       autoClickerHasBeenBought = false;
       autoBuyHasBeenBought = false;
-      multiplierCost = 15;
-    multiplier = 1;
-   clicks = 0;
- localStorage.setItem('clicks', clicks);
-   localStorage.setItem('multiplier', multiplier);
-    localStorage.setItem('multiplierCost', multiplierCost);
-    localStorage.setItem('autoClickerBought', autoClickerHasBeenBought.toString());
+      multiplierCost = 15n;
+    multiplier = 1n;
+   clicks = 0n;
+localStorage.setItem('clicks', clicks.toString());
+   localStorage.setItem('multiplier', multiplier.toString());
+    localStorage.setItem('multiplierCost', multiplierCost.toString());
+    localStorage.setItem('autoClickerBought', autoClickerHasBeenBought);
     shopAutoclicker.className = "acp1"
   location.reload();
       };
