@@ -1,8 +1,9 @@
-//Get alerts checkbox status
+// Get alerts checkbox status
 var alertsCheckboxBYID = document.getElementById("alertsCheckbox");
-//Starting values
+
+// Starting values
 var devID = "Temporarily Disabled";
-var devID2 = "Temporarily Disabled"
+var devID2 = "Temporarily Disabled";
 var superAutoclickerState = false;
 var isAuthorized = false;
 var autoClickerSpeed = 100;
@@ -20,7 +21,9 @@ const urlParams = new URLSearchParams(queryString);
 
 isAuthorized = urlParams.get('devtools') === 'true';
 
-        //Achievements here
+console.log(urlParams.get('devtools')); // Debugging line
+
+// Achievements here
 var achievements = [
   { name: "First Click", unlocked: false, condition: function() { return clicks >= 1; } },
   { name: "Hundred Clicks", unlocked: false, condition: function() { return clicks >= 100; } },
@@ -28,8 +31,8 @@ var achievements = [
   { name: "Six Figures", unlocked: false, condition: function() { return clicks >= 100000; } },
   { name: "Diced Mango", unlocked: false, condition: function() { return clicks >= 1000000; } },
   { name: "Mr. Beast", unlocked: false, condition: function() { return clicks >= 500000000; } },
-
 ];
+
 // Check if the user already has an ID
 if (!localStorage.getItem('userID')) {
     // If not, generate a new ID
@@ -41,6 +44,12 @@ if (!localStorage.getItem('userID')) {
 // Now, you can retrieve the ID whenever you need it
 var userID = localStorage.getItem('userID');
 console.log(userID); // This will output the user's ID
+
+// Check if the user's ID matches the dev ID
+if (userID === devID || userID === devID2 || isAuthorized) {
+    // If it does, give them access to the devtools
+    document.getElementById("devTools").style.display = "block";
+}
 
 function loadClicks() {
     // Retrieve the clicks from localStorage
@@ -76,21 +85,20 @@ function loadMultiplierCost() {
     }
 }
 
-
 let prevAutoClickerSpeed;
 function superAutoclicker() {
     if(autoClickerHasBeenBought == true) {
-    if(superAutoclickerState == false) {
-        prevAutoClickerSpeed = autoClickerSpeed;
-        autoClickerSpeed = 1;
-        superAutoclickerState = true;
+        if(superAutoclickerState == false) {
+            prevAutoClickerSpeed = autoClickerSpeed;
+            autoClickerSpeed = 1;
+            superAutoclickerState = true;
+        } else {
+            autoClickerSpeed = prevAutoClickerSpeed;
+            superAutoclickerState = false;
+        }
     } else {
-        autoClickerSpeed = prevAutoClickerSpeed;
-        superAutoclickerState = false;
-    }
-} else {
         return;
-}
+    }
 }
 
 function checkAchievements() {
@@ -100,19 +108,10 @@ function checkAchievements() {
       achievement.unlocked = true;
      if(doAlerts) {
       alert("Achievement unlocked: " + achievement.name);
-        //used to halve multiplier cost and double autoclicker speed. Caused too many problems.
      }
     }
   }
 }
-
-// Check if the user's ID matches the dev ID
-if (userID === devID || userID === devID2) {
-    // If it does, give them access to the devtools
-   document.getElementById("devTools").style.display = "block";
-}
-
- // Function to check the secret code
 
 function updateGame() {
   updateContent();
@@ -126,7 +125,7 @@ function updateGame() {
             shopAutoclicker.className = "acp1";
  } else {
   shopAutoclicker.className = "ac";
-  shopAutoclicker.textontent = "Buy Autoclicker | Cost: 1000";
+  shopAutoclicker.textContent = "Buy Autoclicker | Cost: 1000";
  }
   localStorage.setItem('clicks', clicks.toString());
    localStorage.setItem('multiplier', multiplier.toString());
@@ -134,17 +133,14 @@ function updateGame() {
     localStorage.setItem('autoclickerBought', autoClickerHasBeenBought.toString());
 }
 
-  function playSound(soundUrl) {
+function playSound(soundUrl) {
     var audio = new Audio(soundUrl);
     audio.play();
-  }
+}
 
-      function updateAchievementsDisplay() {
+function updateAchievementsDisplay() {
   var achievementsDiv = document.getElementById("achievements");
-  // Clear the current achievements display
-  achievementsDiv.innerHTML = "<h2>Achievements</h2>";
-
-  // Add each achievement to the display
+  achievementsDiv.innerHTML = "<h2>Achievements</h2>"; // Clear the current achievements display
   for (var i = 0; i < achievements.length; i++) {
     var achievement = achievements[i];
     var achievementElement = document.createElement("p");
@@ -152,93 +148,79 @@ function updateGame() {
     achievementsDiv.appendChild(achievementElement);
   }
 }
-      function updateContent() {
-        display.textContent = "Clicks: " + clicks;
-        displayMultiplier.textContent = "Multiplier: " + multiplier;
-        shopMultiplier.textContent = "Buy Multiplier | Cost: " + multiplierCost
-        userId.textContent = userID;
 
-    }
-   function clickHandler() {
-    var display = document.getElementById("display");
-        clicks = clicks + 1 * multiplier;
-        updateGame();
-   }
-    function buyMultipliers() {
+function updateContent() {
+    display.textContent = "Clicks: " + clicks;
+    displayMultiplier.textContent = "Multiplier: " + multiplier;
+    shopMultiplier.textContent = "Buy Multiplier | Cost: " + multiplierCost;
+    userId.textContent = userID;
+}
+
+function clickHandler() {
+    clicks = clicks + 1 * multiplier;
+    updateGame();
+}
+
+function buyMultipliers() {
   if (clicks >= multiplierCost) {
     multiplier += 1;
     clicks -= multiplierCost;
-    multiplierCost = multiplierCost * 1.2
+    multiplierCost = multiplierCost * 1.2;
     multiplierCost = Math.floor(multiplierCost);
     updateGame();
   } else {
-          if(doAlerts) {
+    if(doAlerts) {
       alert("You cannot afford the multiplier.");
-          }
+    }
   }
 }
 
-     function buyAllMultipliers() {
-        while(clicks >= multiplierCost) {
-        clicks = clicks - multiplierCost;
+function buyAllMultipliers() {
+    while(clicks >= multiplierCost) {
+        clicks -= multiplierCost;
         multiplier++;
-        multiplierCost = multiplierCost * 1.2
+        multiplierCost *= 1.2;
         updateGame();
-     }
-         updateGame();
     }
-//Autoclicker purchase and upgrade
-      function buyAutoclicker() {
-        if(!autoClickerHasBeenBought && clicks >= 1000) {
-         autoClickerHasBeenBought = true;
-            clicks = clicks - 1000;
-            shopAutoclicker.textContent = "Autoclicker Purchased"
-            shopAutoclicker.className = "acp1";
-        } updateGame()
-    }
+    updateGame();
+}
 
-      function autoClicker() {
+function buyAutoclicker() {
+    if(!autoClickerHasBeenBought && clicks >= 1000) {
+        autoClickerHasBeenBought = true;
+        clicks -= 1000;
+        shopAutoclicker.textContent = "Autoclicker Purchased";
+        shopAutoclicker.className = "acp1";
+    }
+    updateGame();
+}
+
+function autoClicker() {
     if(autoClickerHasBeenBought == true) {
         clickHandler();
     }
-    setTimeout(autoClicker, autoClickerSpeed); // Always set the timeout
+    setTimeout(autoClicker, autoClickerSpeed);
 }
-        function autoBuy() {
-            var checkbox = document.getElementById("autoBuyCheckbox");
-            if(checkbox.checked) {
-            if(autoBuyHasBeenBought && clicks >= multiplierCost) {
-                buyMultipliers();
-                }
-            }
-        } setInterval(autoBuy, 200); // Always set the interval
-  
-    function resetGame() {
-      if(confirm("Are you sure you want to restart your game? (Wipes game file)")) {
-      superAutoclickerState = false;
-      isAuthorized = false;
-      autoClickerSpeed = 100;
-      autoClickerHasBeenBought = false;
-      autoBuyHasBeenBought = false;
-      multiplierCost = 15n;
-    multiplier = 1n;
-   clicks = 0n;
-localStorage.setItem('clicks', clicks.toString());
-   localStorage.setItem('multiplier', multiplier.toString());
-    localStorage.setItem('multiplierCost', multiplierCost.toString());
-    localStorage.setItem('autoClickerBought', autoClickerHasBeenBought.toString());
-    shopAutoclicker.className = "acp1"
-  location.reload();
-      };
-    };
- document.body.addEventListener('mousemove', function(e) {
-    if(!mouseMoved) {
-        updateGame();
+
+function autoBuy() {
+    var checkbox = document.getElementById("autoBuyCheckbox");
+    if(checkbox.checked) {
+        if(autoBuyHasBeenBought && clicks >= multiplierCost) {
+            buyMultipliers();
+        }
     }
-});
-loadClicks();
-loadMultiplier();
-loadMultiplierCost();
-loadAutoclickerBought();
-autoClicker(); // Start the loop
-autoBuy();// Start the loop
-    updateGame();
+}
+setInterval(autoBuy, 200);
+
+function resetGame() {
+  if(confirm("Are you sure you want to restart your game? (Wipes game file)")) {
+    superAutoclickerState = false;
+    isAuthorized = false;
+    autoClickerSpeed = 100;
+    autoClickerHasBeenBought = false;
+    autoBuyHasBeenBought = false;
+    multiplierCost = 15n;
+    multiplier = 1n;
+    clicks = 0n;
+    localStorage.setItem('clicks', clicks.toString());
+    localStorage.setItem('multiplier', multiplier
