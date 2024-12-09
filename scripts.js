@@ -14,15 +14,12 @@ var clicks = BigInt(1);
 var doAlerts = alertsCheckboxBYID.checked;
 var mouseMoved = false;
 
-//Devtools enabled in URL
+// Devtools enabled in URL
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
 
-if(urlParams.get('devtools') === true) {
-        isAuthorized = true;
-} else { 
-        isAuthorized = false
-}
+isAuthorized = urlParams.get('devtools') === 'true';
+
         //Achievements here
 var achievements = [
   { name: "First Click", unlocked: false, condition: function() { return clicks >= 1; } },
