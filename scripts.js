@@ -1,25 +1,27 @@
-//Get alerts checkbox status
-var alertsCheckboxBYID = document.getElementById("alertsCheckbox");
-//Starting values
-var devID = "Temporarily Disabled";
-var devID2 = "Temporarily Disabled"
-var superAutoclickerState = false;
-var isAuthorized = false;
-var autoClickerSpeed = 100;
-var autoClickerHasBeenBought = false;
-var autoBuyHasBeenBought = false;
-var multiplierCost = BigInt(15);
-var multiplier = BigInt(1);
-var clicks = BigInt(1);
-var doAlerts = alertsCheckboxBYID.checked;
-var mouseMoved = false;
+document.addEventListener('DOMContentLoaded', (event) => {
+    var alertsCheckboxBYID = document.getElementById("alertsCheckbox");
 
-// Devtools enabled in URL
-const queryString = window.location.search;
-const urlParams = new URLSearchParams(queryString);
+    var devID = "Temporarily Disabled";
+    var devID2 = "Temporarily Disabled";
+    var superAutoclickerState = false;
+    var isAuthorized = false;
+    var autoClickerSpeed = 100;
+    var autoClickerHasBeenBought = false;
+    var autoBuyHasBeenBought = false;
+    var multiplierCost = BigInt(15);
+    var multiplier = BigInt(1);
+    var clicks = BigInt(1);
+    var doAlerts = alertsCheckboxBYID.checked;
+    var mouseMoved = false;
 
-isAuthorized = urlParams.get('devtools') === 'true';
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
 
+    isAuthorized = urlParams.get('devtools') === 'true';
+
+    if (isAuthorized) {
+        document.getElementById("devTools").style.display = "block";
+    }
         //Achievements here
 var achievements = [
   { name: "First Click", unlocked: false, condition: function() { return clicks >= 1; } },
