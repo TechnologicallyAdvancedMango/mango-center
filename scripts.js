@@ -1,27 +1,25 @@
-document.addEventListener('DOMContentLoaded', (event) => {
-    var alertsCheckboxBYID = document.getElementById("alertsCheckbox");
+//Get alerts checkbox status
+var alertsCheckboxBYID = document.getElementById("alertsCheckbox");
+//Starting values
+var devID = "Temporarily Disabled";
+var devID2 = "Temporarily Disabled"
+var superAutoclickerState = false;
+var isAuthorized = false;
+var autoClickerSpeed = 100;
+var autoClickerHasBeenBought = false;
+var autoBuyHasBeenBought = false;
+var multiplierCost = BigInt(15);
+var multiplier = BigInt(1);
+var clicks = BigInt(1);
+var doAlerts = alertsCheckboxBYID.checked;
+var mouseMoved = false;
 
-    var devID = "Temporarily Disabled";
-    var devID2 = "Temporarily Disabled";
-    var superAutoclickerState = false;
-    var isAuthorized = false;
-    var autoClickerSpeed = 100;
-    var autoClickerHasBeenBought = false;
-    var autoBuyHasBeenBought = false;
-    var multiplierCost = BigInt(15);
-    var multiplier = BigInt(1);
-    var clicks = BigInt(1);
-    var doAlerts = alertsCheckboxBYID.checked;
-    var mouseMoved = false;
+// Devtools enabled in URL
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
 
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
+isAuthorized = urlParams.get('devtools') === 'true';
 
-    isAuthorized = urlParams.get('devtools') === 'true';
-
-    if (isAuthorized) {
-        document.getElementById("devTools").style.display = "block";
-    }
         //Achievements here
 var achievements = [
   { name: "First Click", unlocked: false, condition: function() { return clicks >= 1; } },
@@ -108,11 +106,13 @@ function checkAchievements() {
   }
 }
 
-// Check if the user's ID matches the dev ID (disabled)
-//if (userID === devID || userID === devID2) {
-    // (actual comment) If it does, give them access to the devtools
-//   document.getElementById("devTools").style.display = "block";
-//}
+// Check if the user's ID matches the dev ID
+if (userID === devID || userID === devID2) {
+    // If it does, give them access to the devtools
+   document.getElementById("devTools").style.display = "block";
+}
+
+ // Function to check the secret code
 
 function updateGame() {
   updateContent();
