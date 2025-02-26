@@ -47,7 +47,6 @@
         background-color: white;
         font-family: Arial, Helvetica, sans-serif;
         padding: 5px;
-        padding-left: 20%;
       }
       #title {
         color:black;
@@ -61,15 +60,19 @@
       .gameh3 {
         color: black;
       }
+      #listDiv {
+        margin-left: 20%;
+      }
     </style>
   </head>
   <body>
     <div id="clock">
       <span id="span"></span>
-    </div>
+    </div id="listDiv">
     <h1 id="title">Mango Hub</h1>
     <h2 id="description">A collection of all of my games(5)</h2>
     <hr>
+    <div>
     <input type="text" id="search" onkeyup="searchGames()" placeholder="Search.." title="Search">
     <ul id="gameList">
       <li id="gameLi">
@@ -92,6 +95,7 @@
         <a href="https://codeprojects.org/projects/weblab/by63Mkot31eKF3WXFhhIkwlv-uT5waiE2KlZCYji5Jw/" class="play">Puzzle</a>
       </li id="gameLi">
     </ul>
+    </div>
     <script>
       function searchGames() {
           var input, filter, ul, li, a, i;
