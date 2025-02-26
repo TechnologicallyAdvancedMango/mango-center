@@ -1,2 +1,2 @@
 cool <strong>mango clicker</strong> game with homepage <br>
-might add more games
+might add more stuff
