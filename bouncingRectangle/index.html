@@ -129,6 +129,11 @@
 		<input type="checkbox" id="joinTrailToggle">
 	</label>
 	
+	<label>
+		Sound Effects
+		<input type="checkbox" id="soundEffectsToggle">
+	</label>
+	
 	<label>Frame Multiplier</label>
 	<input type="number" id="frameMultiplierInput" value="1" min="1" max="100">
 	
@@ -151,10 +156,19 @@ function updateCanvasDimensions() {
 	canvas.height = window.innerHeight;
 }
 
+function playSound(path) {
+	const sound = new Audio(path);
+	sound.play();
+}
+
 
 function onCollision() {
 	xSpeed = xSpeed * collisionSpeedMultiplier;
 	ySpeed = ySpeed * collisionSpeedMultiplier;
+	
+	if(soundEffects) {
+		playSound(impactSound);
+	}
 }
 
 function applySettings() {
@@ -166,6 +180,7 @@ function applySettings() {
 		collisionSpeedMultiplier: parseFloat(document.getElementById("collisionMultiplierInput").value) || 1.0,
 		leaveTrail: document.getElementById("leaveTrailToggle").checked,
 		joinTrail: document.getElementById("joinTrailToggle").checked,
+		soundEffects: document.getElementById("soundEffectsToggle").checked,
 		frameMultiplier: parseInt(document.getElementById("frameMultiplierInput").value) || 1,
 		squareMainColor: document.getElementById("mainColorInput").value || "#ffffff",
 		squareBorderColor: document.getElementById("borderColorInput").value || "#808080"
@@ -200,9 +215,11 @@ const adaptiveCanvasDimensions = false; //Boundaries change with window size. No
 const leaveTrail = saved.leaveTrail ?? true; //Adaptive Canvas Dimensions has to be off
 const frameMultiplier = saved.frameMultiplier ?? 1; //Useful for smoooth trails. Very laggy at high values
 const joinTrail = saved.joinTrail ?? false; //Makes the borders of the trail join. Lags after a while. Not recommended
+const soundEffects = saved.soundEffects ?? false //Adds an impact sound effect
 
 //--------------------------------------------------------------------
 
+const impactSound = "/impactSound.mp3"
 
 var squareX = 0;
 var squareY = 0;
@@ -218,6 +235,7 @@ document.getElementById("ySpeedInput").value = ySpeed;
 document.getElementById("collisionMultiplierInput").value = collisionSpeedMultiplier;
 document.getElementById("leaveTrailToggle").checked = leaveTrail;
 document.getElementById("joinTrailToggle").checked = joinTrail;
+document.getElementById("soundEffectsToggle").checked = soundEffects;
 document.getElementById("frameMultiplierInput").value = frameMultiplier;
 
 let frameCount = 0;
