@@ -85,6 +85,18 @@
 <button id="toggleSettingsBtn" onclick="document.getElementById('settingsPanel').style.display = 'flex'">⚙️ Settings</button>
 
 <div id="settingsPanel">
+	<div id="fpsCounter" style="
+		position: absolute;
+		top: 0.5em;
+		right: 0.75em;
+		font-size: 0.9em;
+		color: #0f0;
+		font-family: monospace;
+		pointer-events: none;
+	">
+		FPS: --
+	</div>
+
 	<label>Main Color:</label>
 	<input type="color" id="mainColorInput" value="#ffffff"><br>
 	
@@ -207,6 +219,9 @@ document.getElementById("leaveTrailToggle").checked = leaveTrail;
 document.getElementById("joinTrailToggle").checked = joinTrail;
 document.getElementById("frameMultiplierInput").value = frameMultiplier;
 
+let frameCount = 0;
+let lastTime = performance.now();
+const fpsDisplay = document.getElementById('fpsCounter');
 
 function nextFrame() {
 	if(adaptiveCanvasDimensions) {updateCanvasDimensions();}
@@ -216,10 +231,20 @@ function nextFrame() {
 		moveSquare();
 	}
 	
-
-	//Request new animation frame
+	//Request new animation frame and FPS counter
+	frameCount++;
+	
+	const now = performance.now();
+	if (now - lastTime >= 1000) {
+		const fps = frameCount;
+		fpsDisplay.textContent = `FPS: ${fps}`;
+		frameCount = 0;
+		lastTime = now;
+	}
+	
 	requestAnimationFrame(nextFrame);
 }
+
 
 
 function moveSquare() {
@@ -266,6 +291,7 @@ updateCanvasDimensions();
 
 //Start the loop
 requestAnimationFrame(nextFrame);
+
 
 
 </script>
