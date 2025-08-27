@@ -79,6 +79,7 @@
 		cursor: pointer;
 		z-index: 1001;
 	}
+	
 </style>
 </head>
 <body>
@@ -97,12 +98,14 @@
 	">
 		FPS: --
 	</div>
-
-	<label>Main Color:</label>
-	<input type="color" id="mainColorInput" value="#ffffff"><br>
 	
-	<label>Border Color:</label>
-	<input type="color" id="borderColorInput" value="#808080"><br>
+	<div style="display: flex; justify-content: space-between;">
+		<label>Main Color:</label>
+		<input type="color" id="mainColorInput" value="#ffffff">
+		
+		<label>Border Color:</label>
+		<input type="color" id="borderColorInput" value="#808080">
+	</div>
 	
 	<label>Square Width</label>
 	<input type="number" id="squareSizeXInput" value="30" min="1">
