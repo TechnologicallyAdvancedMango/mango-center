@@ -170,6 +170,24 @@ function playSound(path) {
 	sound.play();
 }
 
+//wasd to change direction
+document.addEventListener("keydown", function(event) {
+  changeDirection(event.key.toLowerCase());
+});
+
+function changeDirection(key) {
+	if(key == "w") {
+		ySpeed = 0 - Math.abs(ySpeed)
+	} else if(key == "s") {
+		ySpeed = Math.abs(ySpeed)
+	} else if(key == "a") {
+		xSpeed = 0 - Math.abs(xSpeed)
+	} else if(key == "d") {
+		xSpeed = Math.abs(xSpeed)
+	}
+	
+}
+
 
 function onCollision() {
 	xSpeed = xSpeed * collisionSpeedMultiplier;
