@@ -34,7 +34,7 @@
 		box-shadow: 0 0 20px #000;
 		display: none;
 		flex-direction: column;
-		align-items: flex-start;
+		align-items: stretch;
 		z-index: 1000;
 		font-family: sans-serif;
 		width: 300px;
@@ -120,18 +120,24 @@
 	<input type="number" step="0.1" id="collisionMultiplierInput" value="1.0">
 	
 	<label>
-		Leave Trail
-		<input type="checkbox" id="leaveTrailToggle" checked>
+		<div style="display: flex; justify-content: space-between;">
+			Leave Trail
+			<input type="checkbox" id="leaveTrailToggle" checked>
+		</div>
 	</label>
 
 	<label>
-		Join Trail (border accumulation)
-		<input type="checkbox" id="joinTrailToggle">
+		<div style="display: flex; justify-content: space-between;">
+			Join Trail (border accumulation)
+			<input type="checkbox" id="joinTrailToggle">
+		</div>
 	</label>
 	
 	<label>
-		Sound Effects
-		<input type="checkbox" id="soundEffectsToggle">
+		<div style="display: flex; justify-content: space-between;">
+			Sound Effects
+			<input type="checkbox" id="soundEffectsToggle">
+		</div>
 	</label>
 	
 	<label>Frame Multiplier</label>
