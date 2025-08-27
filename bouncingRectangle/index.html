@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+    <title>Bouncing Rectangle</title>
+<style>
+    body{
+        background-color: black;
+        
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    #canvas{
+        border-color: red;
+        border-width: 0px;
+        border-style: solid;
+
+        background-color: black;
+        
+        margin: 0;
+        padding: 0;
+    }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="100" height="100"></canvas>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function updateCanvasDimensions() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+
+function onCollision() {
+    xSpeed = xSpeed * collisionSpeedMultiplier;
+    ySpeed = ySpeed * collisionSpeedMultiplier;
+}
+
+//Customization variables:
+//--------------------------------------------------------------------
+
+var squareSizeX = 30;
+var squareSizeY = 30;
+
+var xSpeed = 10;
+var ySpeed = 10;
+
+var collisionSpeedMultiplier = 1.0; //Speed multiplier every collision
+
+//Experimental:
+const adaptiveCanvasDimensions = false; 
+const leaveTrail = true; //Adaptive Canvas Dimensions has to be off
+const frameMultiplier = 1; //Useful for trails. Very laggy at high values
+
+//--------------------------------------------------------------------
+
+
+
+var squareX = 0;
+var squareY = 0;
+
+
+function nextFrame() {
+    if(adaptiveCanvasDimensions) {updateCanvasDimensions();}
+
+    //Square moving
+    for(i=0;i<frameMultiplier;i++) {
+        moveSquare();
+    }
+    
+
+    //Request new animation frame
+    requestAnimationFrame(nextFrame);
+}
+
+
+function moveSquare() {
+    const newX = squareX + xSpeed;
+    const newY = squareY + ySpeed;
+
+    // Check if any part of the square goes beyond the X canvas edge
+    if (newX < 0 || newX + squareSizeX > canvas.width) {
+        xSpeed = -xSpeed;
+        onCollision();
+    }
+
+    // Check if any part of the square goes beyond the Y canvas edge
+    if (newY < 0 || newY + squareSizeY > canvas.height) {
+        ySpeed = -ySpeed;
+        onCollision();
+    }
+
+    squareX = newX;
+    squareY = newY;
+
+    //Clear the screen
+    if(!leaveTrail) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        //that doesn't work for some reason but this does:
+        canvas.width = canvas.width;
+    }
+
+    //Draw the rectangle
+    ctx.fillStyle = "white";
+    ctx.strokeStyle = "grey";
+    ctx.lineWidth = "8";
+    
+    ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
+    ctx.stroke();
+    ctx.fill();
+    
+}
+
+updateCanvasDimensions();
+
+//Start the loop
+requestAnimationFrame(nextFrame);
+
+
+</script>
+</body>
+</html>
