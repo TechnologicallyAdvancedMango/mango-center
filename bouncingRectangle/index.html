@@ -45,18 +45,21 @@ function onCollision() {
 //Customization variables:
 //--------------------------------------------------------------------
 
+//Square dimensions:
 var squareSizeX = 30;
 var squareSizeY = 30;
 
+//Starting Speed:
 var xSpeed = 10;
 var ySpeed = 10;
 
 var collisionSpeedMultiplier = 1.0; //Speed multiplier every collision
 
-//Experimental:
-const adaptiveCanvasDimensions = false; 
+//Extras:
+const adaptiveCanvasDimensions = false; //Boundaries change with window size
 const leaveTrail = true; //Adaptive Canvas Dimensions has to be off
 const frameMultiplier = 1; //Useful for trails. Very laggy at high values
+const joinPath = true; //Makes the borders of the trail join
 
 //--------------------------------------------------------------------
 
@@ -111,6 +114,9 @@ function moveSquare() {
     ctx.strokeStyle = "grey";
     ctx.lineWidth = "8";
     
+	if(joinTrail != true) {
+		ctx.beginPath();
+	}
     ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
     ctx.stroke();
     ctx.fill();
