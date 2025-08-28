@@ -291,6 +291,19 @@ function nextFrame() {
 	requestAnimationFrame(nextFrame);
 }
 
+function drawSquare() {
+	//Draw the rectangle
+	ctx.fillStyle = squareMainColor;
+	ctx.strokeStyle = squareBorderColor;
+	ctx.lineWidth = "8";
+	
+	if(!joinTrail) {
+		ctx.beginPath();
+	}
+	ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
+	ctx.stroke();
+	ctx.fill();
+}
 
 
 function moveSquare() {
@@ -319,17 +332,7 @@ function moveSquare() {
 		canvas.width = canvas.width;
 	}
 
-	//Draw the rectangle
-	ctx.fillStyle = squareMainColor;
-	ctx.strokeStyle = squareBorderColor
-	ctx.lineWidth = "8";
-	
-	if(!joinTrail) {
-		ctx.beginPath();
-	}
-	ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
-	ctx.stroke();
-	ctx.fill();
+	drawSquare();
 	
 }
 
