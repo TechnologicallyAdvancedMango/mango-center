@@ -14,7 +14,7 @@ const URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 async function getCount() {
   const res = await fetch(URL, {
-    headers: { "X-Master-Key": API_KEY }
+    headers: { "X-Access-Key": API_KEY }
   });
   const data = await res.json();
   document.getElementById("count").textContent = data.record.clicks;
@@ -22,7 +22,7 @@ async function getCount() {
 
 async function incrementCount() {
   const res = await fetch(URL, {
-    headers: { "X-Master-Key": API_KEY }
+    headers: { "X-Access-Key": API_KEY }
   });
   const data = await res.json();
   const newCount = data.record.clicks + 1;
@@ -31,7 +31,7 @@ async function incrementCount() {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "X-Master-Key": API_KEY
+      "X-Access-Key": API_KEY
     },
     body: JSON.stringify({ clicks: newCount })
   });
