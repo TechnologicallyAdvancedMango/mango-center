@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <title>Global Clicker</title>
+</head>
+<body>
+<button id="clicker">Click me</button>
+<p>Global Clicks: <span id="count">0</span></p>
+
+<script>
+const BIN_ID = "68afc7c843b1c97be92de998";
+const API_KEY = "$2a$10$e1Y1bIPfq./HN3Jzn1sCxuOqo0yz9DENn7w/6uBi0vmzZypcfCoq2";
+const URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+async function getCount() {
+  const res = await fetch(URL, {
+    headers: { "X-Master-Key": API_KEY }
+  });
+  const data = await res.json();
+  document.getElementById("count").textContent = data.record.clicks;
+}
+
+async function incrementCount() {
+  const res = await fetch(URL, {
+    headers: { "X-Master-Key": API_KEY }
+  });
+  const data = await res.json();
+  const newCount = data.record.clicks + 1;
+
+  await fetch(URL, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": API_KEY
+    },
+    body: JSON.stringify({ clicks: newCount })
+  });
+
+  document.getElementById("count").textContent = newCount;
+}
+
+document.getElementById("clicker").onclick = incrementCount;
+getCount();
+</script>
+</body>
+</html>
