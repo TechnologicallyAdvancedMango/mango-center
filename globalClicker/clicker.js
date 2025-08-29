@@ -55,8 +55,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function getAndUpdate() {
-    let thisCount = getCount();
-    updateUI(thisCount);
+    getCount().then(updateUI);
   }
 
   // Initial load
