@@ -5,10 +5,10 @@ window.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function getCount() {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('clicks')
       .select('count')
       .eq('id', CLICKER_ID)
@@ -26,7 +26,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const current = await getCount();
     const newCount = current + 1;
 
-    const { error } = await supabase
+    const { error } = await client
       .from('clicks')
       .upsert({ id: CLICKER_ID, count: newCount });
 
