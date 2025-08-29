@@ -19,7 +19,7 @@ window.addEventListener('DOMContentLoaded', () => {
       return 0;
     }
     return data?.count || 0;
-    
+    // no console log here!
   }
 
   async function incrementCount() {
