@@ -18,8 +18,6 @@ window.addEventListener('DOMContentLoaded', () => {
       console.error('Error fetching count:', error);
       return 0;
     }
-
-    console.log('Updating UI with count:', count);
     return data?.count || 0;
   }
 
