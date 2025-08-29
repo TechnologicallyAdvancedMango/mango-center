@@ -54,9 +54,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 100);
   }
 
+  function getAndUpdate() {
+    let thisCount = getcount();
+    updateUI(thisCount);
+  }
+
   // Initial load
   getCount().then(updateUI);
 
   // Expose incrementCount globally for button onclick
   window.incrementCount = incrementCount;
+
+  // Update every second
+  let updateInterval = setInterval(getAndUpdate, 1000);
 });
