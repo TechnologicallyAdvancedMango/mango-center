@@ -46,6 +46,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('chaosToggle')?.checked) {
       triggerVisualEffect();
     }
+    console.log('Type of count:', typeof count);
+    console.log('Value of count:', count);
   }
 
   function triggerVisualEffect() {
