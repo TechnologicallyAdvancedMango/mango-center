@@ -1,40 +1,53 @@
+// clicker.js
+
+// Initialize Supabase client
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Fetch current count from Supabase
 async function getCount() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('clicks')
     .select('count')
     .eq('id', CLICKER_ID)
     .single();
+
+  if (error) {
+    console.error('Error fetching count:', error);
+    return 0;
+  }
+
   return data?.count || 0;
 }
 
+// Increment count and update Supabase
 async function incrementCount() {
   const current = await getCount();
   const newCount = current + 1;
 
-  await supabase
+  const { error } = await supabase
     .from('clicks')
     .upsert({ id: CLICKER_ID, count: newCount });
+
+  if (error) {
+    console.error('Error updating count:', error);
+    return;
+  }
 
   updateUI(newCount);
 }
 
+// Update the counter display
 function updateUI(count) {
-  document.getElementById('counter').textContent = count;
+  const counter = document.getElementById('counter');
+  if (counter) counter.textContent = count;
 
-  if (document.getElementById('chaosToggle').checked) {
-    playSound();
+  // Optional chaos mode visual effect
+  if (document.getElementById('chaosToggle')?.checked) {
     triggerVisualEffect();
   }
 }
 
-function playSound() {
-  const audio = new Audio('sounds/click.mp3');
-  audio.playbackRate = Math.random() * 2 + 0.5;
-  audio.play();
-}
-
+// Simple visual chaos effect (no sound)
 function triggerVisualEffect() {
   document.body.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 90%)`;
   setTimeout(() => {
