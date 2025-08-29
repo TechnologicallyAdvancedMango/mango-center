@@ -19,6 +19,7 @@ window.addEventListener('DOMContentLoaded', () => {
       return 0;
     }
 
+    console.log('Updating UI with count:', count);
     return data?.count || 0;
   }
 
