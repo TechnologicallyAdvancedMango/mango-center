@@ -66,5 +66,5 @@ window.addEventListener('DOMContentLoaded', () => {
   window.incrementCount = incrementCount;
 
   // Update every second
-  let updateInterval = setInterval(getAndUpdate, 1000);
+  setInterval(getAndUpdate, 1000);
 });
