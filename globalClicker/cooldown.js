@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient.js';
 
-function secondsSince(timestamp) {
-  return (Date.now() - new Date(timestamp)) / 1000;
+function secondsSinceUTC(timestamp) {
+  return (Date.now() - new Date(timestamp).getTime()) / 1000;
 }
 
 export async function isCooldownActive(id, durationSeconds) {
@@ -31,17 +31,20 @@ export async function isCooldownActive(id, durationSeconds) {
     return false;
   }
 
-  const elapsed = secondsSince(data.last_triggered);
+  const elapsed = secondsSinceUTC(data.last_triggered);
+  const remaining = Math.max(0, durationSeconds - elapsed);
+
   console.log(`Cooldown [${id}] elapsed: ${elapsed.toFixed(2)}s`);
+  console.log(`Cooldown [${id}] remaining: ${remaining.toFixed(2)}s`);
 
   return {
     active: elapsed < durationSeconds,
-    remaining: Math.max(0, durationSeconds - elapsed)
+    remaining
   };
 }
 
 export async function triggerCooldown(id) {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString(); // UTC-safe
 
   const { error } = await supabase
     .from('cooldowns')
@@ -53,6 +56,7 @@ export async function triggerCooldown(id) {
     console.log(`Cooldown triggered for [${id}] at ${now}`);
   }
 }
+
 
 export function subscribeToCooldowns(onUpdate) {
   const channel = supabase
