@@ -7,24 +7,20 @@ export async function isCooldownActive(id, durationSeconds) {
         .eq('id', id)
         .single();
 
-    if (error || !data) return false;
+    if (error || !data || !data.last_triggered) {
+        console.log('Cooldown not found or never triggered');
+        return false;
+    }
 
-    const lastTriggered = data.last_triggered;
-    if (!lastTriggered) return false;
-
-    const last = new Date(lastTriggered);
-    if (isNaN(last)) return false;
-
+    const last = new Date(data.last_triggered);
     const now = new Date();
     const elapsed = (now - last) / 1000;
 
+    console.log(`Cooldown [${id}] elapsed: ${elapsed}s`);
+
     return elapsed < durationSeconds;
-    console.log('last:', last);
-    console.log('elapsed:', elapsed);
-    console.log('duration:', durationSeconds);
-
-
 }
+
 
 
 export async function triggerCooldown(id) {
