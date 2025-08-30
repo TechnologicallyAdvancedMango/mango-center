@@ -1,71 +1,77 @@
-window.addEventListener('DOMContentLoaded', () => {
-  // Ensure config variables are available
-  if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_ANON_KEY === 'undefined') {
-    console.error('Supabase config not loaded.');
+//clicker.js
+
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+//  Supabase config
+const supabaseUrl = 'https://your-project.supabase.co'; // replace with your project URL
+const supabaseKey = 'public-anon-key'; // replace with your anon/public key
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+//Cache the click row ID
+let clickRowId = null;
+
+//Fetch the click row (once)
+export async function initClicker() {
+  const { data, error } = await supabase
+    .from('clicks')
+    .select('id, count')
+    .limit(1);
+
+  if (error) {
+    console.error('Error fetching click row:', error);
     return;
   }
 
-  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  clickRowId = data[0].id;
+  return data[0].count;
+}
 
-  async function getCount() {
-    const { data, error } = await client
-      .from('clicks')
-      .select('count')
-      .eq('id', CLICKER_ID)
-      .single();
+//Increment the count by 1
+export async function incrementCount() {
+  if (!clickRowId) await initClicker();
 
-    if (error) {
-      console.error('Error fetching count:', error);
-      return 0;
-    }
-    return data?.count || 0;
-    // no console log here!
+  //Fetch current count
+  const { data, error } = await supabase
+    .from('clicks')
+    .select('count')
+    .eq('id', clickRowId)
+    .single();
+
+  if (error) {
+    console.error('Error reading count:', error);
+    return;
   }
 
-  async function incrementCount() {
-    const current = await getCount();
-    const newCount = current + 1;
+  const newCount = data.count + 1;
 
-    const { error } = await client
-      .from('clicks')
-      .upsert({ id: CLICKER_ID, count: newCount });
+  //Update count
+  await supabase
+    .from('clicks')
+    .update({ count: newCount })
+    .eq('id', clickRowId);
+}
 
-    if (error) {
-      console.error('Error updating count:', error);
-      return;
-    }
+//Set count directly (for sliders, chaos modes)
+export async function setClickCount(newCount) {
+  if (!clickRowId) await initClicker();
 
-    updateUI(newCount);
-  }
+  await supabase
+    .from('clicks')
+    .update({ count: newCount })
+    .eq('id', clickRowId);
+}
 
-  function updateUI(count) {
-    const counter = document.getElementById('counter');
-    if (counter) counter.textContent = count;
-
-    if (document.getElementById('chaosToggle')?.checked) {
-      triggerVisualEffect();
-    }
-    console.log('Type of count:', typeof count);
-    console.log('Value of count:', count);
-  }
-
-  function triggerVisualEffect() {
-    document.body.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 90%)`;
-    setTimeout(() => {
-      document.body.style.backgroundColor = '';
-    }, 100);
-  }
-
-  function getAndUpdate() {
-    getCount().then(updateUI);
-  }
-
-  // Initial load
-  getCount().then(updateUI);
-
-  // Expose incrementCount globally for button onclick
-  window.incrementCount = incrementCount;
-
-  // Update every second
-  setInterval(getAndUpdate, 1000);
-});
+//Realtime sync
+export function subscribeToClicks(callback) {
+  supabase
+    .channel('clicks')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'clicks'
+    }, payload => {
+      const updatedCount = payload.new.count;
+      callback(updatedCount);
+    })
+    .subscribe();
+}
