@@ -19,6 +19,11 @@ export async function isCooldownActive(id, durationSeconds) {
     const elapsed = (now - last) / 1000;
 
     return elapsed < durationSeconds;
+    console.log('last:', last);
+    console.log('elapsed:', elapsed);
+    console.log('duration:', durationSeconds);
+
+
 }
 
 
