@@ -1,11 +1,9 @@
 import { supabase } from './supabaseClient.js';
 
-// Utility: seconds since timestamp
 function secondsSince(timestamp) {
   return (Date.now() - new Date(timestamp)) / 1000;
 }
 
-// Check if cooldown is active
 export async function isCooldownActive(id, durationSeconds) {
   const { data, error } = await supabase
     .from('cooldowns')
@@ -42,7 +40,6 @@ export async function isCooldownActive(id, durationSeconds) {
   };
 }
 
-// Trigger cooldown
 export async function triggerCooldown(id) {
   const now = new Date().toISOString();
 
@@ -57,7 +54,6 @@ export async function triggerCooldown(id) {
   }
 }
 
-// Optional: Realtime listener
 export function subscribeToCooldowns(onUpdate) {
   const channel = supabase
     .channel('cooldowns')
@@ -66,7 +62,7 @@ export function subscribeToCooldowns(onUpdate) {
       schema: 'public',
       table: 'cooldowns'
     }, payload => {
-      console.log('Realtime update:', payload.new);
+      console.log('Realtime cooldown update:', payload.new);
       if (typeof onUpdate === 'function') {
         onUpdate(payload.new);
       }
