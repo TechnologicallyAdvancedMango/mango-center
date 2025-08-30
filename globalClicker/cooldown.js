@@ -1,7 +1,10 @@
 import { supabase } from './supabaseClient.js';
 
+// Ensure both timestamps are in UTC milliseconds
 function secondsSinceUTC(timestamp) {
-  return (Date.now() - new Date(timestamp).getTime()) / 1000;
+  const nowUTC = Date.now(); // UTC in ms
+  const targetUTC = new Date(timestamp).getTime(); // UTC in ms
+  return (nowUTC - targetUTC) / 1000;
 }
 
 export async function isCooldownActive(id, durationSeconds) {
@@ -44,7 +47,7 @@ export async function isCooldownActive(id, durationSeconds) {
 }
 
 export async function triggerCooldown(id) {
-  const now = new Date().toISOString(); // UTC-safe
+  const now = new Date().toISOString(); // ✅ UTC-safe
 
   const { error } = await supabase
     .from('cooldowns')
@@ -56,7 +59,6 @@ export async function triggerCooldown(id) {
     console.log(`Cooldown triggered for [${id}] at ${now}`);
   }
 }
-
 
 export function subscribeToCooldowns(onUpdate) {
   const channel = supabase
