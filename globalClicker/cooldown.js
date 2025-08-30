@@ -7,24 +7,18 @@ export async function isCooldownActive(id, durationSeconds) {
         .eq('id', id)
         .single();
 
-    if (error || !data || !data.last_triggered) return false;
+    if (error || !data) return false;
 
-    const last = new Date(data.last_triggered);
+    const lastTriggered = data.last_triggered;
+    if (!lastTriggered) return false;
+
+    const last = new Date(lastTriggered);
     if (isNaN(last)) return false;
 
     const now = new Date();
     const elapsed = (now - last) / 1000;
 
-    if (elapsed < 0 || elapsed >= durationSeconds) {
-        // Optional: reset timestamp to null or now
-        await supabase
-            .from('cooldowns')
-            .update({ last_triggered: null })
-            .eq('id', id);
-        return false;
-    }
-
-    return true;
+    return elapsed < durationSeconds;
 }
 
 
