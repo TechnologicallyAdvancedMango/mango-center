@@ -6,7 +6,15 @@ export async function isCooldownActive(id, durationSeconds) {
         .select('last_triggered')
         .eq('id', id)
         .single();
-
+    
+    if (!data) {
+    console.log(`Cooldown [${id}] missing—creating default row`);
+    await supabase
+        .from('cooldowns')
+        .insert({ id, last_triggered: null });
+    return false;
+    }
+    
     if (error || !data || !data.last_triggered) {
         console.log('Cooldown not found or never triggered');
         return false;
