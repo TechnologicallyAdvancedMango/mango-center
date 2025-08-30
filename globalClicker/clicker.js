@@ -69,14 +69,17 @@ export async function setClickCount(newCount) {
 
 export function subscribeToClicks(callback) {
   supabase
-    .channel('clicks')
+    .channel('clicks') // ← This is the channel name
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'clicks' },
       payload => {
+        console.log('Realtime update received:', payload);
         const newCount = payload.new.count;
         callback(newCount);
       }
     )
-    .subscribe();
+    .subscribe(status => {
+      console.log('Subscription status:', status);
+    });
 }
