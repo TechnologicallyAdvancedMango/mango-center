@@ -31,4 +31,6 @@ export async function triggerCooldown(id) {
     await supabase
         .from('cooldowns')
         .upsert({ id, last_triggered: new Date().toISOString() });
+    
+    console.log('Cooldown triggered for:', id);
 }
