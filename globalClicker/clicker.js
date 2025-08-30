@@ -1,5 +1,3 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { supabase } from './supabaseClient.js';
 
 let clickRowId = null;
@@ -68,17 +66,15 @@ export async function setClickCount(newCount) {
 
 export function subscribeToClicks(callback) {
   supabase
-    .channel('clicks') // ← This is the channel name
+    .channel('clicks')
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'clicks' },
       payload => {
-        console.log('Realtime update received:', payload);
+        console.log('Realtime click update:', payload.new);
         const newCount = payload.new.count;
         callback(newCount);
       }
     )
-    .subscribe(status => {
-      console.log('Subscription status:', status);
-    });
+    .subscribe();
 }
