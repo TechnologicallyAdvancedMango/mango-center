@@ -1,67 +1,72 @@
-//clicker.js
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-//  Supabase config
-const supabaseUrl = 'https://your-project.supabase.co'; // replace with your project URL
-const supabaseKey = 'public-anon-key'; // replace with your anon/public key
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-//Cache the click row ID
 let clickRowId = null;
 
-//Fetch the click row (once)
-export async function initClicker() {
+async function ensureClickRow() {
+  if (clickRowId) return clickRowId;
+
   const { data, error } = await supabase
     .from('clicks')
-    .select('id, count')
+    .select('id')
     .limit(1);
 
-  if (error) {
-    console.error('Error fetching click row:', error);
-    return;
+  if (error || !data || !data.length) {
+    throw new Error('Failed to fetch click row');
   }
 
   clickRowId = data[0].id;
-  return data[0].count;
+  return clickRowId;
 }
 
-//Increment the count by 1
 export async function incrementCount() {
-  if (!clickRowId) await initClicker();
+  const id = await ensureClickRow();
 
-  //Fetch current count
   const { data, error } = await supabase
     .from('clicks')
     .select('count')
-    .eq('id', clickRowId)
+    .eq('id', id)
     .single();
 
-  if (error) {
-    console.error('Error reading count:', error);
-    return;
-  }
+  if (error) throw error;
 
   const newCount = data.count + 1;
 
-  //Update count
   await supabase
     .from('clicks')
     .update({ count: newCount })
-    .eq('id', clickRowId);
+    .eq('id', id);
+
+  return newCount;
 }
 
-//Set count directly (for sliders, chaos modes)
+export async function getClickCount() {
+  const id = await ensureClickRow();
+
+  const { data, error } = await supabase
+    .from('clicks')
+    .select('count')
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+
+  return data.count;
+}
+
 export async function setClickCount(newCount) {
-  if (!clickRowId) await initClicker();
+  const id = await ensureClickRow();
 
   await supabase
     .from('clicks')
     .update({ count: newCount })
-    .eq('id', clickRowId);
+    .eq('id', id);
+
+  return newCount;
 }
 
-//Realtime sync
 export function subscribeToClicks(callback) {
   supabase
     .channel('clicks')
