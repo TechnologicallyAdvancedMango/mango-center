@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Global Clicker</title>
-  <style>
+<meta charset="UTF-8">
+<title>Global Clicker</title>
+<style>
     body {
       background-color: black;
       font-family: sans-serif;
@@ -13,7 +13,6 @@
     h1 {
       color: white;
     }
-
     button {
       background-color: black;
       color: white;
@@ -25,24 +24,51 @@
       border-width: 2px;
       border-radius: 5px;
     } 
-
     #counter {
       font-size: 2rem;
       color: green;
     }
-  </style>
+</style>
 </head>
 <body>
-  <h1>Clicks: <span id="counter">0</span></h1>
-  <button onclick="incrementCount()">Click Me</button>
-  <!--
-  <label>
-     <input type="checkbox" id="chaosToggle"> Chaos Mode 
-  </label>
-  -->
-  
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-  <script src="config.js"></script>
-  <script src="clicker.js"></script>
+<h1>Clicks: <span id="counter">0</span></h1>
+<button id="clickButton">Click</button>
+<button id="setButton">Reset</button>
+
+<script type="module">
+    import {
+      incrementCount,
+      getClickCount,
+      setClickCount,
+      subscribeToClicks
+    } from './clicker.js';
+    
+    const countDisplay = document.querySelector('#counter');
+    const clickButton = document.querySelector('#clickButton');
+    const setButton = document.querySelector('#setButton');
+    
+    //Update the UI
+    const updateUI = count => {
+      countDisplay.textContent = count;
+    };
+    
+    //Initial load
+    const current = await getClickCount();
+    updateUI(current);
+    
+    //Realtime updates
+    subscribeToClicks(updateUI);
+    
+    //Increment button
+    clickButton.addEventListener('click', async () => {
+      const newCount = await incrementCount();
+      updateUI(newCount);
+    });
+    
+    //Set to 999 button
+    setButton.addEventListener('click', async () => {
+      await setClickCount(999);
+    });
+</script>
 </body>
 </html>
