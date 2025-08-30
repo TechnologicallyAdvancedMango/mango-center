@@ -61,13 +61,14 @@
     
     //Increment button
     clickButton.addEventListener('click', async () => {
-      const newCount = await incrementCount();
-      updateUI(newCount);
+        const newCount = await incrementCount();
+        updateUI(newCount);
     });
     
     //Set to 0 button
     setButton.addEventListener('click', async () => {
-      await setClickCount(0);
+        await setClickCount(0);
+        updateUI(current);
     });
 </script>
 </body>
