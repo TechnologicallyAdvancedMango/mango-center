@@ -33,7 +33,16 @@
 <body>
 <h1>Clicks: <span id="counter">0</span></h1>
 <button id="clickButton">Click</button>
-<button id="setButton">Reset</button>
+    
+<button class="cooldownButton" data-cooldown="reset" data-duration="86400">Reset</button>
+<span id="reset-status">Ready</span><br>
+    
+<button class="cooldownButton" data-cooldown="one-hundred" data-duration="60">+100</button>
+<span id="hundred-status">Ready</span><br>
+
+<button class="cooldownButton" data-cooldown="one-thousand" data-duration="540">+1000</button>
+<span id="thousand-status">Ready</span>
+
 
 <script type="module">
     import {
@@ -43,9 +52,44 @@
       subscribeToClicks
     } from './clicker.js';
     
+    import { 
+        isCooldownActive,
+        triggerCooldown
+    } from './cooldown.js';
+
     const countDisplay = document.querySelector('#counter');
     const clickButton = document.querySelector('#clickButton');
-    const setButton = document.querySelector('#setButton');
+    const resetButton = document.querySelector('#resetButton');
+    
+    const cooldownButtons = document.querySelectorAll('.cooldownButton');
+    
+    async function updateCooldownStates() {
+    for (const button of cooldownButtons) {
+      const id = button.dataset.cooldown;
+      const duration = parseInt(button.dataset.duration);
+      const status = document.querySelector(`#${id}-status`);
+      const active = await isCooldownActive(id, duration);
+
+      button.disabled = active;
+      status.textContent = active
+        ? `Cooldown (${Math.ceil((duration - (Date.now() - new Date(status.dataset.lastTriggered || 0)) / 1000))}s)`
+        : 'Ready';
+    }
+    }
+
+    cooldownButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const id = button.dataset.cooldown;
+            const duration = parseInt(button.dataset.duration);
+            const status = document.querySelector(`#${id}-status`);
+            const active = await isCooldownActive(id, duration);
+            if (active) return;
+
+            await triggerCooldown(id);
+            status.dataset.lastTriggered = Date.now();
+            updateCooldownStates();
+        });
+    });
     
     //Update the UI
     const updateUI = count => {
@@ -65,11 +109,6 @@
         updateUI(newCount);
     });
     
-    //Set to 0 button
-    setButton.addEventListener('click', async () => {
-        await setClickCount(0);
-        updateUI(current);
-    });
 </script>
 </body>
 </html>
