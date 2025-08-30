@@ -70,13 +70,13 @@ export async function setClickCount(newCount) {
 export function subscribeToClicks(callback) {
   supabase
     .channel('clicks')
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'clicks'
-    }, payload => {
-      const updatedCount = payload.new.count;
-      callback(updatedCount);
-    })
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'clicks' },
+      payload => {
+        const newCount = payload.new.count;
+        callback(newCount);
+      }
+    )
     .subscribe();
 }
