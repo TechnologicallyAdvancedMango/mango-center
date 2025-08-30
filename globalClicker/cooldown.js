@@ -10,6 +10,8 @@ export async function isCooldownActive(id, durationSeconds) {
     if (error || !data || !data.last_triggered) return false;
 
     const last = new Date(data.last_triggered);
+    if (isNaN(last)) return false; // Invalid date fallback
+
     const now = new Date();
     return now - last < durationSeconds * 1000;
 }
