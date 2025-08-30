@@ -49,35 +49,33 @@
 
 <script type="module">
     import {
-      incrementCount,
-      getClickCount,
-      setClickCount,
-      subscribeToClicks
+        incrementCount,
+        getClickCount,
+        setClickCount,
+        subscribeToClicks
     } from './clicker.js';
-    
-    import { 
+
+    import {
         isCooldownActive,
         triggerCooldown
     } from './cooldown.js';
 
     const countDisplay = document.querySelector('#counter');
     const clickButton = document.querySelector('#clickButton');
-    const resetButton = document.querySelector('#resetButton');
-    
     const cooldownButtons = document.querySelectorAll('.cooldownButton');
-    
-    async function updateCooldownStates() {
-    for (const button of cooldownButtons) {
-      const id = button.dataset.cooldown;
-      const duration = parseInt(button.dataset.duration);
-      const status = document.querySelector(`#${id}-status`);
-      const active = await isCooldownActive(id, duration);
 
-      button.disabled = active;
-      status.textContent = active
-        ? `Cooldown (${Math.ceil((duration - (Date.now() - new Date(status.dataset.lastTriggered || 0)) / 1000))}s)`
-        : 'Ready';
-    }
+    async function updateCooldownStates() {
+        for (const button of cooldownButtons) {
+            const id = button.dataset.cooldown;
+            const duration = parseInt(button.dataset.duration);
+            const status = document.querySelector(`#${id}-status`);
+            const active = await isCooldownActive(id, duration);
+
+            button.disabled = active;
+            status.textContent = active
+                ? `Cooldown (${Math.ceil((duration - (Date.now() - new Date(status.dataset.lastTriggered || 0)) / 1000))}s)`
+                : 'Ready';
+        }
     }
 
     cooldownButtons.forEach(button => {
@@ -90,28 +88,38 @@
 
             await triggerCooldown(id);
             status.dataset.lastTriggered = Date.now();
+
+            // Action logic
+            let current = await getClickCount();
+            if (id === 'reset') {
+                await setClickCount(0);
+            } else if (id === 'one-hundred') {
+                await setClickCount(current + 100);
+            } else if (id === 'one-thousand') {
+                await setClickCount(current + 1000);
+            }
+
+            const updated = await getClickCount();
+            countDisplay.textContent = updated;
+
             updateCooldownStates();
         });
     });
-    
-    //Update the UI
-    const updateUI = count => {
-      countDisplay.textContent = count;
-    };
-    
-    //Initial load
-    const current = await getClickCount();
-    updateUI(current);
-    
-    //Realtime updates
-    subscribeToClicks(updateUI);
-    
-    //Increment button
+
     clickButton.addEventListener('click', async () => {
         const newCount = await incrementCount();
-        updateUI(newCount);
+        countDisplay.textContent = newCount;
     });
-    
+
+    const initial = await getClickCount();
+    countDisplay.textContent = initial;
+
+    subscribeToClicks(count => {
+        countDisplay.textContent = count;
+    });
+
+    setInterval(updateCooldownStates, 1000);
+    updateCooldownStates();
 </script>
 </body>
 </html>
