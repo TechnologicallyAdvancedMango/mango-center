@@ -26,9 +26,7 @@ function startCountdown(duration, displayId, onComplete) {
   }, 1000);
 }
 
-function redirect() {
-  window.location = "https://www.themango.click";
-}
+const redirect = () => window.location = "https://www.themango.click";
 
 startCountdown(5, "countdown", redirect);
 </script>
