@@ -36,38 +36,24 @@ if (!localStorage.getItem('userID')) {
 var userID = localStorage.getItem('userID');
 console.log(userID); // This will output the user's ID
 
+
 function loadClicks() {
-    // Retrieve the clicks from localStorage
-    let savedClicks = localStorage.getItem('clicks');
-    if (savedClicks) {
-        clicks = Number(savedClicks);
-    } else {
-        localStorage.setItem('clicks', clicks);
-    }
+    const savedClicks = localStorage.getItem('clicks');
+    clicks = Number(savedClicks ?? clicks);
 }
 
 function loadMultiplier() {
-    // Retrieve the multiplier from localStorage
-    let savedMultiplier = localStorage.getItem('multiplier');
-    if (savedMultiplier) {
-        multiplier = Number(savedMultiplier);
-    }
+    const saved = localStorage.getItem('multiplier');
+    multiplier = Number(saved ?? multiplier);
 }
 
 function loadAutoclickerBought() {
-    // Retrieve the multiplier from localStorage
-    let savedAutoclickerBought = localStorage.getItem('autoclickerBought') === 'true';
-    if (savedAutoclickerBought) {
-        autoClickerHasBeenBought = savedAutoclickerBought
-    }
+    autoClickerHasBeenBought = localStorage.getItem('autoclickerBought') === 'true' ?? autoClickerHasBeenBought;
 }
 
 function loadMultiplierCost() {
-    // Retrieve the multiplierCost from localStorage
-    let savedMultiplierCost = localStorage.getItem('multiplierCost');
-    if (savedMultiplierCost) {
-        multiplierCost = Number(savedMultiplierCost);
-    }
+    const saved = localStorage.getItem('multiplierCost');
+    multiplierCost = Number(saved ?? multiplierCost);
 }
 
 
@@ -235,4 +221,6 @@ loadMultiplierCost();
 loadAutoclickerBought();
 autoClicker(); // Start the loop
 autoBuy();// Start the loop
-    updateGame();
+
+updateGame();
+
