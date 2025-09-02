@@ -23,7 +23,8 @@ function createSeededRandom(seed) {
 }
 
 function ask(input) {
-    return answers[Math.floor(createSeededRandom(input) * answers.length)]
+    const rand = createSeededRandom(hash(input));
+    return answers[Math.floor(rand * answers.length)];
 } 
 </script>
 </body>
