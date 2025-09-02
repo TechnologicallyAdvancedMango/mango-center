@@ -88,6 +88,10 @@
         <a href="https://www.themango.click/bouncingRectangle" class="play">Bouncing Rectangle</a>
       </li>
       <br>
+      <li id="gameLi">
+        <a href="https://www.themango.click/magic8ball" class="play">Magic 8 Ball</a>
+      </li>
+      <br>
       <li  id="gameLi">
         <a href="https://www.themango.click/clock" class="play">Clock</a>
       </li>
@@ -114,25 +118,24 @@
     </ul>
     </div>
     <script>
-      function searchGames() {
-          var input, filter, ul, li, a, i;
-            input = document.getElementById("search");
-              filter = input.value.toUpperCase();
-                ul = document.getElementById("gameList");
-                  li = ul.getElementsByTagName("li");
+function searchGames() {
+  var input, filter, ul, li, a, i;
+  input = document.getElementById("search");
+  filter = input.value.toUpperCase();
+  ul = document.getElementById("gameList");
+  li = ul.getElementsByTagName("li");
+  
+  for (i = 0; i < li.length; i++) {
+    a = li[i].getElementsByTagName("a")[0];
+    if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
+      li[i].style.display = "";
+    } else {
+      li[i].style.display = "none";
+    }
+  }
+}
 
-                    for (i = 0; i < li.length; i++) {
-                        a = li[i].getElementsByTagName("a")[0];
-                            if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
-                                  li[i].style.display = "";
-                                      } else {
-                                            li[i].style.display = "none";
-                                                }
-                                                  }
-                                                  }
-
-      
-      var span = document.getElementById('span');
+var span = document.getElementById('span');
 
 function time() {
   var d = new Date();
@@ -148,6 +151,7 @@ setInterval(time, 1000);
     </script>
   </body>
 </html>
+
 
 
 
