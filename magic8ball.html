@@ -32,7 +32,7 @@ function hash(str) {
 
 function ask(input) {
     const rand = createSeededRandom(hash(input));
-    return answers[Math.floor(rand * answers.length)];
+    return answers[Math.floor(rand() * answers.length)];
 } 
 </script>
 </body>
