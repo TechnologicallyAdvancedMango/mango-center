@@ -320,32 +320,39 @@ function moveSquare() {
 }
 
 function drawUI() {
-	//Score text:
-	ctx.fillStyle = "#40ff90";
-	ctx.font = "24px monospace";
-	ctx.textAlign = "left";
-	ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
-	//Pause screen:
-	if (paused) {
-		ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		
-		ctx.fillStyle = "#ffffff";
-		ctx.font = "48px sans-serif";
-		ctx.textAlign = "center";
-		ctx.fillText("Paused", canvas.width / 2, canvas.height / 2);
-	}
+    //Score text
+    ctx.fillStyle = "#40ff90";
+    ctx.font = "24px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
+
+    //Pause screen
+    if (paused) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Paused", canvas.width / 2, canvas.height / 2);
+    }
+
+    //Death screen
+    if (gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#ff4040";
+        ctx.font = "bold 64px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("YOU DIED", canvas.width / 2, canvas.height / 2);
+    }
 }
+
 
 function die() {
 	console.log("Dead!");
 	gameOver = true;
-	
-	//Show message:
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "48px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("You Died", canvas.width / 2, canvas.height / 2);
 	
 	//Show respawn button
 	document.getElementById("respawnBtn").style.display = "block";
