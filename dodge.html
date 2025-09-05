@@ -255,9 +255,6 @@ function nextFrame(currentTimestamp) {
     lastTimestamp = currentTimestamp;
 
 	clearScreen();
-    drawSquare();
-	drawUI();
-	
 	if (!gameOver && !paused) {
         for (let i = 0; i < frameMultiplier; i++) {
             moveSquare();
@@ -265,6 +262,8 @@ function nextFrame(currentTimestamp) {
 			score += deltaTime;
         }
 	}
+	drawSquare();
+	drawUI();
 	
 	requestAnimationFrame(nextFrame);
 }
