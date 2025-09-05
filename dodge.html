@@ -393,8 +393,8 @@ function performDash() {
     if (aDown) squareX -= dashDistance;
     if (dDown) squareX += dashDistance;
 
-	xSpeed += 100;
-	ySpeed += 100;
+	xSpeed *= 5;
+	ySpeed *= 5;
 
     // Clamp to canvas bounds
     squareX = Math.max(0, Math.min(canvas.width - squareSizeX, squareX));
