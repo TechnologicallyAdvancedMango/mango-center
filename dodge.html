@@ -90,6 +90,9 @@ let paused = false;
 let dashTimer = 0;
 let canDash = true;
 
+var dashSound = new Audio("/audio/whoosh1.mp3");
+
+	
 let xSpeed = 0;
 let ySpeed = 0;
 
@@ -394,6 +397,7 @@ function performDash() {
     // Clamp to canvas bounds
     squareX = Math.max(0, Math.min(canvas.width - squareSizeX, squareX));
     squareY = Math.max(0, Math.min(canvas.height - squareSizeY, squareY));
+	dashSound.play();
 }
 
 
