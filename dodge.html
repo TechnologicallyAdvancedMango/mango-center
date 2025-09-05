@@ -87,6 +87,8 @@ let gameOver = false;
 let score = 0;
 let paused = false;
 
+let highscore = localStorage.getItem("highscore") ?? 0;
+
 let dashTimer = 0;
 let canDash = true;
 
@@ -421,6 +423,9 @@ function clearScreen() {
 	canvas.width = canvas.width;
 }
 
+function updateHighscore() {
+	//make later
+}
 
 updateCanvasDimensions();
 //Starting positions:
