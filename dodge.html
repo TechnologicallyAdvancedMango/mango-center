@@ -244,26 +244,22 @@ let lastTimestamp = 0;
 let deltaTime;
 
 function nextFrame(currentTimestamp) {
-	if (gameOver || paused) {
-        requestAnimationFrame(nextFrame); //still loop to check for unpause
-        return;
-	}
 	//Every frame:
-	
 	deltaTime = (currentTimestamp - lastTimestamp) / 1000;
     lastTimestamp = currentTimestamp;
+
+	clearScreen();
+    drawSquare();
+    drawUI();
 	
-	score += deltaTime;
-	
-	for(i=0;i<frameMultiplier;i++) {
-		moveSquare();
-        clearScreen();
-        drawSquare();
-		updateObstacles(deltaTime);
-		drawUI()
+	if (!gameOver && !paused) {
+        for (let i = 0; i < frameMultiplier; i++) {
+            moveSquare();
+            updateObstacles(deltaTime);
+			score += deltaTime;
+        }
 	}
 	
-
 	requestAnimationFrame(nextFrame);
 }
 
