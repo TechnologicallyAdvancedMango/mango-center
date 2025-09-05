@@ -126,14 +126,17 @@ document.addEventListener('keyup', (event) => {
 document.addEventListener('keydown', (event) => {
     if (event.code === "Escape") {
         paused = !paused;
-        console.log(paused ? "Paused" : "Unpaused");
-	}
+        if (!paused) {
+            lastTimestamp = performance.now(); //resets deltaTime after pause
+        }
+    }
 });
 
 
 
+
 function getOffscreenSpawn(size) {
-    const edge = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
+    const edge = Math.floor(Math.random() * 4); //0=top, 1=right, 2=bottom, 3=left
     let x, y;
 
     switch (edge) {
