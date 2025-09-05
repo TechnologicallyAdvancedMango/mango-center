@@ -404,6 +404,9 @@ function performDash() {
 	dashSound.play();
 }
 
+function highscore() {
+	localStorage.setItem("highscore", score);
+}
 
 function die() {
 	console.log("Dead!");
