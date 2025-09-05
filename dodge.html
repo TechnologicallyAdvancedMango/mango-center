@@ -1,0 +1,354 @@
+<!doctype html>
+<html>
+<head>
+	<title>Dodge</title>
+<style>
+	body{
+		background-color: black;
+		
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+	}
+
+	#canvas{
+		border-color: red;
+		border-width: 0px;
+		border-style: solid;
+
+		background-color: black;
+		
+		margin: 0;
+		padding: 0;
+	}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="100" height="100"></canvas>
+<button id="respawnBtn" onclick="respawn()" style="
+    display: none;
+    position: fixed;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    font-size: 24px;
+    padding: 10px 20px;
+    background-color: #222;
+    color: #fff;
+    border: 2px solid #40ff90;
+    border-radius: 8px;
+    cursor: pointer;
+">
+    Respawn
+</button>
+
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function updateCanvasDimensions() {
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
+}
+
+
+
+
+//Customization variables:
+//--------------------------------------------------------------------
+
+//Colors:
+let squareMainColor = "#ffffff";
+let squareBorderColor = "#808080";
+
+//Square dimensions:
+let squareSizeX = 30;
+let squareSizeY = 30;
+
+//Player:
+let playerSpeed = 6000;
+
+//Environment:
+let drag = 0.1;
+
+//Extras:
+const frameMultiplier = 1;
+
+//--------------------------------------------------------------------
+let gameOver = false;
+let score = 0;
+
+let xSpeed = 0;
+let ySpeed = 0;
+
+var squareX = 0;
+var squareY = 0;
+
+
+let wDown = false;
+let sDown = false;
+let aDown = false;
+let dDown = false;
+
+document.addEventListener('keydown', (event) => {
+    if(event.code === "KeyW") {
+        wDown = true;
+    }
+    if(event.code === "KeyS") {
+        sDown = true;
+    }
+    if(event.code === "KeyA") {
+        aDown = true;
+    }
+    if(event.code === "KeyD") {
+        dDown = true;
+    }
+});
+
+document.addEventListener('keyup', (event) => {
+    if(event.code === "KeyW") {
+        wDown = false;
+    }
+    if(event.code === "KeyS") {
+        sDown = false;
+    }
+    if(event.code === "KeyA") {
+        aDown = false;
+    }
+    if(event.code === "KeyD") {
+        dDown = false;
+    }
+});
+
+
+function getOffscreenSpawn(size) {
+    const edge = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
+    let x, y;
+
+    switch (edge) {
+        case 0: // top
+            x = Math.random() * canvas.width;
+            y = -size;
+            break;
+        case 1: // right
+            x = canvas.width + size;
+            y = Math.random() * canvas.height;
+            break;
+        case 2: // bottom
+            x = Math.random() * canvas.width;
+            y = canvas.height + size;
+            break;
+        case 3: // left
+            x = -size;
+            y = Math.random() * canvas.height;
+            break;
+    }
+    return { x, y };
+}
+
+function getAngleToPlayer(fromX, fromY) {
+    const dx = squareX + squareSizeX / 2 - fromX;
+    const dy = squareY + squareSizeY / 2 - fromY;
+    return Math.atan2(dy, dx) * (180 / Math.PI); // degrees
+}
+
+class Obstacle {
+    constructor(x, y, speed, angleDeg, size = 20) {
+        this.x = x;
+        this.y = y;
+        this.speed = speed; // pixels per second
+        this.angle = angleDeg * (Math.PI / 180); // convert to radians
+        this.size = size;
+    }
+
+    update(deltaTime) {
+        this.x += Math.cos(this.angle) * this.speed * deltaTime;
+        this.y += Math.sin(this.angle) * this.speed * deltaTime;
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = "#ff0000";
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+
+//Global array to hold obstacles
+const obstacles = [];
+
+function spawnObstacle(x, y, speed, angleDeg, size = 20) {
+    obstacles.push(new Obstacle(x, y, speed, angleDeg, size));
+}
+
+let obstacleTimer = 0;
+const obstacleInterval = 1; // seconds
+let obstacleSpeedMultiplier = 1;
+
+function updateObstacles(deltaTime) {
+    obstacleTimer += deltaTime;
+    if (obstacleTimer >= obstacleInterval) {
+        obstacleTimer = 0;
+
+        const size = 80;
+        const speed = 150 * obstacleSpeedMultiplier;
+
+        // Spawn outside screen
+        const spawn = getOffscreenSpawn(size);
+
+        // Aim toward player
+        const angle = getAngleToPlayer(spawn.x, spawn.y);
+
+        // Create obstacle
+        spawnObstacle(spawn.x, spawn.y, speed, angle, size);
+		
+		// +1% Obstacle speed every spawn
+		obstacleSpeedMultiplier *= 1.01;
+    }
+
+    // Update, draw, and check collision
+    for (let obs of obstacles) {
+        obs.update(deltaTime);
+        obs.draw(ctx);
+
+        if (rectCircleCollides(squareX, squareY, squareSizeX, squareSizeY, obs.x, obs.y, obs.size)) {
+            die();
+        }
+    }
+}
+
+
+//Enemy collision complicated stuff
+function rectCircleCollides(rx, ry, rw, rh, cx, cy, cr) {
+    const closestX = Math.max(rx, Math.min(cx, rx + rw));
+    const closestY = Math.max(ry, Math.min(cy, ry + rh));
+    const dx = cx - closestX;
+    const dy = cy - closestY;
+    return (dx * dx + dy * dy) < (cr * cr);
+}
+
+
+let lastTimestamp = 0;
+let deltaTime;
+
+function nextFrame(currentTimestamp) {
+	if(gameOver) return; //Stop if dead
+	//Every frame:
+	
+	deltaTime = (currentTimestamp - lastTimestamp) / 1000;
+    lastTimestamp = currentTimestamp;
+	
+	score += deltaTime;
+	
+	for(i=0;i<frameMultiplier;i++) {
+		moveSquare();
+        clearScreen();
+        drawSquare();
+		updateObstacles(deltaTime);
+		drawUI()
+	}
+	
+
+	requestAnimationFrame(nextFrame);
+}
+
+function drawSquare() {
+    ctx.beginPath();
+    
+	ctx.fillStyle = squareMainColor;
+	ctx.strokeStyle = squareBorderColor;
+	ctx.lineWidth = "8";
+    
+	ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
+	ctx.stroke();
+	ctx.fill();
+}
+
+function onCollision(direction) {
+	if(direction === "left") xSpeed = Math.abs(xSpeed);
+	if(direction === "right") xSpeed = -Math.abs(xSpeed);
+	if(direction === "top") ySpeed = Math.abs(ySpeed);
+	if(direction === "bottom") ySpeed = -Math.abs(ySpeed);
+	
+	console.log("Collided " + direction);
+}
+
+function moveSquare() {
+	const newX = squareX + xSpeed * deltaTime;
+    const newY = squareY + ySpeed * deltaTime;
+
+    if(wDown) ySpeed -= playerSpeed * deltaTime;
+	if(sDown) ySpeed += playerSpeed * deltaTime;
+	if(aDown) xSpeed -= playerSpeed * deltaTime;
+	if(dDown) xSpeed += playerSpeed * deltaTime;
+
+	//Acceleration:
+    const damping = Math.pow(1 - drag, deltaTime * 60); // normalize to 60fps
+	xSpeed *= damping;
+	ySpeed *= damping;
+
+
+    // Check if any part of the square goes beyond the canvas edges
+	//Left
+	if(newX < 0) onCollision("left"); 
+	//Right
+	if(newX + squareSizeX > canvas.width) onCollision("right");
+	//Top
+	if(newY < 0) onCollision("top");
+	//Bottom
+	if(newY + squareSizeY > canvas.height) onCollision("bottom");
+    
+	squareX = newX;
+	squareY = newY;
+}
+
+function drawUI() {
+	ctx.fillStyle = "#40ff90";
+	ctx.font = "24px monospace";
+	ctx.textAlign = "left";
+	ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
+}
+
+function die() {
+	console.log("Dead!");
+	gameOver = true;
+	
+	//Show message:
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "48px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("You Died", canvas.width / 2, canvas.height / 2);
+	
+	//Show respawn button
+	document.getElementById("respawnBtn").style.display = "block";
+}
+
+function respawn() {
+	location.reload();
+}
+
+function clearScreen() {
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	//that doesn't work for some reason but this does:
+	canvas.width = canvas.width;
+}
+
+
+
+updateCanvasDimensions();
+//Starting positions:
+squareX = canvas.width/2 - squareSizeX/2;
+squareY = canvas.height/2 - squareSizeY/2;
+
+//Start the loop
+requestAnimationFrame(nextFrame);
+
+
+
+</script>
+</body>
+</html>
