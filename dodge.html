@@ -72,8 +72,8 @@ let squareSizeY = 30;
 
 //Player:
 let playerSpeed = 6000;
-let dashCooldown = 2; // seconds
-const dashDistance = 250;
+let dashCooldown = 5; // seconds
+const dashDistance = 400;
 
 
 //Environment:
@@ -392,6 +392,9 @@ function performDash() {
     if (sDown) squareY += dashDistance;
     if (aDown) squareX -= dashDistance;
     if (dDown) squareX += dashDistance;
+
+	xSpeed *= 2;
+	ySpeed *= 2;
 
     // Clamp to canvas bounds
     squareX = Math.max(0, Math.min(canvas.width - squareSizeX, squareX));
