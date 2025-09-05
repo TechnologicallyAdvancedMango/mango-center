@@ -256,13 +256,13 @@ function nextFrame(currentTimestamp) {
 
 	clearScreen();
     drawSquare();
+	drawUI();
 	
 	if (!gameOver && !paused) {
         for (let i = 0; i < frameMultiplier; i++) {
             moveSquare();
             updateObstacles(deltaTime);
 			score += deltaTime;
-			drawUI();
         }
 	}
 	
