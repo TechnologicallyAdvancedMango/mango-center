@@ -72,6 +72,9 @@ let squareSizeY = 30;
 
 //Player:
 let playerSpeed = 6000;
+let dashCooldown = 2; // seconds
+const dashDistance = 150;
+
 
 //Environment:
 let drag = 0.1;
@@ -83,6 +86,9 @@ const frameMultiplier = 1;
 let gameOver = false;
 let score = 0;
 let paused = false;
+
+let dashTimer = 0;
+let canDash = true;
 
 let xSpeed = 0;
 let ySpeed = 0;
@@ -126,12 +132,22 @@ document.addEventListener('keyup', (event) => {
     }
 });
 
+//Pause
 document.addEventListener('keydown', (event) => {
     if (event.code === "Escape") {
         paused = !paused;
         if (!paused) {
             lastTimestamp = performance.now(); //resets deltaTime after pause
         }
+    }
+});
+
+//Dash
+document.addEventListener('keydown', (event) => {
+    if (event.code === "Space" && canDash && !paused && !gameOver) {
+        performDash();
+        canDash = false;
+        dashTimer = 0;
     }
 });
 
@@ -256,6 +272,13 @@ function nextFrame(currentTimestamp) {
 	if (!gameOver && !paused) {
         for (let i = 0; i < frameMultiplier; i++) {
             moveSquare();
+			//Dash
+			if (!canDash) {
+    			dashTimer += deltaTime;
+    			if (dashTimer >= dashCooldown) {
+        			canDash = true;
+    			}
+			}
             updateObstacles(deltaTime);
 			score += deltaTime;
         }
@@ -344,6 +367,33 @@ function drawUI() {
         ctx.textAlign = "center";
         ctx.fillText("YOU DIED", canvas.width / 2, canvas.height / 2);
     }
+	
+	//Dash bar
+	if (!canDash) {
+    	const barWidth = 200;
+    	const barHeight = 10;
+    	const x = canvas.width / 2 - barWidth / 2;
+    	const y = canvas.height - 30;
+	
+    	const progress = dashTimer / dashCooldown;
+	
+    	ctx.fillStyle = "#444";
+    	ctx.fillRect(x, y, barWidth, barHeight);
+	
+    	ctx.fillStyle = "#40ff90";
+    	ctx.fillRect(x, y, barWidth * progress, barHeight);
+	}
+}
+
+function performDash() {
+    if (wDown) squareY -= dashDistance;
+    if (sDown) squareY += dashDistance;
+    if (aDown) squareX -= dashDistance;
+    if (dDown) squareX += dashDistance;
+
+    // Clamp to canvas bounds
+    squareX = Math.max(0, Math.min(canvas.width - squareSizeX, squareX));
+    squareY = Math.max(0, Math.min(canvas.height - squareSizeY, squareY));
 }
 
 
