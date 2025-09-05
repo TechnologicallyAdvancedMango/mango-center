@@ -136,8 +136,6 @@ document.addEventListener('keydown', (event) => {
 });
 
 
-
-
 function getOffscreenSpawn(size) {
     const edge = Math.floor(Math.random() * 4); //0=top, 1=right, 2=bottom, 3=left
     let x, y;
@@ -368,7 +366,6 @@ function clearScreen() {
 }
 
 
-
 updateCanvasDimensions();
 //Starting positions:
 squareX = canvas.width/2 - squareSizeX/2;
@@ -376,9 +373,6 @@ squareY = canvas.height/2 - squareSizeY/2;
 
 //Start the loop
 requestAnimationFrame(nextFrame);
-
-
-
 </script>
 </body>
 </html>
