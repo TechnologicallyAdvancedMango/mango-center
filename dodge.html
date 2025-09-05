@@ -55,8 +55,6 @@ function updateCanvasDimensions() {
 }
 
 
-
-
 //Customization variables:
 //--------------------------------------------------------------------
 
@@ -80,6 +78,7 @@ const frameMultiplier = 1;
 //--------------------------------------------------------------------
 let gameOver = false;
 let score = 0;
+let paused = false;
 
 let xSpeed = 0;
 let ySpeed = 0;
@@ -122,6 +121,14 @@ document.addEventListener('keyup', (event) => {
         dDown = false;
     }
 });
+
+document.addEventListener('keydown', (event) => {
+    if (event.code === "Escape") {
+        paused = !paused;
+        console.log(paused ? "Paused" : "Unpaused");
+	}
+});
+
 
 
 function getOffscreenSpawn(size) {
@@ -236,7 +243,10 @@ let lastTimestamp = 0;
 let deltaTime;
 
 function nextFrame(currentTimestamp) {
-	if(gameOver) return; //Stop if dead
+	if (gameOver || paused) {
+        requestAnimationFrame(nextFrame); //still loop to check for unpause
+        return;
+	}
 	//Every frame:
 	
 	deltaTime = (currentTimestamp - lastTimestamp) / 1000;
@@ -307,10 +317,21 @@ function moveSquare() {
 }
 
 function drawUI() {
+	//Score text:
 	ctx.fillStyle = "#40ff90";
 	ctx.font = "24px monospace";
 	ctx.textAlign = "left";
 	ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
+	//Pause screen:
+	if (paused) {
+		ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		
+		ctx.fillStyle = "#ffffff";
+		ctx.font = "48px sans-serif";
+		ctx.textAlign = "center";
+		ctx.fillText("Paused", canvas.width / 2, canvas.height / 2);
+	}
 }
 
 function die() {
