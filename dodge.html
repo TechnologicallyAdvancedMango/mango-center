@@ -55,6 +55,9 @@ function updateCanvasDimensions() {
 	canvas.height = window.innerHeight;
 }
 
+window.onblur = function() {
+	paused = true;
+};
 
 //Customization variables:
 //--------------------------------------------------------------------
