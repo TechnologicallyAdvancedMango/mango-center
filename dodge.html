@@ -66,6 +66,14 @@ window.onblur = function() {
 let squareMainColor = "#ffffff";
 let squareBorderColor = "#808080";
 
+const obstacleColors = {
+	0: "#ff0000",
+	25: "#ffff00",
+	50: "#00ff00",
+	100: "#00ffff",
+	200: "#0000ff"
+};
+
 //Square dimensions:
 let squareSizeX = 30;
 let squareSizeY = 30;
@@ -187,6 +195,15 @@ function getAngleToPlayer(fromX, fromY) {
     return Math.atan2(dy, dx) * (180 / Math.PI); // degrees
 }
 
+function getObstacleColor(score) {
+  for (let key in obstacleColors) {
+    if (key <= score) {
+      return obstacleColors[key];
+    }
+  }
+  return null; // return null if no matching key is found
+}
+
 class Obstacle {
     constructor(x, y, speed, angleDeg, size = 20) {
         this.x = x;
@@ -202,7 +219,7 @@ class Obstacle {
     }
 
     draw(ctx) {
-        ctx.fillStyle = "#ff0000";
+        ctx.fillStyle = getObstacleColor(score);
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
