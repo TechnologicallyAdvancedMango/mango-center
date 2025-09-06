@@ -354,7 +354,7 @@ function drawUI() {
     ctx.fillStyle = "#40ff90";
     ctx.font = "24px monospace";
     ctx.textAlign = "right";
-    ctx.fillText(`Score: ${Math.floor(highscore)}`, 20, 40);
+    ctx.fillText(`Score: ${Math.floor(highscore)}`, canvas.width - 20, 40);
 
     //Pause screen
     if (paused) {
