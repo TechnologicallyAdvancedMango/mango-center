@@ -376,6 +376,13 @@ function drawUI() {
         ctx.font = "bold 64px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText("YOU DIED", canvas.width / 2, canvas.height / 2);
+		//New highscore text:
+		if(score >= highscore) {
+			ctx.fillStyle = "#ffff00";
+        	ctx.font = "bold 48px sans-serif";
+        	ctx.textAlign = "center";
+        	ctx.fillText("New Highscore!", canvas.width / 2, 40);
+		}
     }
 	
 	//Dash bar
