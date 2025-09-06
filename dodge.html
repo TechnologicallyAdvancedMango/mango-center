@@ -218,7 +218,7 @@ function spawnObstacle(x, y, speed, angleDeg, size = 20) {
 }
 
 let obstacleTimer = 0;
-const obstacleInterval = 1; // seconds
+let obstacleInterval = 1.5; // seconds
 let obstacleSpeedMultiplier = 1;
 
 function updateObstacles(deltaTime) {
@@ -238,8 +238,10 @@ function updateObstacles(deltaTime) {
         // Create obstacle
         spawnObstacle(spawn.x, spawn.y, speed, angle, size);
 		
-		// +5% Obstacle speed every spawn
-		obstacleSpeedMultiplier *= 1.05;
+		// +3% Obstacle speed every spawn
+		obstacleSpeedMultiplier *= 1.03;
+		// +3% Spawn speed every spawn
+		obstacleInterval *= 1.03;
     }
 
     // Update, draw, and check collision
