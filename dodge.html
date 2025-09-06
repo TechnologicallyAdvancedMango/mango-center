@@ -271,6 +271,7 @@ function nextFrame(currentTimestamp) {
 	//Every frame:
 	deltaTime = (currentTimestamp - lastTimestamp) / 1000;
     lastTimestamp = currentTimestamp;
+	doHighscore();
 
 	clearScreen();
 	if (!gameOver && !paused) {
