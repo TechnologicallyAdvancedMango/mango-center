@@ -240,8 +240,8 @@ function updateObstacles(deltaTime) {
 		
 		// +3% Obstacle speed every spawn
 		obstacleSpeedMultiplier *= 1.03;
-		// +3% Spawn speed every spawn
-		obstacleInterval *= 1.03;
+		// -3% Spawn cooldown every spawn
+		obstacleInterval *= 0.97;
     }
 
     // Update, draw, and check collision
