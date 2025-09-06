@@ -227,7 +227,7 @@ function updateObstacles(deltaTime) {
         obstacleTimer = 0;
 
         const size = Math.random() * (100 - 20) + 20; //Random size between 20 and 100
-        const speed = 150 * obstacleSpeedMultiplier + Math.random() * (50 - -50) + -50; // 150 + 1% every obstacle spawned plus or minus 50
+        const speed = 150 * obstacleSpeedMultiplier + Math.random() * (50 - -50) + -50; // 150 + speed multiplier plus or minus 50
 
         // Spawn outside screen
         const spawn = getOffscreenSpawn(size);
@@ -238,8 +238,8 @@ function updateObstacles(deltaTime) {
         // Create obstacle
         spawnObstacle(spawn.x, spawn.y, speed, angle, size);
 		
-		// +1% Obstacle speed every spawn
-		obstacleSpeedMultiplier *= 1.01;
+		// +5% Obstacle speed every spawn
+		obstacleSpeedMultiplier *= 1.05;
     }
 
     // Update, draw, and check collision
