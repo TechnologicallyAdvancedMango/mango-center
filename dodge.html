@@ -405,7 +405,10 @@ function performDash() {
 }
 
 function doHighscore() {
-	localStorage.setItem("highscore", score);
+	if(score > highscore) {
+		localStorage.setItem("highscore", score);
+		highscore = score;
+	}
 }
 
 function die() {
