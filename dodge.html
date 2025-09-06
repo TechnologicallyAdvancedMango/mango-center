@@ -219,7 +219,7 @@ class Obstacle {
     }
 
     draw(ctx) {
-        ctx.fillStyle = getObstacleColor(score);
+        ctx.fillStyle = getObstacleColor(Math.floor(score)); //Obstacle color based on score
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
