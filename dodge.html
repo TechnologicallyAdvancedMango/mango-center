@@ -271,7 +271,6 @@ function nextFrame(currentTimestamp) {
 	//Every frame:
 	deltaTime = (currentTimestamp - lastTimestamp) / 1000;
     lastTimestamp = currentTimestamp;
-	doHighscore();
 
 	clearScreen();
 	if (!gameOver && !paused) {
@@ -351,6 +350,12 @@ function drawUI() {
     ctx.textAlign = "left";
     ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
 
+	//Highscore text
+    ctx.fillStyle = "#40ff90";
+    ctx.font = "24px monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(`Score: ${Math.floor(highscore)}`, 20, 40);
+
     //Pause screen
     if (paused) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
@@ -415,7 +420,8 @@ function doHighscore() {
 function die() {
 	console.log("Dead!");
 	gameOver = true;
-	
+	//Check/set highscore
+	doHighscore();
 	//Show respawn button
 	document.getElementById("respawnBtn").style.display = "block";
 }
