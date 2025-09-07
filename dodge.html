@@ -196,13 +196,18 @@ function getAngleToPlayer(fromX, fromY) {
 }
 
 function getObstacleColor(score) {
-  for (let key in obstacleColors) {
-    if (Number(key) <= score) {
+  const keys = Object.keys(obstacleColors)
+    .map(Number)
+    .sort((a, b) => b - a); // highest to lowest
+
+  for (let key of keys) {
+    if (score >= key) {
       return obstacleColors[key];
     }
   }
-  return null; // return null if no matching key is found
+  return null;
 }
+
 
 class Obstacle {
     constructor(x, y, speed, angleDeg, size = 20) {
