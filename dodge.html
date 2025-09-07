@@ -43,6 +43,22 @@
 ">
     Respawn
 </button>
+<input id="debugCodeInput" type="text" placeholder="Enter debug code" style="
+    display: none;
+    position: fixed;
+    top: 70%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    font-size: 20px;
+    padding: 8px 16px;
+    background-color: #111;
+    color: #0f0;
+    border: 2px solid #0f0;
+    border-radius: 6px;
+    text-align: center;
+">
+
 
 
 <script>
@@ -89,6 +105,18 @@ let drag = 0.1;
 
 //Extras:
 const frameMultiplier = 1;
+
+//Debug Codes:
+let playerInvincible = false;
+
+const debugCodes = {
+  "GODMODE": () => playerInvincible = true,
+  "CLEAR": () => obstacles.length = 0,
+  "PARTY": () => squareMainColor = "#ff69b4",
+  "SPEED": () => playerSpeed *= 1.5,
+  "RESET": () => location.reload(),
+};
+
 
 //--------------------------------------------------------------------
 let gameOver = false;
@@ -149,10 +177,14 @@ document.addEventListener('keydown', (event) => {
     if (event.code === "Escape") {
         paused = !paused;
         if (!paused) {
-            lastTimestamp = performance.now(); //resets deltaTime after pause
+            lastTimestamp = performance.now();
         }
+
+        //Toggle debug UI
+        document.getElementById("debugCodeInput").style.display = paused ? "block" : "none";
     }
 });
+
 
 //Dash
 document.addEventListener('keydown', (event) => {
@@ -162,6 +194,25 @@ document.addEventListener('keydown', (event) => {
         dashTimer = 0;
     }
 });
+
+//Auto submit debug code on enter
+document.getElementById("debugCodeInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    submitDebugCode();
+  }
+});
+
+
+function submitDebugCode() {
+  const input = document.getElementById("debugCodeInput").value.trim().toUpperCase();
+  if (debugCodes[input]) {
+    debugCodes[input]();
+    console.log(`Activated: ${input}`);
+  } else {
+    console.warn(`Unknown code: ${input}`);
+  }
+  document.getElementById("debugCodeInput").value = "";
+}
 
 
 function getOffscreenSpawn(size) {
@@ -271,9 +322,9 @@ function updateObstacles(deltaTime) {
         obs.update(deltaTime);
         obs.draw(ctx);
 
-        if (rectCircleCollides(squareX, squareY, squareSizeX, squareSizeY, obs.x, obs.y, obs.size)) {
-            die();
-        }
+        if (!playerInvincible && rectCircleCollides(squareX, squareY, squareSizeX, squareSizeY, obs.x, obs.y, obs.size)) {
+  			die();
+		}
     }
 }
 
