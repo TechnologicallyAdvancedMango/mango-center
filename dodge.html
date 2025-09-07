@@ -110,10 +110,15 @@ let frameMultiplier = 1;
 let playerInvincible = false;
 
 const debugCodes = {
-  	"GODMODE": () => playerInvincible = true,
+  	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
   	"SPEED": () => playerSpeed *= 1.5,
-  	"RESET": () => location.reload(),
+  	"SCORE": (num) => {
+		score = num;
+	},
+	"HIGHSCORE": (num) => {
+		highscore = num;
+	},
 	"RUSH": () => frameMultiplier = 2,
 	"ICE": () => drag = 0,
 	"INFDASH": () => dashCooldown = 0
@@ -206,15 +211,32 @@ document.getElementById("debugCodeInput").addEventListener("keydown", (e) => {
 
 
 function submitDebugCode() {
-  const input = document.getElementById("debugCodeInput").value.trim().toUpperCase();
-  if (debugCodes[input]) {
-    debugCodes[input]();
-    console.log(`Activated: ${input}`);
-  } else {
-    console.warn(`Unknown code: ${input}`);
+  const rawInput = document.getElementById("debugCodeInput").value;
+  const lines = rawInput.split("\n").map(line => line.trim()).filter(Boolean);
+
+  for (let line of lines) {
+    const parts = line.split(/\s+/); // split by whitespace
+    const command = parts[0].toUpperCase();
+    const args = parts.slice(1);
+
+    const handler = debugCodes[command];
+
+    if (!handler) {
+      console.warn(`Unknown devcode: ${command}`);
+      continue;
+    }
+
+    // If the handler expects arguments, pass them
+    if (handler.length > 0) {
+      handler(...args);
+    } else {
+      handler(); // legacy devcode
+    }
   }
+
   document.getElementById("debugCodeInput").value = "";
 }
+
 
 
 function getOffscreenSpawn(size) {
