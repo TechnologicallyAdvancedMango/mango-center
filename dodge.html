@@ -197,7 +197,7 @@ function getAngleToPlayer(fromX, fromY) {
 
 function getObstacleColor(score) {
   for (let key in obstacleColors) {
-    if (key <= score) {
+    if (Number(key) <= score) {
       return obstacleColors[key];
     }
   }
