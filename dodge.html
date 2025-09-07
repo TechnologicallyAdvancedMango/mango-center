@@ -122,10 +122,13 @@ const debugCodes = {
 	},
 	"RUSH": () => frameMultiplier = 2,
 	"ICE": () => drag = 0,
-	"INFDASH": () => dashCooldown = 0
+	"INFDASH": () => dashCooldown = 0,
+	"HIDEOBS": () => obsHidden = true
 };
 
 let debugUsed = false;
+
+let obsHidden = false;
 
 //--------------------------------------------------------------------
 let gameOver = false;
@@ -274,16 +277,20 @@ function getAngleToPlayer(fromX, fromY) {
 }
 
 function getObstacleColor(score) {
-  const keys = Object.keys(obstacleColors)
-    .map(Number)
-    .sort((a, b) => b - a); // highest to lowest
-
-  for (let key of keys) {
-    if (score >= key) {
-      return obstacleColors[key];
-    }
-  }
-  return null;
+	//Return black if hidden
+	if(obsHidden) {
+		return "#000000";
+	}
+  	const keys = Object.keys(obstacleColors)
+    	.map(Number)
+    	.sort((a, b) => b - a); //highest to lowest
+	
+  	for (let key of keys) {
+    	if (score >= key) {
+      		return obstacleColors[key];
+    	}
+  	}
+  	return null;
 }
 
 
