@@ -124,6 +124,7 @@ const debugCodes = {
 	"INFDASH": () => dashCooldown = 0
 };
 
+let debugUsed = false;
 
 //--------------------------------------------------------------------
 let gameOver = false;
@@ -225,12 +226,13 @@ function submitDebugCode() {
       console.warn(`Unknown devcode: ${command}`);
       continue;
     }
-
-    // If the handler expects arguments, pass them
+	  
+	debugUsed = true;
+    //If the handler expects arguments, pass them
     if (handler.length > 0) {
       handler(...args);
     } else {
-      handler(); // legacy devcode
+      handler(); //legacy devcode
     }
   }
 
@@ -517,7 +519,7 @@ function performDash() {
 }
 
 function doHighscore() {
-	if(score > highscore) {
+	if(score > highscore && !debugUsed) {
 		localStorage.setItem("highscore", score);
 		highscore = score;
 	}
