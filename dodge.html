@@ -114,8 +114,9 @@ const debugCodes = {
   	"CLEAR": () => obstacles.length = 0,
   	"SPEED": () => playerSpeed *= 1.5,
   	"RESET": () => location.reload(),
-	"RUSH": () => frameMultiplier = 2
-	"ICE": () => drag = 0;
+	"RUSH": () => frameMultiplier = 2,
+	"ICE": () => drag = 0,
+	"INFDASH": () => dashCooldown = 0
 };
 
 
