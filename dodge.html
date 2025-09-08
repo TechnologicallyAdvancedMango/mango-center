@@ -111,7 +111,7 @@ let frameMultiplier = 1;
 let playerInvincible = false;
 
 const debugCodes = {
-	"HELP": () => alert("This is for the developer, not you"),
+	"HELP": () => alert(debugCodes),
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
@@ -122,8 +122,8 @@ const debugCodes = {
 	"HIGHSCORE": (num) => {
 		highscore = Number(num);
 	},
-	"RUSH": () => frameMultiplier = 2,
-	"ICE": () => drag = 0,
+	"RUSH": () => frameMultiplier *= 2,
+	"ICE": () => drag *= 0.1,
 	"INFDASH": () => dashCooldown = 0,
 	"HIDEOBS": () => obsHidden = true
 };
