@@ -111,7 +111,7 @@ let frameMultiplier = 1;
 let playerInvincible = false;
 
 const devCodes = {
-	"CMDS": () => alert("Commands: " + Object.keys(devCodes)),
+	"CMDS": () => alert("Commands: " + toString(Object.keys(devCodes))),
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
