@@ -96,7 +96,8 @@ let squareSizeX = 30;
 let squareSizeY = 30;
 
 //Player:
-let playerSpeed = 6000;
+let basePlayerSpeed = 6000;
+let playerSpeed;
 let dashCooldown = 5; // seconds
 const dashDistance = 400;
 
@@ -115,7 +116,7 @@ const devCodes = {
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
-  	"SPEED": () => playerSpeed *= 1.5,
+  	"SPEED": (num) => playerSpeed = basePlayerSpeed * num,
   	"SCORE": (num) => {
 		score = Number(num);
 	},
@@ -125,7 +126,11 @@ const devCodes = {
 	"RUSH": () => frameMultiplier *= 2,
 	"ICE": () => drag *= 0.1,
 	"INFDASH": () => dashCooldown = 0,
-	"HIDEOBS": () => obsHidden = true
+	"HIDEOBS": () => obsHidden = true,
+	"SIZE": (x, y) => {
+		squareSizeX = x;
+		squareSizeY = Y;
+	}
 };
 
 let debugUsed = false;
@@ -136,6 +141,8 @@ let obsHidden = false;
 let gameOver = false;
 let score = 0;
 let paused = false;
+
+playerSpeed = basePlayerSpeed;
 
 let highscore = localStorage.getItem("highscore") ?? 0;
 
