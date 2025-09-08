@@ -111,7 +111,7 @@ let frameMultiplier = 1;
 let playerInvincible = false;
 
 const debugCodes = {
-	"HELP": () => alert(debugCodes),
+	"HELP": () => alert(JSON.stringify(debugCodes)),
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
