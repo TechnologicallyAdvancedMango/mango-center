@@ -112,6 +112,7 @@ let playerInvincible = false;
 
 const debugCodes = {
 	"HELP": () => alert("This is for the developer, not you"),
+	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
   	"SPEED": () => playerSpeed *= 1.5,
