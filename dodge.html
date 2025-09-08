@@ -43,7 +43,7 @@
 ">
     Respawn
 </button>
-<input id="debugCodeInput" type="text" placeholder="Enter debug code" style="
+<input id="devCodeInput" type="text" placeholder="Enter debug code" style="
     display: none;
     position: fixed;
     top: 70%;
@@ -110,8 +110,8 @@ let frameMultiplier = 1;
 //Debug Codes:
 let playerInvincible = false;
 
-const debugCodes = {
-	"HELP": () => alert(JSON.stringify(debugCodes)),
+const devCodes = {
+	"CMDS": () => alert("Commands: " + Object.keys(devCodes),
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
@@ -195,7 +195,7 @@ document.addEventListener('keydown', (event) => {
         }
 
         //Toggle debug UI
-        document.getElementById("debugCodeInput").style.display = paused ? "block" : "none";
+        document.getElementById("devCodeInput").style.display = paused ? "block" : "none";
     }
 });
 
@@ -210,7 +210,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 //Auto submit debug code on enter
-document.getElementById("debugCodeInput").addEventListener("keydown", (e) => {
+document.getElementById("devCodeInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     submitDebugCode();
   }
@@ -218,7 +218,7 @@ document.getElementById("debugCodeInput").addEventListener("keydown", (e) => {
 
 
 function submitDebugCode() {
-  const rawInput = document.getElementById("debugCodeInput").value;
+  const rawInput = document.getElementById("devCodeInput").value;
   const lines = rawInput.split("\n").map(line => line.trim()).filter(Boolean);
 
   for (let line of lines) {
@@ -226,7 +226,7 @@ function submitDebugCode() {
     const command = parts[0].toUpperCase();
     const args = parts.slice(1);
 
-    const handler = debugCodes[command];
+    const handler = devCodes[command];
 
     if (!handler) {
       console.warn(`Unknown devcode: ${command}`);
@@ -242,7 +242,7 @@ function submitDebugCode() {
     }
   }
 
-  document.getElementById("debugCodeInput").value = "";
+  document.getElementById("devCodeInput").value = "";
 }
 
 
