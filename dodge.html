@@ -116,10 +116,10 @@ const debugCodes = {
   	"CLEAR": () => obstacles.length = 0,
   	"SPEED": () => playerSpeed *= 1.5,
   	"SCORE": (num) => {
-		score = num;
+		score = Number(num);
 	},
 	"HIGHSCORE": (num) => {
-		highscore = num;
+		highscore = Number(num);
 	},
 	"RUSH": () => frameMultiplier = 2,
 	"ICE": () => drag = 0,
