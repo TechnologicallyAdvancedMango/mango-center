@@ -60,7 +60,7 @@
 ">
 
 <div id="tutorialBox" style="
-		display: none;
+		display: block;
 		position: fixed;
 		top: 50%;
     	left: 50%;
@@ -86,8 +86,8 @@ const params = new URLSearchParams(queryString);
 const tutorial = params.get("tutorial");
 
 const tutorialElement = document.getElementById("tutorialBox");
-if(tutorial) {
-	tutorialElement.style.display = "solid";
+if(!tutorial) {
+	tutorialElement.style.display = "none";
 }
 
 function updateCanvasDimensions() {
