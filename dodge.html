@@ -595,8 +595,8 @@ function clearScreen() {
 }
 
 function closeTutorial() {
-	tutorialElement.style.display = 'none'
-	requestAnimationFrame(nextFrame); //Start the game
+	tutorialElement.style.display = 'none';
+	window.location = "https://www.themango.click/dodge?tutorial=false"; //Refresh but without tutorial
 }
 
 updateCanvasDimensions();
