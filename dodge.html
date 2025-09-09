@@ -85,7 +85,7 @@ const ctx = canvas.getContext("2d");
 const params = new URLSearchParams(queryString);
 const tutorial = params.get("tutorial");
 
-tutorialElement = document.getElementById("tutorialBox");
+const tutorialElement = document.getElementById("tutorialBox");
 if(tutorial) {
 	tutorialElement.style.display = "solid";
 }
