@@ -73,7 +73,7 @@
 	">
 	<p>Tutorial</p>
 	<p>WASD to move</p>
-	<button onclick="tutorialElement.style.display = 'none'">Close</button>
+	<button onclick="closeTutorial()">Close</button>
 </div>
 
 <script>
@@ -585,6 +585,10 @@ function clearScreen() {
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	//that doesn't work for some reason but this does:
 	canvas.width = canvas.width;
+}
+
+function closeTutorial() {
+	tutorialElement.style.display = 'none'
 }
 
 updateCanvasDimensions();
