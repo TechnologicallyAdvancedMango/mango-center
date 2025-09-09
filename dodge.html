@@ -59,12 +59,36 @@
     text-align: center;
 ">
 
-
+<div id="tutorialBox" style="
+		display: none;
+		position: fixed;
+		top: 50%;
+    	left: 50%;
+		transform: translate(-50%, -50%);
+		background-color: #111;
+		position: fixed;
+		border: 2px solid #0f0;
+    	border-radius: 6px;
+		text-align: center;
+	">
+	<p>Tutorial</p>
+	<p>WASD to move</p>
+	<button onclick="tutorialElement.style.display = 'none'">Close</button>
+</div>
 
 <script>
-
+//Setup canvas
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+
+//Get url parameters
+const params = new URLSearchParams(queryString);
+const tutorial = params.get("tutorial");
+
+tutorialElement = document.getElementById("tutorialBox");
+if(tutorial) {
+	tutorialElement.style.display = "solid";
+}
 
 function updateCanvasDimensions() {
 	canvas.width = window.innerWidth;
