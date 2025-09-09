@@ -88,7 +88,7 @@ const params = url.searchParams;
 const tutorial = params.get("tutorial");
 
 const tutorialElement = document.getElementById("tutorialBox");
-if(!tutorial) {
+if(tutorial === "false") {
 	tutorialElement.style.display = "none";
 }
 
