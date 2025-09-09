@@ -91,7 +91,7 @@ const tutorial = params.get("tutorial");
 const tutorialEnabled = !(tutorial === "false")
 
 const tutorialElement = document.getElementById("tutorialBox");
-if(tutorialEnabled) {
+if(!tutorialEnabled) {
 	tutorialElement.style.display = "none";
 }
 
@@ -601,7 +601,7 @@ squareX = canvas.width/2 - squareSizeX/2;
 squareY = canvas.height/2 - squareSizeY/2;
 
 //Start the loop immediately if tutorial is not shown
-if(tutorialEnabled) requestAnimationFrame(nextFrame);
+if(!tutorialEnabled) requestAnimationFrame(nextFrame);
 	
 </script>
 </body>
