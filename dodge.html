@@ -82,7 +82,9 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 //Get url parameters
-const params = new URLSearchParams(queryString);
+const url = new URL(window.location.href);
+
+const params = url.searchParams;
 const tutorial = params.get("tutorial");
 
 const tutorialElement = document.getElementById("tutorialBox");
