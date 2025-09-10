@@ -370,6 +370,12 @@ let obstacleTimer = 0;
 let obstacleInterval = 1.5; // seconds
 let obstacleSpeedMultiplier = 1;
 
+function drawObstacles {
+	for (let obs of obstacles) {
+        obs.draw(ctx);
+    }
+}
+
 function updateObstacles(deltaTime) {
     obstacleTimer += deltaTime;
     if (obstacleTimer >= obstacleInterval) {
@@ -396,7 +402,6 @@ function updateObstacles(deltaTime) {
     // Update, draw, and check collision
     for (let obs of obstacles) {
         obs.update(deltaTime);
-        obs.draw(ctx);
 
         if (!playerInvincible && rectCircleCollides(squareX, squareY, squareSizeX, squareSizeY, obs.x, obs.y, obs.size)) {
   			die();
@@ -425,6 +430,7 @@ function nextFrame(currentTimestamp) {
 
 	clearScreen();
 	if (!gameOver && !paused) {
+		//Only when not paused
         for (let i = 0; i < frameMultiplier; i++) {
             moveSquare();
 			//Dash
@@ -438,6 +444,7 @@ function nextFrame(currentTimestamp) {
 			score += deltaTime;
         }
 	}
+	drawObstacles();
 	drawSquare();
 	drawUI();
 	
