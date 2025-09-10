@@ -149,12 +149,12 @@ const devCodes = {
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
-  	"SPEED": (num) => playerSpeed = basePlayerSpeed * num,
+  	"SPEED": (num) => playerSpeed = basePlayerSpeed * num ?? 0,
   	"SCORE": (num) => {
-		score = Number(num);
+		score = Number(num) ?? 0;
 	},
 	"HIGHSCORE": (num) => {
-		highscore = Number(num);
+		highscore = Number(num) ?? 0;
 	},
 	"RUSH": () => frameMultiplier *= 2,
 	"ICE": () => {
@@ -164,8 +164,8 @@ const devCodes = {
 	"INFDASH": () => dashCooldown = 0,
 	"HIDEOBS": () => obsHidden = true,
 	"SIZE": (x, y) => {
-		squareSizeX = x;
-		squareSizeY = y;
+		squareSizeX = x ?? 10;
+		squareSizeY = y ?? 10;
 	}
 };
 
