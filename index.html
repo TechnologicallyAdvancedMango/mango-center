@@ -48,7 +48,8 @@
       body {
         background-color: white;
         font-family: Arial, Helvetica, sans-serif;
-        padding: 5px;
+        padding: 0;
+        margin: 0;
       }
       #title {
         color:black;
@@ -71,15 +72,22 @@
       #listDiv {
         margin: 5px 5px 5px 20%;
       }
+      #headerDiv {
+        position: fixed;
+        margin: 0;
+        padding: 5px;
+        border-bottom: 3px solid black;
+      }
     </style>
   </head>
   <body>
-    <div id="clock">
-      <span id="span"></span>
+    <div id="headerDiv">
+      <div id="clock">
+        <span id="span"></span>
+      </div>
+      <h1 id="title">Mango Center</h1>
+      <h2 id="description">A collection of stuff I have made</h2>
     </div>
-    <h1 id="title">Mango Center</h1>
-    <h2 id="description">A collection of stuff I have made</h2>
-    <hr>
     <div id="listDiv">
     <input type="text" id="search" onkeyup="searchGames()" placeholder="Search.." title="Search">
     <br>
@@ -153,6 +161,7 @@ setInterval(time, 1000);
     </script>
   </body>
 </html>
+
 
 
 
