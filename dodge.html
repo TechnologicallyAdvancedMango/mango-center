@@ -149,7 +149,7 @@ const devCodes = {
 	"DIE": () => die(),
   	"GOD": () => playerInvincible = true,
   	"CLEAR": () => obstacles.length = 0,
-  	"SPEED": (num) => playerSpeed = basePlayerSpeed * num ?? 0,
+  	"SPEED": (num) => playerSpeed = basePlayerSpeed * num ?? 1,
   	"SCORE": (num) => {
 		score = Number(num) ?? 0;
 	},
