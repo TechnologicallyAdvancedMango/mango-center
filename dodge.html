@@ -157,7 +157,10 @@ const devCodes = {
 		highscore = Number(num);
 	},
 	"RUSH": () => frameMultiplier *= 2,
-	"ICE": () => drag *= 0.1,
+	"ICE": () => {
+		drag *= 0.1;
+		playerSpeed *= 0.1;
+	},
 	"INFDASH": () => dashCooldown = 0,
 	"HIDEOBS": () => obsHidden = true,
 	"SIZE": (x, y) => {
