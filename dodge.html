@@ -200,31 +200,31 @@ let aDown = false;
 let dDown = false;
 
 document.addEventListener('keydown', (event) => {
-    if(event.code === "KeyW") {
+    if(event.code === "KeyW" || event.code === "ArrowUp") {
         wDown = true;
     }
-    if(event.code === "KeyS") {
+    if(event.code === "KeyS" || event.code === "ArrowDown") {
         sDown = true;
     }
-    if(event.code === "KeyA") {
+    if(event.code === "KeyA" || event.code === "ArrowLeft") {
         aDown = true;
     }
-    if(event.code === "KeyD") {
+    if(event.code === "KeyD" || event.code === "ArrowRight") {
         dDown = true;
     }
 });
 
 document.addEventListener('keyup', (event) => {
-    if(event.code === "KeyW") {
+    if(event.code === "KeyW" || event.code === "ArrowUp") {
         wDown = false;
     }
-    if(event.code === "KeyS") {
+    if(event.code === "KeyS" || event.code === "ArrowDown") {
         sDown = false;
     }
-    if(event.code === "KeyA") {
+    if(event.code === "KeyA" || event.code === "ArrowLeft") {
         aDown = false;
     }
-    if(event.code === "KeyD") {
+    if(event.code === "KeyD" || event.code === "ArrowRight") {
         dDown = false;
     }
 });
