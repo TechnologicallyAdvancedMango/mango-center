@@ -34,7 +34,9 @@ canvas.width = 512;
 canvas.height = 512;
 
 const blockSize = 32;
-const fps = 30;
+
+const urlParams = new URLSearchParams(window.location.search);
+const fps = parseInt(urlParams.get('framerate')) || 30; // Default 30
 
 // Draw single frame
 function drawFrame(frame) {
