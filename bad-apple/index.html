@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Bad Apple</title>
+	<style>
+		body {
+			background-color: black;
+			margin: 0;
+			padding: 0;
+			display: flex;
+        	justify-content: center; /* horizontal center */
+        	align-items: center; /* vertical center */
+        	height: 100vh;
+		}
+		canvas {
+			width: 128;
+			height: 128;
+			background-color: white;
+		}
+		#canvasContainer {
+			
+		}
+	</style>
+</head>
+<body>
+<div id="canvasContainer">
+	<canvas id="canvas"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 512;
+canvas.height = 512;
+
+const blockSize = 32;
+const fps = 30;
+
+// Draw single frame
+function drawFrame(frame) {
+    if (!frame || !Array.isArray(frame)) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+            if (frame[y][x]) {
+                ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+            }
+        }
+    }
+}
+
+// Animate frame list
+function drawFrameList(frameList) {
+    if (!Array.isArray(frameList) || frameList.length === 0) {
+        console.error('Frame list is empty or invalid');
+        return;
+    }
+
+    let currentFrame = 0;
+    setInterval(() => {
+        drawFrame(frameList[currentFrame]);
+        currentFrame = (currentFrame + 1) % frameList.length;
+    }, 1000 / fps);
+}
+
+// Load frames
+fetch('https://www.themango.click/bad-apple/bad-apple-frames.txt')
+    .then(response => response.text())
+    .then(text => {
+        const badapple_frameList = JSON.parse(text);
+        console.log(`Loaded ${badapple_frameList.length} frames`);
+        drawFrameList(badapple_frameList);
+    })
+    .catch(error => console.error('Error loading file:', error));
+
+</script>
+</body>
+</html>
