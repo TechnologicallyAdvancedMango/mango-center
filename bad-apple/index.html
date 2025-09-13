@@ -30,20 +30,27 @@
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = 512;
-canvas.height = 512;
-
-const blockSize = 32;
 
 const urlParams = new URLSearchParams(window.location.search);
 const fps = parseInt(urlParams.get('framerate')) || 30; // Default 30
 
+let blockSize = 32; // Default block size
+let frameWidth = 16;
+let frameHeight = 16;
+
 // Draw single frame
 function drawFrame(frame) {
     if (!frame || !Array.isArray(frame)) return;
+
+    frameHeight = frame.length;
+    frameWidth = frame[0].length;
+
+    canvas.width = frameWidth * blockSize;
+    canvas.height = frameHeight * blockSize;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let y = 0; y < 16; y++) {
-        for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < frameHeight; y++) {
+        for (let x = 0; x < frameWidth; x++) {
             if (frame[y][x]) {
                 ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
             }
@@ -57,6 +64,17 @@ function drawFrameList(frameList) {
         console.error('Frame list is empty or invalid');
         return;
     }
+
+    // Auto-detect resolution from first frame
+    frameHeight = frameList[0].length;
+    frameWidth = frameList[0][0].length;
+
+    // Adjust block size to fit within 512×512 canvas
+    const maxCanvasSize = 512;
+    blockSize = Math.floor(Math.min(maxCanvasSize / frameWidth, maxCanvasSize / frameHeight));
+
+    canvas.width = frameWidth * blockSize;
+    canvas.height = frameHeight * blockSize;
 
     let currentFrame = 0;
     setInterval(() => {
