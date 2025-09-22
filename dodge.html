@@ -275,15 +275,8 @@ function submitDebugCode() {
       console.warn(`Unknown devcode: ${command}`);
       continue;
     }
-	//Unless its cmds set debugUsed to true
-	if(!(command === "CMDS")) {
-		// Not executing inside here
-		debugUsed = true;
-		alert(command + " tried to set debugUsed to " + debugUsed);
-	} else {
-		alert(command + " let debugUsed stay " + debugUsed);
-	}
-	
+	//Unless its cmds, set debugUsed to true
+	if(!(command === "CMDS")) debugUsed = true;
 	
     // If the handler expects arguments, pass them
     if (handler.length > 0) {
