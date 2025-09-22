@@ -277,6 +277,7 @@ function submitDebugCode() {
     }
 	//Unless its cmds set debug to true
 	if(!command.toLowerCase() === "cmds") debugUsed = true;
+	alert("debugUsed is now " + debugUsed);
 	
     //If the handler expects arguments, pass them
     if (handler.length > 0) {
