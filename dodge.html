@@ -276,8 +276,13 @@ function submitDebugCode() {
       continue;
     }
 	//Unless its cmds set debugUsed to true
-	if(!command === "CMDS") debugUsed = true;
-	alert(command + " set debugUsed to " + debugUsed);
+	if(!command === "CMDS") {
+		debugUsed = true;
+		alert(command + " tried to set debugUsed to " + debugUsed);
+	} else {
+		alert(command + " let debugUsed stay " + debugUsed);
+	}
+	
 	
     //If the handler expects arguments, pass them
     if (handler.length > 0) {
