@@ -34,11 +34,13 @@
     <button id="return">Go to Mango Center</button>
     </a>
 <script>
+let militaryTime = false;
 function startTime() {
     const today = new Date();
     let h = today.getHours();
     let m = today.getMinutes();
     let s = today.getSeconds();
+    if(!militaryTime && h>12) h -= 12; // convert to 12 hour time
     m = checkTime(m);
     s = checkTime(s);
     document.getElementById('clock').innerHTML =  h + ":" + m + ":" + s;
@@ -55,5 +57,6 @@ startTime();
 </script>
 </body>
 </html>
+
 
 
