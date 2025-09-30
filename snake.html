@@ -13,6 +13,11 @@
 	}
 	#score {
 		font-size: 25px;
+		float: left;
+	}
+	#highscore {
+		font-size: 25px;
+		float: right;
 	}
   canvas {
   }
@@ -21,12 +26,15 @@
 <body>
 <div id="content">
 	<div id="score">Score: 0</div>
+	<div id="highscore">Highscore: 0</div>
 	<canvas id="gameCanvas" width="500" height="500"><canvas>
 </div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+
+let highscore = localStorage.getItem("highscore"); ?? 0;
 
 let tileSize = 20;
 
@@ -173,6 +181,10 @@ function die() {
     ctx.fillStyle = "red";
     ctx.textAlign = "center";
 	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
+	// if score higher than highscore, set as highscore
+	if(score > highscore) {
+		localStorage.setItem("highscore", score);
+	}
 }
 
 function newFrame() {
