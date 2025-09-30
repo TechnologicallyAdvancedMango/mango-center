@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Snake</title>
+	<style>
+	body {
+		display: flex;
+  	justify-content: center; /* Centers horizontally */
+  	align-items: center; /* Centers vertically */
+  	height: 100vh; /* Full viewport height */
+    background-color: black;
+	}
+	#score {
+		font-size: 25px;
+	}
+  canvas {
+  }
+	</style>
+</head>
+<body>
+<div id="content">
+	<div id="score">Score: 0</div>
+	<canvas id="gameCanvas" width="500" height="500"><canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let tileSize = 20;
+
+let score = 0;
+const scoreDisplay = document.getElementById('score');
+
+let snakeFill = "green";
+let snakeStroke = "black";
+
+let foodFill = "red";
+let foodStroke = "black";
+
+let velX = tileSize;
+let velY = 0;
+
+let frameDelay = 150;
+let frameSpeedIncrease = 0.01;
+
+let snake = [];
+for (let i = 0; i < 5; i++) {
+    snake.push({x: tileSize * 8 - i * tileSize, y: tileSize * 8}); // Create the snake parts starting 8 tiles down and 8 tiles to the right
+}
+
+function clearCanvas() {
+	ctx.fillStyle = "white";
+	ctx.strokeStyle = "black";
+	ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+	ctx.strokeRect(0, 0, gameCanvas.width, gameCanvas.height);
+}
+
+function randomBetween(min, max, roundTo) {
+  if (roundTo <= 0) throw new Error("roundTo must be > 0");
+  const range = Math.floor((max - min) / roundTo);
+  const randomStep = Math.floor(Math.random() * (range + 1));
+  return min + randomStep * roundTo;
+}
+
+
+function advanceSnake() {
+	const head = {x: snake[0].x + velX, y: snake[0].y + velY};
+	snake.unshift(head);
+	
+	const didEatFood = snake[0].x === foodX && snake[0].y === foodY;
+	if (didEatFood) {
+		score++;
+		scoreDisplay.innerHTML = "Score: " + score;
+		createFood();
+	} else {
+		snake.pop(); // Skip removing the last part of the snake if it eats food
+	}
+	
+	directionChanged = false; // Reset directionChanged so we can move the next frame
+};
+
+
+
+function drawSnakePart(snakePart) {
+	ctx.fillStyle = snakeFill;
+	ctx.strokestyle = snakeStroke;
+	ctx.fillRect(snakePart.x, snakePart.y, tileSize, tileSize);
+	ctx.strokeRect(snakePart.x, snakePart.y, tileSize, tileSize);
+}
+
+function drawSnake() {
+	snake.forEach(drawSnakePart);
+}
+
+function createFood() {
+	foodX = randomBetween(0, canvas.width - tileSize, tileSize); // Random number between 0 and the canvas width (-tileSize so it doesnt go off screen), rounded to the nearest tileSize
+	foodY = randomBetween(0, canvas.height - tileSize, tileSize); // Same thing but with height
+	
+	snake.forEach(function isFoodOnSnake(part) { // Check if food is on the snake
+		const foodIsOnSnake = part.x == foodX && part.y == foodY;
+		if (foodIsOnSnake) createFood(); // Generate a new food location if it is on top of the snake
+	});
+	
+	frameDelay *= 1 - frameSpeedIncrease; // Speed up the game every eaten food
+	console.log(frameDelay);
+}
+
+function drawFood() {
+	ctx.fillStyle = 'red';
+	ctx.strokestyle = 'darkred';
+	
+	ctx.fillRect(foodX, foodY, tileSize, tileSize);
+	ctx.strokeRect(foodX, foodY, tileSize, tileSize);
+}
+
+let direction = "right";
+let directionChanged = false;
+
+function updateDirection(event) {
+	if(!directionChanged) { // Only change direction once per frame;
+		const keyPressed = event.key;
+		
+		if (keyPressed === "w" && direction != "down") {
+			velX = 0;
+			velY = -tileSize;
+			
+			direction = "up";
+			directionChanged = true;
+		}
+		if (keyPressed === "s" && direction != "up") {
+			velX = 0;
+			velY = tileSize;
+			
+			direction = "down";
+			directionChanged = true;
+		}
+		if (keyPressed === "a" && direction != "right") {
+			velX = -tileSize;
+			velY = 0;
+			
+			direction = "left";
+			directionChanged = true;
+		}
+		if (keyPressed === "d" && direction != "left") {
+			velX = tileSize;
+			velY = 0;
+			
+			direction = "right";
+			directionChanged = true;
+		}
+	}
+}
+
+function isDead() {
+	for (let i = 4; i < snake.length; i++) {
+		const didCollide = snake[i].x === snake[0].x &&snake[i].y === snake[0].y; // Check if any part has collided with the head
+		if (didCollide) return true;
+	}
+	// Check if hit any walls
+	const hitLeftWall = snake[0].x < 0;
+	const hitRightWall = snake[0].x > gameCanvas.width - tileSize;
+	const hitTopWall = snake[0].y < 0;
+	const hitBottomWall = snake[0].y > gameCanvas.height - tileSize;
+	
+	return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall; // True if any walls are hit
+}
+
+function die() {
+	// Game over text
+	ctx.font = "50px Arial";
+    ctx.fillStyle = "red";
+    ctx.textAlign = "center";
+	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
+}
+
+function newFrame() {
+	clearCanvas();
+	advanceSnake();
+	drawSnake();
+	drawFood();
+	
+	// die if dead, otherwise continue the game
+	if(isDead()) { 
+		die();
+	} else {
+		setTimeout(newFrame, frameDelay);
+	}
+}
+
+document.addEventListener("keydown", updateDirection);
+createFood();
+setTimeout(newFrame, frameDelay); // Start the game
+</script>
+</body>
+</html>
