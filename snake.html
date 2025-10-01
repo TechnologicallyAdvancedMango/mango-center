@@ -215,7 +215,7 @@ function newFrame() {
 
 // Refresh if space pressed while dead
 document.addEventListener("keydown", (event) => {
-	if (event.key === " " && isDead() === false) {
+	if (event.key === " " && isDead()) {
 		window.location.reload(); // Reload page
 	}
 });
