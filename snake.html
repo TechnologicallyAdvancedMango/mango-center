@@ -207,6 +207,13 @@ function newFrame() {
 	}
 }
 
+// Refresh if space pressed while dead
+document.addEventListener("keyup", (event) => {
+	if (event.key === " " && isDead() === false) {
+		window.location.reload(); // Reload page
+	}
+});
+
 document.addEventListener("keydown", updateDirection);
 createFood();
 setTimeout(newFrame, frameDelay); // Start the game
