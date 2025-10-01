@@ -192,8 +192,8 @@ function die() {
     ctx.fillStyle = "black";
 	ctx.strokeStyle = "yellow";
     ctx.textAlign = "center";
+	ctx.strokeText("Press space to try again", canvas.width / 2, canvas.height / 2 + 50);
 	ctx.fillText("Press space to try again", canvas.width / 2, canvas.height / 2 + 50);
-	ctx.strokeText("Press space to try again", canvas.width / 2, canvas.height / 2 + 50)
 	
 	// if score higher than highscore, set as highscore
 	if(score > highscore) {
