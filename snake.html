@@ -34,8 +34,8 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let highscore = localStorage.getItem("highscore") ?? 0;
-document.getElementById("highscore").innerHTML = "Highscore: " + highscore;
+let highscore = localStorage.getItem("snakeHighscore") ?? 0;
+document.getElementById("snakeHighscore").innerHTML = "Highscore: " + highscore;
 
 let tileSize = 20;
 
@@ -184,7 +184,7 @@ function die() {
 	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
 	// if score higher than highscore, set as highscore
 	if(score > highscore) {
-		localStorage.setItem("highscore", score);
+		localStorage.setItem("snakeHighscore", score);
 	}
 }
 
