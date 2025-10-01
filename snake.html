@@ -187,6 +187,12 @@ function die() {
     ctx.fillStyle = "red";
     ctx.textAlign = "center";
 	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
+	// Space to continue text
+	ctx.font = "20px Arial";
+    ctx.fillStyle = "yellow";
+    ctx.textAlign = "center";
+	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2 + 50);
+	
 	// if score higher than highscore, set as highscore
 	if(score > highscore) {
 		localStorage.setItem("snakeHighscore", score);
@@ -208,7 +214,7 @@ function newFrame() {
 }
 
 // Refresh if space pressed while dead
-document.addEventListener("keyup", (event) => {
+document.addEventListener("keydown", (event) => {
 	if (event.key === " " && isDead() === false) {
 		window.location.reload(); // Reload page
 	}
