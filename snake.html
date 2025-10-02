@@ -117,7 +117,7 @@ function advanceSnake() {
 
 function drawSnakePart(snakePart) {
 	ctx.fillStyle = snakeFill;
-	ctx.strokestyle = snakeStroke;
+	ctx.strokeStyle = snakeStroke;
 	ctx.fillRect(snakePart.x, snakePart.y, tileSize, tileSize);
 	ctx.strokeRect(snakePart.x, snakePart.y, tileSize, tileSize);
 }
@@ -141,7 +141,7 @@ function createFood() {
 
 function drawFood() {
 	ctx.fillStyle = foodFill;
-	ctx.strokestyle = foodStroke;
+	ctx.strokeStyle = foodStroke;
 	
 	ctx.fillRect(foodX, foodY, tileSize, tileSize);
 	ctx.strokeRect(foodX, foodY, tileSize, tileSize);
