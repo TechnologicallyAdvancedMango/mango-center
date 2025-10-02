@@ -80,8 +80,10 @@ function updateScoreDisplay() {
 let rainbowMode = true;  // Set to true to enable rainbow mode
 // Rainbow mode configuration
 // When enabled, head will be hue 0 (red) and each subsequent segment will have an increasing hue offset
-const rainbowHeadHue = 110; // 0 = red
-const rainbowBaseHueStep = 15; // base hue step per segment
+const rainbowHeadHue = 110; // 110 = green, 0 = red
+const rainbowFillLightness = 30; // Lightness for rainbow fill color
+const rainbowStrokeLightness = 10; // Lightness for rainbow stroke color
+const rainbowBaseHueStep = 12; // base hue step per segment
 const rainbowAcceleration = 1; // accelerates step per segment; set to 1 for linear step
 
 let snakeFill = "#007000";
@@ -89,9 +91,6 @@ let snakeStroke = "#005000";
 
 let headFill = "#006000";
 let headStroke = "#004000";
-
-let foodFill = "#ff0000";
-let foodStroke = "#900000";
 
 let velX = tileSize;
 let velY = 0;
@@ -165,8 +164,8 @@ function drawSnakePart(snakePart, index) {
 			}
 			hue = (rainbowHeadHue + offset) % 360;
 		}
-		ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
-		ctx.strokeStyle = `hsl(${hue}, 60%, 30%)`;
+		ctx.fillStyle = `hsl(${hue}, 70%, ${rainbowFillLightness}%)`;
+		ctx.strokeStyle = `hsl(${hue}, 60%, ${rainbowStrokeLightness}%)`;
 	} else { // Normal colors
 		if (index === 0) {
 			ctx.fillStyle = headFill;
@@ -273,12 +272,19 @@ function spawnRandomFood() {
 
 
 function drawFood() {
-    foods.forEach(food => {
-        ctx.fillStyle = food.color.fill;
-        ctx.strokeStyle = food.color.stroke;
-        ctx.fillRect(food.x, food.y, tileSize, tileSize);
-        ctx.strokeRect(food.x, food.y, tileSize, tileSize);
-    });
+	foods.forEach(food => {
+		const centerX = food.x + tileSize / 2;
+		const centerY = food.y + tileSize / 2;
+		const padding = Math.max(2, tileSize * 0.12);
+		const radius = (tileSize / 2) - padding;
+		ctx.beginPath();
+		ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+		ctx.fillStyle = food.color.fill;
+		ctx.fill();
+		ctx.lineWidth = Math.max(1, tileSize * 0.04);
+		ctx.strokeStyle = food.color.stroke;
+		ctx.stroke();
+	});
 }
 
 
