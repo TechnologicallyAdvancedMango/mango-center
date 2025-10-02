@@ -154,28 +154,28 @@ function updateDirection(event) {
 	if(!directionChanged) { // Only change direction once per frame;
 		const keyPressed = event.key;
 		
-		if (keyPressed === "w" || keyPressed === "upArrow" && direction != "down") {
+		if (keyPressed === "w" || keyPressed === "UpArrow" && direction != "down") {
 			velX = 0;
 			velY = -tileSize;
 			
 			direction = "up";
 			directionChanged = true;
 		}
-		if (keyPressed === "s" || keyPressed === "downArrow" && direction != "up") {
+		if (keyPressed === "s" || keyPressed === "DownArrow" && direction != "up") {
 			velX = 0;
 			velY = tileSize;
 			
 			direction = "down";
 			directionChanged = true;
 		}
-		if (keyPressed === "a" || keyPressed === "leftArrow" && direction != "right") {
+		if (keyPressed === "a" || keyPressed === "LeftArrow" && direction != "right") {
 			velX = -tileSize;
 			velY = 0;
 			
 			direction = "left";
 			directionChanged = true;
 		}
-		if (keyPressed === "d" || keyPressed === "rightArrow" && direction != "left") {
+		if (keyPressed === "d" || keyPressed === "RightArrow" && direction != "left") {
 			velX = tileSize;
 			velY = 0;
 			
