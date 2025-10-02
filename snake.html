@@ -23,10 +23,10 @@
 	}
   	canvas {
 	  	height: 100%;
-	  	aspect-ratio: 1 / 1;
+		width: 100%;
 	  	border: 2px solid white;
   	}
-	content {
+	#content {
 		width: 100%;
 		height: 100%;
 		margin: 15px;
@@ -116,7 +116,7 @@ function drawSnake() {
 }
 
 function createFood() {
-	foodX = randomBetween(0, canvas.width - tileSize, tileSize); // Random number between 0 and the canvas width (-tileSize so it doesnt go off screen), rounded to the nearest tileSize
+	foodX = randomBetween(0, canvas.width - tileSize, tileSize); // Random number between 0 and the canvas width (-1 tileSize so it doesnt go off screen), rounded to the nearest tile
 	foodY = randomBetween(0, canvas.height - tileSize, tileSize); // Same thing but with height
 	
 	snake.forEach(function isFoodOnSnake(part) { // Check if food is on the snake
