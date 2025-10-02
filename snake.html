@@ -80,6 +80,9 @@ function updateScoreDisplay() {
 let snakeFill = "#007000";
 let snakeStroke = "#005000";
 
+let headFill = "#006000";
+let headStroke = "#004000";
+
 let foodFill = "#ff0000";
 let foodStroke = "#900000";
 
@@ -138,8 +141,14 @@ function advanceSnake() {
 
 
 function drawSnakePart(snakePart) {
-	ctx.fillStyle = snakeFill;
-	ctx.strokeStyle = snakeStroke;
+	if(snake.indexOf(snakePart) === 0) {
+		// Head is different color
+		ctx.fillStyle = headFill;
+		ctx.strokeStyle = headStroke;
+	} else {
+		ctx.fillStyle = snakeFill;
+		ctx.strokeStyle = snakeStroke;
+	}
 	ctx.fillRect(snakePart.x, snakePart.y, tileSize, tileSize);
 	ctx.strokeRect(snakePart.x, snakePart.y, tileSize, tileSize);
 }
@@ -174,7 +183,7 @@ class Food {
         boost: {
             color: { fill: "#00ff00", stroke: "#009900" },
 			effect: () => {
-				score += 2;
+				score += 3;
 				frameDelay *= 1 - frameSpeedIncrease * 2; 
 				updateScoreDisplay();
 			},
@@ -184,12 +193,21 @@ class Food {
         super: {
             color: { fill: "#00ffff", stroke: "#000000" },
 			effect: () => {
-				score++;
+				score += 10;
 				frameDelay *= 1 - frameSpeedIncrease * 3;
 				updateScoreDisplay();
 			},
 			lengthChange: 5,
-			weight: 10
+			weight: 5
+        },
+		multiply: {
+            color: { fill: "#ff00ff", stroke: "#900090" },
+			effect: () => {
+				spawnRandomFood(); // Spawn an extra food to increase number of foods on screen
+				updateScoreDisplay();
+			},
+			lengthChange: 0,
+			weight: 5
         }
     };
 }
