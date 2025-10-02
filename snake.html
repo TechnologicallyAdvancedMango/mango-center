@@ -77,9 +77,9 @@ function updateScoreDisplay() {
 	}
 }
 
-let rainbowMode = true;  // Set to true to enable rainbow mode
-// Rainbow mode configuration
+let rainbowMode = localStorage.getItem("rainbowMode") === "true";  // True to enable rainbow mode
 // When enabled, head will be hue 0 (red) and each subsequent segment will have an increasing hue offset
+
 const rainbowHeadHue = 110; // 110 = green, 0 = red
 const rainbowFillLightness = 30; // Lightness for rainbow fill color
 const rainbowStrokeLightness = 10; // Lightness for rainbow stroke color
@@ -415,6 +415,7 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("keydown", (event) => {
 	if (event.key === "r") {
 		rainbowMode = !rainbowMode;
+		localStorage.setItem("rainbowMode", rainbowMode.toString());
 	}
 });
 
