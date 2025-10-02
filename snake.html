@@ -154,7 +154,7 @@ function updateDirection(event) {
 	if(!directionChanged) { // Only change direction once per frame;
 		const keyPressed = event.key;
 		
-		if (keyPressed === "w" || keyPressed === "UpArrow" && direction != "down") {
+		if (keyPressed === "w" || keyPressed.key === "UpArrow" && direction != "down") {
 			velX = 0;
 			velY = -tileSize;
 			
