@@ -53,7 +53,7 @@ const ctx = canvas.getContext("2d");
 let highscore = localStorage.getItem("snakeHighscore") ?? 0;
 document.getElementById("highscore").innerHTML = "Highscore: " + highscore;
 
-let tileSize = canvas.width / 25; // 20 at 500 width
+let tileSize = canvas.width / 25; // 25 tiles
 
 let score = 0;
 const scoreDisplay = document.getElementById('score');
