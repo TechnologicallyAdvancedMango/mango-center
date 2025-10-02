@@ -77,6 +77,13 @@ function updateScoreDisplay() {
 	}
 }
 
+let rainbowMode = true;  // Set to true to enable rainbow mode
+// Rainbow mode configuration
+// When enabled, head will be hue 0 (red) and each subsequent segment will have an increasing hue offset
+const rainbowHeadHue = 110; // 0 = red
+const rainbowBaseHueStep = 15; // base hue step per segment
+const rainbowAcceleration = 1; // accelerates step per segment; set to 1 for linear step
+
 let snakeFill = "#007000";
 let snakeStroke = "#005000";
 
@@ -91,6 +98,8 @@ let velY = 0;
 
 let frameDelay = 150;
 let frameSpeedIncrease = 0.01;
+
+let isPaused = false;
 
 let snake = [];
 for (let i = 0; i < 5; i++) {
@@ -140,21 +149,39 @@ function advanceSnake() {
 
 
 
-function drawSnakePart(snakePart) {
-	if(snake.indexOf(snakePart) === 0) {
-		// Head is different color
-		ctx.fillStyle = headFill;
-		ctx.strokeStyle = headStroke;
-	} else {
-		ctx.fillStyle = snakeFill;
-		ctx.strokeStyle = snakeStroke;
+function drawSnakePart(snakePart, index) {
+	if (rainbowMode) { // Rainbow mode colors
+		let hue;
+		if (index === 0) {
+			hue = rainbowHeadHue;
+		} else {
+			// Sum an accelerating series to get a smoothly increasing offset across segments.
+			// If acceleration==1, just use linear step.
+			let offset;
+			if (rainbowAcceleration === 1) {
+				offset = rainbowBaseHueStep * index;
+			} else {
+				offset = rainbowBaseHueStep * (Math.pow(rainbowAcceleration, index) - 1) / (rainbowAcceleration - 1);
+			}
+			hue = (rainbowHeadHue + offset) % 360;
+		}
+		ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+		ctx.strokeStyle = `hsl(${hue}, 60%, 30%)`;
+	} else { // Normal colors
+		if (index === 0) {
+			ctx.fillStyle = headFill;
+			ctx.strokeStyle = headStroke;
+		} else {
+			ctx.fillStyle = snakeFill;
+			ctx.strokeStyle = snakeStroke;
+		}
 	}
-	ctx.fillRect(snakePart.x, snakePart.y, tileSize, tileSize);
 	ctx.strokeRect(snakePart.x, snakePart.y, tileSize, tileSize);
+	ctx.fillRect(snakePart.x, snakePart.y, tileSize, tileSize);
 }
 
 function drawSnake() {
-	snake.forEach(drawSnakePart);
+	snake.forEach((part, idx) => drawSnakePart(part, idx));
 }
 
 let foods = [];
@@ -308,17 +335,20 @@ function isDead() {
 }
 
 function die() {
+	// Semi-transparent overlay
+	ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
 	// Game over text
 	ctx.font = "50px Arial";
     ctx.fillStyle = "red";
+	ctx.strokeStyle = "black";
     ctx.textAlign = "center";
 	ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
+	ctx.strokeText("Game Over!", canvas.width / 2, canvas.height / 2);
 	// Space to continue text
 	ctx.font = "20px Arial";
-    ctx.fillStyle = "black";
-	ctx.strokeStyle = "yellow";
+	ctx.fillStyle = "yellow";
     ctx.textAlign = "center";
-	ctx.strokeText("Press space to try again", canvas.width / 2, canvas.height / 2 + 50);
 	ctx.fillText("Press space to try again", canvas.width / 2, canvas.height / 2 + 50);
 	
 	// if score higher than highscore, set as highscore
@@ -327,13 +357,35 @@ function die() {
 	}
 }
 
+function drawPauseScreen() {
+	// Semi-transparent overlay
+	ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	// Paused text
+	ctx.font = "50px Arial";
+	ctx.fillStyle = "cyan";
+	ctx.textAlign = "center";
+	ctx.fillText("Paused", canvas.width / 2, canvas.height / 2);
+	// Resume instructions
+	ctx.font = "20px Arial";
+	ctx.fillStyle = "yellow";
+	ctx.textAlign = "center";
+	ctx.fillText("Press escape to resume", canvas.width / 2, canvas.height / 2 + 50);
+}
+
 function newFrame() {
 	clearCanvas();
-	advanceSnake();
-	drawSnake();
-	drawFood();
+	if(!isPaused) {
+		advanceSnake(); // Advance snake and then draw it
+		drawSnake();
+		drawFood();
+	} else {
+		drawSnake(); // Draw snake and food before drawing pause screen
+		drawFood();
+		drawPauseScreen();
+	}
 	
-	// die if dead, otherwise continue the game
+	// Die if dead, otherwise continue the game
 	if(isDead()) { 
 		die();
 	} else {
@@ -345,6 +397,12 @@ function newFrame() {
 document.addEventListener("keydown", (event) => {
 	if (event.key === " " && isDead()) {
 		window.location.reload(); // Reload page
+	}
+});
+
+document.addEventListener("keydown", (event) => {
+	if (event.key === "Escape") {
+		isPaused = !isPaused;
 	}
 });
 
