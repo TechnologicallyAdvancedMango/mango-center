@@ -412,6 +412,12 @@ document.addEventListener("keydown", (event) => {
 	}
 });
 
+document.addEventListener("keydown", (event) => {
+	if (event.key === "r") {
+		rainbowMode = !rainbowMode;
+	}
+});
+
 document.addEventListener("keydown", updateDirection);
 spawnRandomFood(); // Spawn initial foods
 spawnRandomFood();
