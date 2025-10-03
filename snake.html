@@ -285,7 +285,7 @@ function spawnFood(type = "normal") {
     do {
         x = randomBetween(0, canvas.width - tileSize, tileSize);
         y = randomBetween(0, canvas.height - tileSize, tileSize);
-    } while (snake.some(part => part.x === x && part.y === y));
+    } while (snake.some(part => part.x === x && part.y === y) || foods.some(food => food.x === x && food.y === y)); // Check if snake parts or any foods overlap and kepp respawning until it isn't
 
     foods.push(new Food(x, y, type));
 }
