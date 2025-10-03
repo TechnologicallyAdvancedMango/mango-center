@@ -72,7 +72,8 @@ const gamemodes = {
 			boost: 20,
 			super: 5,
 			multiply: 5
-		}
+		},
+		god: false
 	},
 	classic: {
 		startingFoods: 1,
@@ -82,7 +83,8 @@ const gamemodes = {
 			boost: 0,
 			super: 0,
 			multiply: 0
-		}
+		},
+		god: false
 	},
 	chaos: {
 		startingFoods: 2000,
@@ -92,9 +94,24 @@ const gamemodes = {
 			boost: 0,
 			super: 0,
 			multiply: 100
-		}
+		},
+		god: false
+	},
+	creative: {
+		startingFoods: 0,
+		startingLength: 5,
+		foodWeights: {
+			normal: 70,
+			boost: 20,
+			super: 5,
+			multiply: 5
+		},
+		god: true
 	}
 }
+
+let god = false;
+if(gamemodes[gamemode].god) god = true;
 
 let highscore = Number(localStorage.getItem("snakeHighscore") ?? 0);
 document.getElementById("highscore").innerHTML = "Highscore: " + highscore;
@@ -434,7 +451,7 @@ function newFrame() {
 	}
 	
 	// Die if dead, otherwise continue the game
-	if(isDead()) { 
+	if(isDead() && !god) { 
 		die();
 	} else {
 		setTimeout(newFrame, frameDelay);
