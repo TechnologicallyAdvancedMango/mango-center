@@ -61,7 +61,7 @@ const ctx = canvas.getContext("2d");
 
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
-const gamemode = urlParams.get('gamemode') ?? normal; // gamemodes from url, default is normal
+const gamemode = urlParams.get('gamemode') ?? "normal"; // gamemodes from url, default is normal
 
 const gamemodes = {
 	normal: {
