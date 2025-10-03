@@ -59,6 +59,33 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const gamemode = urlParams.get('gamemode') ?? normal; // gamemodes from url, default is normal
+
+const gamemodes = {
+	normal: {
+		startingFoods: 2,
+		startingLength: 5,
+		foodWeights: {
+			normal: 70,
+			boost: 20,
+			super: 5,
+			multiply: 5
+		}
+	},
+	classic: {
+		startingFoods: 1,
+		startingLength: 5,
+		foodWeights: {
+			normal: 100,
+			boost: 0,
+			super: 0,
+			multiply: 0
+		}
+	}
+}
+
 let highscore = Number(localStorage.getItem("snakeHighscore") ?? 0);
 document.getElementById("highscore").innerHTML = "Highscore: " + highscore;
 
@@ -101,7 +128,7 @@ let frameSpeedIncrease = 0.01;
 let isPaused = false;
 
 let snake = [];
-for (let i = 0; i < 5; i++) {
+for (let i = 0; i < gamemodes[gamemode].startingLength; i++) {
     snake.push({x: tileSize * 8 - i * tileSize, y: tileSize * 8}); // Create the snake parts starting 8 tiles down and 8 tiles to the right
 }
 
@@ -206,7 +233,7 @@ class Food {
 				updateScoreDisplay();
 			},
 			lengthChange: 1,
-			weight: 70
+			weight: gamemodes[gamemode].foodWeights.normal
         },
         boost: {
             color: { fill: "#00ff00", stroke: "#009900" },
@@ -217,7 +244,7 @@ class Food {
 				updateScoreDisplay();
 			},
 			lengthChange: 2,
-			weight: 20
+			weight: gamemodes[gamemode].foodWeights.boost
         },
         super: {
             color: { fill: "#00ffff", stroke: "#000000" },
@@ -228,7 +255,7 @@ class Food {
 				updateScoreDisplay();
 			},
 			lengthChange: 5,
-			weight: 5
+			weight: gamemodes[gamemode].foodWeights.super
         },
 		multiply: {
             color: { fill: "#ff00ff", stroke: "#900090" },
@@ -238,7 +265,7 @@ class Food {
 				updateScoreDisplay();
 			},
 			lengthChange: 0,
-			weight: 5
+			weight: gamemodes[gamemode].foodWeights.multiply
         }
     };
 }
@@ -425,8 +452,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keydown", updateDirection);
-spawnRandomFood(); // Spawn initial foods
-spawnRandomFood();
+// Spawn initial foods based on gamemode
+for(i=0; i<gamemodes[gamemode].startingFoods; i++) {
+	spawnRandomFood();
+}
+
 setTimeout(newFrame, frameDelay); // Start the game
 </script>
 </body>
