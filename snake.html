@@ -181,11 +181,11 @@ function advanceSnake() {
         const food = foods[eatenIndex];
         food.effect();
 
-        if (food.lengthChange <= 0) {
+        if (food.lengthChange < 0) {
             for (let i = 0; i < Math.abs(food.lengthChange); i++) {
                 if (snake.length > 1) snake.pop();
             }
-        } else {
+        } else  if (food.lengthChange > 0) {
             for (let i = 0; i < food.lengthChange - 1; i++) {
                 snake.push({ ...snake[snake.length - 1] }); // duplicate tail
             }
@@ -478,12 +478,22 @@ document.addEventListener("keydown", (event) => {
 	}
 });
 
+document.addEventListener("keydown", (event) => {
+	if (gamemode === "creative") {
+		if (event.key === "+") {
+			snake.push(snake[snake.length - 1]); // Lengthen snake by 1
+		}
+		if (event.key === "-") {
+			snake.pop(); // Shorten snake by 1
+		}
+	}
+});
+
 document.addEventListener("keydown", updateDirection);
 // Spawn initial foods based on gamemode
 for(i=0; i<gamemodes[gamemode].startingFoods; i++) {
 	spawnRandomFood();
 }
-
 setTimeout(newFrame, frameDelay); // Start the game
 </script>
 </body>
