@@ -480,10 +480,10 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("keydown", (event) => {
 	if (gamemode === "creative") {
-		if (event.key === "+") {
+		if (event.code === 187) { // "+" key
 			snake.push(snake[snake.length - 1]); // Lengthen snake by 1
 		}
-		if (event.key === "-") {
+		if (event.code === 189) { // "-" key
 			snake.pop(); // Shorten snake by 1
 		}
 	}
