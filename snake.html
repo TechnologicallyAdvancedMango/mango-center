@@ -234,7 +234,10 @@ function drawSnakePart(snakePart, index) {
 }
 
 function drawSnake() {
-	snake.forEach((part, idx) => drawSnakePart(part, idx));
+	// snake.forEach((part, idx) => drawSnakePart(part, idx)); Old version (draws first to last)
+	for(i = snake.length - 1; i >= 0; i--) { // New version (draws last to first to that the head is always on top)
+		drawSnakePart(snake[i], i);
+	}
 }
 
 let foods = [];
