@@ -149,10 +149,13 @@ function handleFileSelect(event) {
 
         // Define what happens when the reader finishes loading the file
         reader.onload = function(e) {
-            const content = e.target.result; // The content of the file
-            inputArea.value = content; // Update the input area with the imported code
+            const content = e.target.result;
+            inputArea.value = content;
             // Update highlighting
-            highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+            highlight.textContent = content
+                .replace(new RegExp("&", "g"), "&amp;")
+                .replace(new RegExp("<", "g"), "&lt;")
+                .replace(new RegExp(">", "g"), "&gt;");
             Prism.highlightElement(highlight);
         };
 
@@ -236,14 +239,20 @@ inputArea.addEventListener('keyup', function(event) {
 });
 
 inputArea.addEventListener('input', function(event) {
-    highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+    highlight.textContent = inputArea.value
+        .replace(/&/g, "&")
+        .replace(/</g, "<")
+        .replace(/>/g, ">");
     Prism.highlightElement(highlight);
 });
 
 importInput.addEventListener('change', handleFileSelect);
 
 inputArea.value = getSavedValue("inputTextarea");
-highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+highlight.textContent = inputArea.value
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 Prism.highlightElement(highlight);
 </script>
 </body>
