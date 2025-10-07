@@ -1,0 +1,250 @@
+<!doctype html>
+<html>
+<head>
+    <title>JS Console</title>
+    <style>
+        body {
+            background-color: #202020;
+            color: white;
+            padding-top: 400px;
+            padding-left: 10%;
+            padding-right: 10%;
+            font-family: sans-serif;
+        }
+        h1 {
+            text-align: center;
+        }
+        textarea {
+            background-color: #202020;
+            color: white;
+            border: 2px solid white;
+        }
+        textarea, #highlighting {
+            height: 300px;
+            width: 80%;
+            font-family: mono;
+            font-size: 15px;
+            margin: 5px;
+            padding: 10px;
+            line-height: 20pt;
+            border: 2px solid white;
+            border-radius: 0px;
+        }
+        #outputTextarea {
+            width: 100%;
+        }
+        #inputTextarea, #highlighting {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            overflow: auto;
+            white-space: pre; /* Allows textarea to scroll horizontally */
+            
+            tab-size: 4; /* Standard property */
+            -moz-tab-size: 4; /* Firefox support */
+            -o-tab-size: 4; /* Older Opera support */
+        }
+        #inputTextarea {
+            z-index: 1;
+            color: transparent;
+            background: transparent;
+            caret-color: white;
+            resize: none;
+        }
+        #highlighting {
+            z-index: 0;
+        }
+        #highlighting-content: {
+            margin: 0;
+            padding: 0;
+        }
+        pre {
+            margin: 0;
+            padding: 0;
+        }
+        select {
+            background-color: #202020;
+            color: white;
+            border: 2px solid white;
+        }
+        button {
+            background-color: #202020;
+            color: white;
+            border: 2px solid black;
+            border-radius: 10px;
+        }
+        #run {
+            background-color: #108010;
+            color: white;
+            border: 2px solid black;
+            width: 100px;
+            height: 30px;
+        }
+        #save {
+            background-color: #f0f020;
+            color: black;
+            border: 2px solid black;
+            width: 100px;
+            height: 30px;
+            float: right;
+        }
+        #import {
+            background-color: #00f0f0;
+            color: black;
+            border: 2px solid black;
+            border-radius: 10px;
+            width: 200px;
+            height: 30px;
+            float: right;
+            matgin: 10px;
+            margin-right: 10px;
+        }
+        #outputTextarea {
+            height: 150px;
+            resize: vertical;
+        }
+    </style>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.9.0/prism-atom-dark.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+</head>
+<body>
+<textarea id="inputTextarea" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="update(this.value); sync_scroll(this);" onscroll="sync_scroll(this);" onkeydown="check_tab(this, event);"></textarea>
+<pre id="highlighting" aria-hidden="true"><code class="language-javascript" id="highlighting-content"></code></pre>
+
+<button id="run" onclick="run()">Run</button>
+<button id="save" onclick="saveJsToFile(inputArea);">Export</button>
+<input id="import" type="file" accept=".js, .txt">
+<br><br>
+
+<label for="outputTextarea">Console:</label>
+<textarea readonly id="outputTextarea"></textarea>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script>
+// Save values across refreshes
+function saveValue(elem) {
+    var id = elem.id; // Get the ID
+    var val = elem.value; // Get the current value
+    localStorage.setItem(id, val); // Store the value in localStorage using the ID as the key
+}
+
+function getSavedValue(v) {
+    if (!localStorage.getItem(v)) {
+        return ""; // Return empty string if no value is found
+    }
+    return localStorage.getItem(v); // Return the saved value
+}
+
+const inputArea = document.getElementById("inputTextarea");
+const outputArea = document.getElementById("outputTextarea");
+const highlight = document.getElementById("highlighting-content");
+const importInput = document.getElementById("import");
+
+
+function handleFileSelect(event) {
+    const file = event.target.files[0]; // Get the first selected file
+
+    if (file) {
+        const reader = new FileReader(); // Create a FileReader object
+
+        // Define what happens when the reader finishes loading the file
+        reader.onload = function(e) {
+            const content = e.target.result; // The content of the file
+            inputArea.value = content; // Update the input area with the imported code
+            // Update highlighting
+            highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+            Prism.highlightElement(highlight);
+        };
+
+        // Define what happens if an error occurs during reading
+        reader.onerror = function(e) {
+            console.error("Error reading file:", e.target.error);
+            fileContentDiv.textContent = "Error reading file.";
+        };
+
+        // Read the file as text
+        reader.readAsText(file);
+    } else {
+        fileContentDiv.textContent = "No file selected.";
+    }
+}
+
+
+let originalConsoleLog = console.log;
+console.log = function(message) {
+    outputArea.value += message + "\n";
+    originalConsoleLog.apply(console, arguments);
+};
+
+
+function run() {
+    outputArea.value = ""; // Clear output
+    const input = inputArea.value;
+    eval(input);
+}
+
+function saveJsToFile(element) {
+    const textToSave = element.value;
+    const fileName = 'myProgram.js'; // Desired file name with .js extension
+
+    // Create a Blob object from the text with the correct MIME type for JavaScript
+    const blob = new Blob([textToSave], { type: 'application/javascript' });
+
+    // Create a temporary URL for the Blob
+    const url = URL.createObjectURL(blob);
+
+    // Create an anchor element to trigger the download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+
+    // Programmatically click the anchor to initiate download
+    document.body.appendChild(a); // Append to body (optional, but ensures it's in the DOM)
+    a.click();
+
+    // Clean up: revoke the Object URL to free up memory
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a); // Remove the anchor element
+}
+
+function sync_scroll(element) {
+  /* Scroll result to scroll coords of event - sync with input textarea */
+  let result_element = document.querySelector("#highlighting");
+  // Get and set x and y
+  result_element.scrollTop = element.scrollTop;
+  result_element.scrollLeft = element.scrollLeft;
+}
+
+function check_tab(element, event) {
+  let code = element.value;
+  if(event.key == "Tab") {
+    /* Tab key pressed */
+    event.preventDefault(); // stop normal
+    let before_tab = code.slice(0, element.selectionStart); // text before tab
+    let after_tab = code.slice(element.selectionEnd, element.value.length); // text after tab
+    let cursor_pos = element.selectionEnd + 1; // where cursor moves after tab - moving forward by 1 char to after tab
+    element.value = before_tab + "\t" + after_tab; // add tab char
+    // move cursor
+    element.selectionStart = cursor_pos;
+    element.selectionEnd = cursor_pos;
+    update(element.value); // Update text to include indent
+  }
+}
+
+inputArea.addEventListener('keyup', function(event) {
+    saveValue(inputArea);
+});
+
+inputArea.addEventListener('input', function(event) {
+    highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+    Prism.highlightElement(highlight);
+});
+
+importInput.addEventListener('change', handleFileSelect);
+
+inputArea.value = getSavedValue("inputTextarea");
+highlight.innerHTML = inputArea.value.replace(new RegExp("&", "g"), "&").replace(new RegExp("<", "g"), "<"); /* Global RegExp */
+Prism.highlightElement(highlight);
+</script>
+</body>
+</html>
