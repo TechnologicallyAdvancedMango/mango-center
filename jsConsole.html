@@ -175,10 +175,15 @@ function handleFileSelect(event) {
 
 let originalConsoleLog = console.log;
 console.log = function(message) {
-    outputArea.value += message + "\n";
+    outputArea.value += message + "\n"; // Add the message to the output
     originalConsoleLog.apply(console, arguments);
 };
 
+let originalConsoleError = console.error;
+console.error = function(message) {
+    outputArea.value += message + "\n"; // Add the error message to the outputArea textarea
+    originalConsoleError.apply(console, arguments);
+};
 
 function run() {
     outputArea.value = ""; // Clear output
