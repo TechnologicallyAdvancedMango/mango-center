@@ -253,11 +253,7 @@ inputArea.addEventListener('input', function(event) {
 importInput.addEventListener('change', handleFileSelect);
 
 inputArea.value = getSavedValue("inputTextarea");
-highlight.textContent = inputArea.value
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">");
-Prism.highlightElement(highlight);
+update(inputArea.value);
 </script>
 </body>
 </html>
