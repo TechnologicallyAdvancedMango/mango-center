@@ -172,17 +172,30 @@ function handleFileSelect(event) {
     }
 }
 
-
+// for console.log in the code:
 let originalConsoleLog = console.log;
 console.log = function(message) {
     outputArea.value += message + "\n"; // Add the message to the output
     originalConsoleLog.apply(console, arguments);
 };
 
+// For console.error in the code:
 let originalConsoleError = console.error;
-console.error = function(message) {
+console.error = function(message) { 
     outputArea.value += message + "\n"; // Add the error message to the outputArea textarea
     originalConsoleError.apply(console, arguments);
+};
+
+// For any errors:
+window.onerror = function(message, source, line, column, error) {
+  outputArea.value += `Error: ${message}\n`;
+  outputArea.value += `Source: ${source}\n`;
+  outputArea.value += `Line: ${line}\n`;
+  outputArea.value += `Column: ${column}\n`;
+  outputArea.value += `Error object: ${error}\n\n`;
+
+  // Optionally, you can prevent the default error handling behavior by returning true
+  // return true;
 };
 
 function run() {
