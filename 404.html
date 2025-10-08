@@ -1,36 +1,285 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <title>Page Not Found</title>
-  <link rel="icon" type="image/x-icon" href="/images/mango.png">
+	<title>404 - Not Found</title>
+	<link rel="icon" type="image/x-icon" href="/images/bouncingsquare.png">
 <style>
-  body {
-    text-align: center;
-  }
+	body{
+		background-color: black;
+		
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+	}
+
+	#canvas{
+		border-color: red;
+		border-width: 0px;
+		border-style: solid;
+
+		background-color: black;
+		
+		margin: 0;
+		padding: 0;
+	}
+	#settingsPanel {
+		position: fixed;
+		top: 10%;
+		left: 50%;
+		transform: translateX(-50%);
+		background: #1e1e1e;
+		color: #eee;
+		padding: 1.5em;
+		border-radius: 8px;
+		box-shadow: 0 0 20px #000;
+		display: none;
+		flex-direction: column;
+		align-items: stretch;
+		z-index: 1000;
+		font-family: sans-serif;
+		width: 300px;
+	}
+	
+	#settingsPanel label {
+		display: block;
+		margin: 0.5em 0 0.2em;
+	}
+	
+	#settingsPanel input[type="number"],
+	#settingsPanel input[type="checkbox"] {
+		margin-bottom: 0.8em;
+		width: 100%;
+		padding: 0.3em;
+		border-radius: 4px;
+		border: none;
+		background: #2e2e2e;
+		color: #fff;
+	}
+	
+	#settingsPanel button {
+		margin-top: 1em;
+		padding: 0.5em 1em;
+		background: #002a7c;
+		color: white;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		width: 48%;
+	}
+	
+	#toggleSettingsBtn {
+		position: fixed;
+		top: 1em;
+		right: 1em;
+		background: #002a7c;
+		color: white;
+		border: none;
+		padding: 0.5em 1em;
+		border-radius: 4px;
+		cursor: pointer;
+		z-index: 1001;
+	}
+	
 </style>
 </head>
 <body>
-<h1>404 - Page Not Found</h1>
-<p>The page you are looking for could not be found.</p>
-<p>Going to Mango Center in <span id="countdown">5</span>...</p>
+<canvas id="canvas" width="100" height="100"></canvas>
+<!-- <button id="toggleSettingsBtn" onclick="document.getElementById('settingsPanel').style.display = 'flex'">⚙️ Settings</button> Hidden -->
+
+<div id="settingsPanel">
+	<div id="fpsCounter" style="
+		position: absolute;
+		top: 0.5em;
+		right: 0.75em;
+		font-size: 0.9em;
+		color: #0f0;
+		font-family: monospace;
+		pointer-events: none;
+	">
+		FPS: --
+	</div>
+	
+	<div style="display: flex; justify-content: space-between;">
+		<label>Main Color:</label>
+		<input type="color" id="mainColorInput" value="#ffffff">
+		
+		<label>Border Color:</label>
+		<input type="color" id="borderColorInput" value="#808080">
+	</div>
+	
+	<label>Square Width</label>
+	<input type="number" id="squareSizeXInput" value="30" min="1">
+	
+	<label>Square Height</label>
+	<input type="number" id="squareSizeYInput" value="30" min="1">
+	
+	<label>X Speed</label>
+	<input type="number" id="xSpeedInput" value="10">
+	
+	<label>Y Speed</label>
+	<input type="number" id="ySpeedInput" value="10">
+	
+	<label>Collision Speed Multiplier</label>
+	<input type="number" step="0.1" id="collisionMultiplierInput" value="1.0">
+	
+	<label>
+		<div style="display: flex; justify-content: space-between;">
+			Leave Trail
+			<input type="checkbox" id="leaveTrailToggle" checked>
+		</div>
+	</label>
+
+	<label>
+		<div style="display: flex; justify-content: space-between;">
+			Join Trail (border accumulation)
+			<input type="checkbox" id="joinTrailToggle">
+		</div>
+	</label>
+	
+	<label>
+		<div style="display: flex; justify-content: space-between;">
+			Sound Effects
+			<input type="checkbox" id="soundEffectsToggle">
+		</div>
+	</label>
+	
+	<label>Frame Multiplier</label>
+	<input type="number" id="frameMultiplierInput" value="1" min="1" max="100">
+	
+	<div style="display: flex; justify-content: space-between;">
+		<button onclick="applySettings()">Apply</button>
+		<button onclick="settingsPanel.style.display = 'none'">Close</button>
+	</div>
+</div>
+
 <script>
-function startCountdown(duration, displayId, onComplete) {
-  let count = duration;
-  const display = document.getElementById(displayId);
-  
-  const interval = setInterval(() => {
-    display.innerHTML = count;
-    if (count <= 0) {
-      clearInterval(interval);
-      onComplete(); // Trigger the next function
-    }
-    count--;
-  }, 1000);
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function updateCanvasDimensions() {
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
 }
 
-const redirect = () => window.location = "https://www.themango.click";
 
-startCountdown(5, "countdown", redirect);
+function onCollision() {
+	xSpeed = xSpeed * collisionSpeedMultiplier;
+	ySpeed = ySpeed * collisionSpeedMultiplier;
+}
+
+
+
+//Customization variables:
+//--------------------------------------------------------------------
+
+//Colors:
+var squareMainColor = "#ffffff";
+var squareBorderColor = "#808080";
+
+//Square dimensions:
+var squareSizeX = 60;
+var squareSizeY = 30;
+
+//Starting Speed:
+var xSpeed = 15;
+var ySpeed = 10;
+
+var collisionSpeedMultiplier = 1.0; //Speed multiplier every collision
+
+//Extras:
+const adaptiveCanvasDimensions = false; //Boundaries change with window size. Not in the menu
+const leaveTrail = false; //Adaptive Canvas Dimensions has to be off
+const frameMultiplier = 1; //Useful for smoooth trails. Very laggy at high values
+const joinTrail = false; //Makes the borders of the trail join. Lags after a while. Not recommended
+const soundEffects = false //Adds an impact sound effect
+
+//--------------------------------------------------------------------
+
+var squareX = 0;
+var squareY = 0;
+
+
+let frameCount = 0;
+let lastTime = performance.now();
+const fpsDisplay = document.getElementById('fpsCounter');
+
+function nextFrame() {
+	if(adaptiveCanvasDimensions) {updateCanvasDimensions();}
+
+	//Square moving
+	for(i=0;i<frameMultiplier;i++) {
+		moveSquare();
+	}
+	
+	//Request new animation frame and FPS counter
+	frameCount++;
+	
+	const now = performance.now();
+	if (now - lastTime >= 1000) {
+		const fps = frameCount;
+		fpsDisplay.textContent = `FPS: ${fps}`;
+		frameCount = 0;
+		lastTime = now;
+	}
+	
+	requestAnimationFrame(nextFrame);
+}
+
+function drawSquare() {
+	//Draw the rectangle
+	ctx.fillStyle = squareMainColor;
+	ctx.strokeStyle = squareBorderColor;
+	ctx.lineWidth = "8";
+	
+	if(!joinTrail) {
+		ctx.beginPath();
+	}
+	ctx.rect(squareX, squareY, squareSizeX, squareSizeY);
+	ctx.stroke();
+	ctx.fill();
+}
+
+
+function moveSquare() {
+	const newX = squareX + xSpeed;
+	const newY = squareY + ySpeed;
+
+	// Check if any part of the square goes beyond the X canvas edge
+	if (newX < 0 || newX + squareSizeX > canvas.width) {
+		xSpeed = -xSpeed;
+		onCollision();
+	}
+
+	// Check if any part of the square goes beyond the Y canvas edge
+	if (newY < 0 || newY + squareSizeY > canvas.height) {
+		ySpeed = -ySpeed;
+		onCollision();
+	}
+
+	squareX = newX;
+	squareY = newY;
+
+	//Clear the screen
+	if(!leaveTrail) {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		//that doesn't work for some reason but this does:
+		canvas.width = canvas.width;
+	}
+
+	drawSquare();
+	
+}
+
+updateCanvasDimensions();
+
+
+//Draw square to fill top left corner
+drawSquare();
+//Start the loop
+requestAnimationFrame(nextFrame);
+
+
+
 </script>
 </body>
 </html>
