@@ -238,12 +238,16 @@ inputArea.addEventListener('keyup', function(event) {
     saveValue(inputArea);
 });
 
-inputArea.addEventListener('input', function(event) {
-    highlight.textContent = inputArea.value
+function update(value) {
+    highlight.textContent = value
         .replace(/&/g, "&")
         .replace(/</g, "<")
         .replace(/>/g, ">");
     Prism.highlightElement(highlight);
+}
+
+inputArea.addEventListener('input', function(event) {
+    update(inputArea.value);
 });
 
 importInput.addEventListener('change', handleFileSelect);
