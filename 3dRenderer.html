@@ -98,17 +98,18 @@ function rotateX([x, y, z], angle) {
 }
 
 function applyCameraTransform([x, y, z], camera) {
-  // Rotate world opposite to camera rotation
-  [x, y, z] = rotateY([x, y, z], -camera.rotation[1]);
-  [x, y, z] = rotateX([x, y, z], -camera.rotation[0]);
-
   // Translate world relative to camera
   x -= camera.position[0];
   y -= camera.position[1];
   z -= camera.position[2];
 
+  // Rotate world opposite to camera rotation
+  [x, y, z] = rotateX([x, y, z], -camera.rotation[0]); // pitch
+  [x, y, z] = rotateY([x, y, z], -camera.rotation[1]); // yaw
+
   return [x, y, z];
 }
+
 
 function project([x, y, z], width, height, fov = 300) {
   const scale = fov / (z + 5);
