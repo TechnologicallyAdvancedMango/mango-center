@@ -47,9 +47,11 @@ function updateCamera(camera) {
   // Forward vector
   const forward = [
     Math.sin(yaw) * Math.cos(pitch),
-    -Math.sin(pitch),
+    Math.sin(pitch),
     Math.cos(yaw) * Math.cos(pitch)
   ];
+
+
 
   // Right vector
   const right = [
@@ -105,18 +107,12 @@ function applyCameraTransform([x, y, z], camera) {
   z -= camera.position[2];
 
   // Rotate world opposite to camera rotation
-  // Apply yaw first, then pitch
-  [x, z] = [
-    x * Math.cos(-camera.rotation[1]) - z * Math.sin(-camera.rotation[1]),
-    x * Math.sin(-camera.rotation[1]) + z * Math.cos(-camera.rotation[1])
-  ];
-  [y, z] = [
-    y * Math.cos(-camera.rotation[0]) - z * Math.sin(-camera.rotation[0]),
-    y * Math.sin(-camera.rotation[0]) + z * Math.cos(-camera.rotation[0])
-  ];
+  [x, y, z] = rotateY([x, y, z], -camera.rotation[1]); // yaw
+  [x, y, z] = rotateX([x, y, z], -camera.rotation[0]); // pitch
 
   return [x, y, z];
 }
+
 
 
 function project([x, y, z], width, height, fov = 300) {
