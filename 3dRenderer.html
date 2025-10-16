@@ -21,6 +21,10 @@ const camera = {
   position: [0, 0, -5],
   rotation: [0, 0, 0] // pitch, yaw, roll
 };
+  
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
 
 function updateCamera(camera) {
   const speed = 0.1;
