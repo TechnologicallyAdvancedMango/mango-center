@@ -17,35 +17,87 @@ const ctx = canvas.getContext('2d');
 const width = canvas.width;
 const height = canvas.height;
 
-const cube = {
-  vertices: [
-    [-1, -1, -1], [1, -1, -1],
-    [1, 1, -1], [-1, 1, -1],
-    [-1, -1, 1], [1, -1, 1],
-    [1, 1, 1], [-1, 1, 1]
-  ],
-  edges: [
+const camera = {
+  position: [0, 0, -5],
+  rotation: [0, 0, 0] // pitch, yaw, roll
+};
+
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+function updateCamera(camera) {
+  const speed = 0.1;
+  const rotSpeed = 0.02;
+
+  // Movement
+  if (keys['w']) camera.position[2] += speed;
+  if (keys['s']) camera.position[2] -= speed;
+  if (keys['a']) camera.position[0] -= speed;
+  if (keys['d']) camera.position[0] += speed;
+  if (keys['q']) camera.position[1] -= speed;
+  if (keys['e']) camera.position[1] += speed;
+
+  // Rotation
+  if (keys['ArrowLeft']) camera.rotation[1] -= rotSpeed;
+  if (keys['ArrowRight']) camera.rotation[1] += rotSpeed;
+  if (keys['ArrowUp']) camera.rotation[0] -= rotSpeed;
+  if (keys['ArrowDown']) camera.rotation[0] += rotSpeed;
+}
+
+
+function applyCameraTransform([x, y, z], camera) {
+  // Translate world relative to camera
+  x -= camera.position[0];
+  y -= camera.position[1];
+  z -= camera.position[2];
+
+  // Rotate world opposite to camera rotation
+  [x, y, z] = rotateY([x, y, z], -camera.rotation[1]);
+  [x, y, z] = rotateX([x, y, z], -camera.rotation[0]);
+
+  return [x, y, z];
+}
+
+function createCube(size = 1) {
+  const s = size / 2;
+  const vertices = [
+    [-s, -s, -s], [s, -s, -s],
+    [s, s, -s], [-s, s, -s],
+    [-s, -s, s], [s, -s, s],
+    [s, s, s], [-s, s, s]
+  ];
+  const edges = [
     [0,1],[1,2],[2,3],[3,0],
     [4,5],[5,6],[6,7],[7,4],
     [0,4],[1,5],[2,6],[3,7]
-  ]
-};
+  ];
+  return { vertices, edges };
+}
 
 function rotateY([x, y, z], angle) {
   const cos = Math.cos(angle), sin = Math.sin(angle);
   return [x * cos - z * sin, y, x * sin + z * cos];
 }
 
-function project([x, y, z]) {
-  const scale = 300 / (z + 5); // simple perspective
+function rotateX([x, y, z], angle) {
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  return [x, y * cos - z * sin, y * sin + z * cos];
+}
+
+function project([x, y, z], width, height, fov = 300) {
+  const scale = fov / (z + 5);
   return [x * scale + width / 2, y * scale + height / 2];
 }
 
-function render(angle) {
-  ctx.clearRect(0, 0, width, height);
-  const transformed = cube.vertices.map(v => project(rotateY(v, angle)));
 
-  cube.edges.forEach(([a, b]) => {
+function renderShape(ctx, shape, transformFn, camera, projectFn, width, height) {
+  const transformed = shape.vertices.map(v => {
+    const world = transformFn(v);
+    const view = applyCameraTransform(world, camera);
+    return projectFn(view, width, height);
+  });
+  shape.edges.forEach(([a, b]) => {
     const [x1, y1] = transformed[a];
     const [x2, y2] = transformed[b];
     ctx.beginPath();
@@ -55,13 +107,27 @@ function render(angle) {
   });
 }
 
+const shapes = [
+  createCube(1),
+  createCube(0.5)
+];
+
 let angle = 0;
 function loop() {
-  render(angle);
+  ctx.clearRect(0, 0, width, height);
+  updateCamera(camera);
+
+  shapes.forEach((shape, i) => {
+    const transform = v => {
+      let [x, y, z] = rotateY(v, angle + i);
+      return [x + i * 2 - 1, y, z];
+    };
+    renderShape(ctx, shape, transform, camera, project, width, height);
+  });
+
   angle += 0.01;
   requestAnimationFrame(loop);
 }
-loop();
 
 </script>
 </body>
