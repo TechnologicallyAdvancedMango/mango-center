@@ -22,19 +22,34 @@ const camera = {
   rotation: [0, 0, 0] // pitch, yaw, roll
 };
 
-const keys = {};
-document.addEventListener('keydown', e => keys[e.key] = true);
-document.addEventListener('keyup', e => keys[e.key] = false);
-
 function updateCamera(camera) {
   const speed = 0.1;
   const rotSpeed = 0.02;
+  const yaw = camera.rotation[1];
+
+  // Direction vectors based on yaw
+  const forward = [Math.sin(yaw), 0, Math.cos(yaw)];
+  const right = [Math.cos(yaw), 0, -Math.sin(yaw)];
 
   // Movement
-  if (keys['w']) camera.position[2] += speed;
-  if (keys['s']) camera.position[2] -= speed;
-  if (keys['a']) camera.position[0] -= speed;
-  if (keys['d']) camera.position[0] += speed;
+  if (keys['w']) {
+    camera.position[0] += forward[0] * speed;
+    camera.position[2] += forward[2] * speed;
+  }
+  if (keys['s']) {
+    camera.position[0] -= forward[0] * speed;
+    camera.position[2] -= forward[2] * speed;
+  }
+  if (keys['a']) {
+    camera.position[0] += right[0] * speed;
+    camera.position[2] += right[2] * speed;
+  }
+  if (keys['d']) {
+    camera.position[0] -= right[0] * speed;
+    camera.position[2] -= right[2] * speed;
+  }
+
+  // Vertical movement
   if (keys['q']) camera.position[1] -= speed;
   if (keys['e']) camera.position[1] += speed;
 
