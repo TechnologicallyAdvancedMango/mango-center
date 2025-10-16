@@ -44,14 +44,14 @@ function updateCamera(camera) {
   const pitch = camera.rotation[0];
   const yaw = camera.rotation[1];
 
-  // Forward vector (camera-relative)
+  // Forward vector
   const forward = [
     Math.sin(yaw) * Math.cos(pitch),
     -Math.sin(pitch),
     Math.cos(yaw) * Math.cos(pitch)
   ];
 
-  // Right vector (perpendicular to forward on XZ plane)
+  // Right vector
   const right = [
     Math.cos(yaw),
     0,
@@ -80,12 +80,13 @@ function updateCamera(camera) {
   if (keys['q']) camera.position[1] -= speed;
   if (keys['e']) camera.position[1] += speed;
 
-  // Rotation (corrected yaw direction)
+  // Rotation
   if (keys['ArrowLeft']) camera.rotation[1] += rotSpeed;
   if (keys['ArrowRight']) camera.rotation[1] -= rotSpeed;
   if (keys['ArrowUp']) camera.rotation[0] += rotSpeed;
   if (keys['ArrowDown']) camera.rotation[0] -= rotSpeed;
 }
+
 
 function rotateY([x, y, z], angle) {
   const cos = Math.cos(angle), sin = Math.sin(angle);
@@ -103,12 +104,20 @@ function applyCameraTransform([x, y, z], camera) {
   y -= camera.position[1];
   z -= camera.position[2];
 
-  // Apply pitch (X) then yaw (Y)
-  [x, y, z] = rotateX([x, y, z], -camera.rotation[0]); // pitch
-  [x, y, z] = rotateY([x, y, z], -camera.rotation[1]); // yaw
+  // Rotate world opposite to camera rotation
+  // Apply yaw first, then pitch
+  [x, z] = [
+    x * Math.cos(-camera.rotation[1]) - z * Math.sin(-camera.rotation[1]),
+    x * Math.sin(-camera.rotation[1]) + z * Math.cos(-camera.rotation[1])
+  ];
+  [y, z] = [
+    y * Math.cos(-camera.rotation[0]) - z * Math.sin(-camera.rotation[0]),
+    y * Math.sin(-camera.rotation[0]) + z * Math.cos(-camera.rotation[0])
+  ];
 
   return [x, y, z];
 }
+
 
 function project([x, y, z], width, height, fov = 300) {
   const scale = fov / (z + 5);
