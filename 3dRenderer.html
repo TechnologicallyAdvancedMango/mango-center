@@ -9,64 +9,60 @@
   </style>
 </head>
 <body>
-<canvas id="c" width="800" height="450"></canvas>
+<canvas id="viewport" width="800" height="600"></canvas>
 
 <script type="text/javascript">
-function Dot(V, W)
-{
-	var D = 0;
-	for (var i = 0; i < 3; i++) D += V[i] * W[i];
-	return D;
-}
+const canvas = document.getElementById('viewport');
+const ctx = canvas.getContext('2d');
+const width = canvas.width;
+const height = canvas.height;
 
-function Cross(V, W)
-{
-	return [ V[1] * W[2] - V[2] * W[1], V[2] * W[0] - V[0] * W[2], V[0] * W[1] - V[1] * W[2] ];
-}
-
-var Camera =
-{
-	"p": [ 0, 0, 1 ],
-	"c": [ 0, 0, -1 ],
-	"u": [ 0, 1, 0 ],
-	"d0": 1
+const cube = {
+  vertices: [
+    [-1, -1, -1], [1, -1, -1],
+    [1, 1, -1], [-1, 1, -1],
+    [-1, -1, 1], [1, -1, 1],
+    [1, 1, 1], [-1, 1, 1]
+  ],
+  edges: [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7]
+  ]
 };
-Camera.g = Cross(Camera.c, Camera.u);
 
-function ScreenToCanvasCoordinates(ScreenX, ScreenY)
-{
-	return { "X": 400 + PixelsPerUnitLength * ScreenX, "Y": 225 - PixelsPerUnitLength * ScreenY };
+function rotateY([x, y, z], angle) {
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  return [x * cos - z * sin, y, x * sin + z * cos];
 }
 
-var PixelsPerUnitLength = 500;
-
-var Context = document.getElementById("c").getContext("2d");
-function Draw()
-{
-	Context.clearRect(0, 0, Context.canvas.width, Context.canvas.height);
-	Points.sort(function(A, B) { return A.r[2] - B.r[2]; });
-	Points.forEach
-	(
-		function(P)
-		{
-			var Offset = [ P.r[0] - Camera.p[0], P.r[1] - Camera.p[1], P.r[2] - Camera.p[2] ];
-			var d = Dot(Offset, Camera.c);
-			if (d <= 0) return;
-			var ScaleFactor = Camera.d0 / d;
-			var ScreenX = ScaleFactor * Dot(Offset, Camera.g);
-			var ScreenY = ScaleFactor * Dot(Offset, Camera.u);
-
-			var Coords = ScreenToCanvasCoordinates(ScreenX, ScreenY);
-			Context.fillStyle = P.Color;
-			Context.beginPath();
-			Context.arc(Coords.X, Coords.Y, PixelsPerUnitLength * ScaleFactor * 0.1, 0, 2 * Math.PI);
-			Context.fill();
-		}
-	);
+function project([x, y, z]) {
+  const scale = 300 / (z + 5); // simple perspective
+  return [x * scale + width / 2, y * scale + height / 2];
 }
 
+function render(angle) {
+  ctx.clearRect(0, 0, width, height);
+  const transformed = cube.vertices.map(v => project(rotateY(v, angle)));
 
-Draw();
+  cube.edges.forEach(([a, b]) => {
+    const [x1, y1] = transformed[a];
+    const [x2, y2] = transformed[b];
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  });
+}
+
+let angle = 0;
+function loop() {
+  render(angle);
+  angle += 0.01;
+  requestAnimationFrame(loop);
+}
+loop();
+
 </script>
 </body>
 </html>
