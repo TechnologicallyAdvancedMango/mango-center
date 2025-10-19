@@ -5,10 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FHE Roles</title>
   <style>
-    
+    body {
+      height: 100vw;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #centralDiv {
+      padding: 25px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
+<div id="centralDiv"></div>
 
 <script>
 // Roles to base the current roles off of
@@ -60,9 +71,18 @@ function getWeeksSinceDate(startDateString) {
   return weeks;
 }
 
-
+// Rotate the roles on page load:
 rotateRoles(getWeeksSinceDate(baseDate));
 console.log(currentRoles);
+
+// Convert the object to a JSON string
+const rolesString = JSON.stringify(myObject, null, 2); // null, 2 for pretty printing
+
+// Append a new <pre> element to display the formatted JSON
+const rolesElement = document.createElement("pre");
+rolesElement.textContent = rolesString;
+const centralDiv = document.getElementById("centralDiv");
+centralDiv.appendChild(preElement);
 
 </script>
 </body>
