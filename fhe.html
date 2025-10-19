@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FHE Roles</title>
+  <style>
+    
+  </style>
+</head>
+<body>
+
+<script>
+// Roles to base the current roles off of
+const baseDate = "2025-10-12";
+const baseRoles = {
+  song: 'E',
+  prayer: 'A',
+  activity: 'M',
+  lesson: 'D',
+  refreshments: 'E'
+}
+
+let currentRoles = {};
+
+function rotateRoles(iterations) {
+  for(i = 0; i < iterations; i++) {
+    let keys = Object.keys(baseRoles);
+    let values = Object.values(baseRoles);
+    
+    // Rotate first N–1 values forward
+    const rotatedValues = [values[values.length - 2], ...values.slice(0, values.length - 2)];
+
+    // Create new roles
+    const newRoles = {};
+      for (let i = 0; i < keys.length - 1; i++) {
+          newRoles[keys[i]] = rotatedValues[i];
+      }
+    // Set last key to match the vlue of key1
+    newRoles[keys[keys.length - 1]] = newRoles[keys[0]];
+  }
+  // Set the current roles to the calculated roles and return it
+  currentRoles = newRoles;
+  return currentRoles;
+}
+
+  
+function getWeeksSinceDate(startDateString) {
+  const startDate = new Date(startDateString);
+  const currentDate = new Date();
+
+  // Calculate the difference in milliseconds
+  const timeDifference = currentDate.getTime() - startDate.getTime();
+
+  // Convert milliseconds to weeks
+  // 1000 milliseconds/second * 60 seconds/minute * 60 minutes/hour * 24 hours/day * 7 days/week
+  const millisecondsInOneWeek = 1000 * 60 * 60 * 24 * 7;
+  const weeks = Math.floor(timeDifference / millisecondsInOneWeek);
+
+  return weeks;
+}
+
+
+rotateRoles(getWeeksSinceDate(baseDate));
+console.log(currentRoles);
+
+</script>
+</body>
+</html>
