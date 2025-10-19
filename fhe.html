@@ -76,7 +76,7 @@ rotateRoles(getWeeksSinceDate(baseDate));
 console.log(currentRoles);
 
 // Convert the object to a JSON string
-const rolesString = JSON.stringify(currentRoles null, 2); // null, 2 for pretty printing
+const rolesString = JSON.stringify(currentRoles, null, 2); // null, 2 for pretty printing
 
 // Append a new <pre> element to display the formatted JSON
 const rolesElement = document.createElement("pre");
