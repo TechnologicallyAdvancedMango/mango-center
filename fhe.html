@@ -24,7 +24,7 @@
 
 <script>
 // Roles to base the current roles off of
-const baseDate = "2025-10-6";
+const baseDate = "2025-10-20";
 const baseRoles = {
   song: 'M',
   prayer: 'D',
@@ -37,22 +37,28 @@ let currentRoles = {};
 
 function rotateRoles(iterations) {
   const newRoles = {};
-  for(i = 0; i < iterations; i++) {
-    let keys = Object.keys(baseRoles);
-    let values = Object.values(baseRoles);
-    
-    // Rotate first N–1 values forward
-    const rotatedValues = [values[values.length - 2], ...values.slice(0, values.length - 2)];
-
-    // Create new roles
-      for (let i = 0; i < keys.length - 1; i++) {
-          newRoles[keys[i]] = rotatedValues[i];
-      }
-    // Set last key to match the vlue of key1
-    newRoles[keys[keys.length - 1]] = newRoles[keys[0]];
+  if(iterations > 0) {
+    for(i = 0; i < iterations; i++) {
+      let keys = Object.keys(baseRoles);
+      let values = Object.values(baseRoles);
+      
+      // Rotate first N–1 values forward
+      const rotatedValues = [values[values.length - 2], ...values.slice(0, values.length - 2)];
+  
+      // Create new roles
+        for (let i = 0; i < keys.length - 1; i++) {
+            newRoles[keys[i]] = rotatedValues[i];
+        }
+      // Set last key to match the vlue of key1
+      newRoles[keys[keys.length - 1]] = newRoles[keys[0]];
+    }
+    // Set the current roles to the calculated roles
+    currentRoles = newRoles;
+  } else {
+    // Set the current roles to the base roless if iterations is 0 or less
+    currentRoles = baseRoles;
   }
-  // Set the current roles to the calculated roles and return it
-  currentRoles = newRoles;
+  
   return currentRoles;
 }
 
