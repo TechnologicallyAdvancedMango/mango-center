@@ -161,11 +161,13 @@ function importGridFromCoords(json) {
 
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
-  updateGrid();
-  history.push(currentGrid.map(row => row.slice()));
+  const snapshot = currentGrid.map(row => row.slice()); // Copy before update
+  history.push(snapshot);
   currentGen++;
+  updateGrid();
   drawGrid(currentGrid);
 });
+
 
 document.getElementById("backwardBtn").addEventListener("click", function () {
   reverseGrid();
@@ -185,11 +187,12 @@ document.getElementById("runBtn").addEventListener("click", function () {
   if (!running) {
     running = true;
     intervalId = setInterval(() => {
-      updateGrid();
-      history.push(currentGrid.map(row => row.slice()));
+      const snapshot = currentGrid.map(row => row.slice());
+      history.push(snapshot);
       currentGen++;
+      updateGrid();
       drawGrid(currentGrid);
-    }, 200); // adjust speed here (milliseconds)
+    }, 200); // speed here
   }
 });
 
