@@ -209,7 +209,7 @@ function importGridFromCoords(json) {
     currentGen = 0;
     drawGrid(currentGrid);
   } catch (e) {
-    alert("Invalid coordinate format.");
+    alert("Invalid coordinate format. Error: " + e);
   }
 }
 
