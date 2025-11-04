@@ -30,6 +30,8 @@
 <body>
   <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
   <div id="menu">
+    <button id="runBtn">Run</button>
+    <button id="stopBtn">Stop</button>
     <button id="forwardBtn">Forward</button>
     <button id="backwardBtn">Backward</button>
     <button id="exportBtn">Export Grid</button>
@@ -41,6 +43,9 @@ const ctx = canvas.getContext("2d");
 
 const gridSize = 25;
 const cellSize = canvas.width / gridSize;
+
+let running = false;
+let intervalId = null;
 
 // Starting grid (glider)
 const initialGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
