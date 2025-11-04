@@ -253,7 +253,7 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
-ddocument.getElementById("generateReverseBtn").addEventListener("click", async function () {
+document.getElementById("generateReverseBtn").addEventListener("click", async function () {
   const indicator = document.getElementById("searchIndicator");
   indicator.style.display = "block";
 
@@ -272,6 +272,7 @@ ddocument.getElementById("generateReverseBtn").addEventListener("click", async f
 
   drawGrid(currentGrid);
 });
+
 
 document.getElementById("exportBtn").addEventListener("click", () => {
   exportGridAsCoords(currentGrid);
