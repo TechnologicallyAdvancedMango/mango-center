@@ -115,6 +115,20 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
+canvas.addEventListener("click", function (event) {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  const col = Math.floor(x / cellSize);
+  const row = Math.floor(y / cellSize);
+
+  // Toggle the cell
+  currentGrid[row][col] = currentGrid[row][col] === 1 ? 0 : 1;
+  drawGrid(currentGrid);
+});
+
+
 window.onload = function () {
   currentGrid = initialGrid.map(row => row.slice());
   history = [currentGrid];
