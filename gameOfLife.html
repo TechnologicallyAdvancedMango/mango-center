@@ -169,6 +169,24 @@ document.getElementById("importBtn").addEventListener("click", () => {
   if (input) importGridFromCoords(input);
 });
 
+document.getElementById("runBtn").addEventListener("click", function () {
+  if (!running) {
+    running = true;
+    intervalId = setInterval(() => {
+      updateGrid();
+      history.push(currentGrid.map(row => row.slice()));
+      currentGen++;
+      drawGrid(currentGrid);
+    }, 200); // adjust speed here (milliseconds)
+  }
+});
+
+document.getElementById("stopBtn").addEventListener("click", function () {
+  running = false;
+  clearInterval(intervalId);
+});
+
+
 canvas.addEventListener("click", function (event) {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
