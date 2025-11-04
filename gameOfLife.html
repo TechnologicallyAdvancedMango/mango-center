@@ -236,7 +236,7 @@ function startBruteForceReverse(targetGrid) {
         history = [currentGrid.map(row => row.slice())];
         currentGen = 0;
         drawGrid(currentGrid);
-        counter.textContent = `✅ Found match at attempt ${attempt}`;
+        counter.textContent = `Found match at attempt ${attempt}`;
         return;
       }
     }
