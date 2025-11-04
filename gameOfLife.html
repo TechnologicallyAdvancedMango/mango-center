@@ -175,6 +175,7 @@ function serializeGrid(grid) {
 
 function exportGridAsCoords(grid) {
   const coords = [];
+  coords.push(gridSize);
   for (let row = 0; row < grid.length; row++) {
     for (let col = 0; col < grid[row].length; col++) {
       if (grid[row][col] === 1) {
@@ -182,6 +183,7 @@ function exportGridAsCoords(grid) {
       }
     }
   }
+  
   const json = JSON.stringify(coords);
   navigator.clipboard.writeText(json).then(() => {
     alert("Grid copied as coordinates!");
@@ -192,11 +194,18 @@ function importGridFromCoords(json) {
   try {
     const coords = JSON.parse(json);
     const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-    coords.forEach(([row, col]) => {
-      if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
-        newGrid[row][col] = 1;
+    
+    for(let coord = 0; coord < coords.length; coords++) {
+      if(typeOf coord === "number") {
+        gridSize = coord;
+      } else {
+        const row = coord[0];
+        const col = coord[1];
+        if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+          newGrid[row][col] = 1;
+        }
       }
-    });
+    }
     currentGrid = newGrid;
     history = [newGrid.map(row => row.slice())];
     currentGen = 0;
