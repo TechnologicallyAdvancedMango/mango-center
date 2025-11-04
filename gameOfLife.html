@@ -263,8 +263,8 @@ document.getElementById("generateReverseBtn").addEventListener("click", function
 
     if (reverse) {
       currentGrid = reverse;
-      history.push(currentGrid.map(row => row.slice()));
-      currentGen++;
+      history = currentGrid.map(row => row.slice());
+      currentGen = 0;
       drawGrid(currentGrid);
     } else {
       alert("No reverse found after many attempts.");
