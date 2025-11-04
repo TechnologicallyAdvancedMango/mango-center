@@ -40,6 +40,7 @@
       <button id="runBtn">Run</button>
       <button id="stopBtn">Stop</button>
       <button id="restartBtn">Restart</button>
+      <button id="clearBtn">Clear</button>
     </div>
     <div class="row">
       <button id="forwardBtn">Forward</button>
@@ -347,6 +348,15 @@ document.getElementById("restartBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
   currentGrid = history[0].map(row => row.slice());
+  history = [currentGrid];
+  currentGen = 0;
+  drawGrid(currentGrid);
+});
+
+document.getElementById("clearBtn").addEventListener("click", function () {
+  running = false;
+  clearInterval(intervalId);
+  currentGrid = currentGrid.map(row => for (col of row) { col = 0 });
   history = [currentGrid];
   currentGen = 0;
   drawGrid(currentGrid);
