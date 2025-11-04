@@ -223,7 +223,9 @@ function resizeGrid(newSize) {
     for (let col = 0; col < Math.min(gridSize, newSize); col++) {
       newGrid[row][col] = currentGrid[row][col];
     }
+    newGrid[row].length = newSize;
   }
+  newGrid.length = newSize;
 
   gridSize = newSize;
   cellSize = canvas.width / gridSize;
