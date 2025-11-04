@@ -161,11 +161,12 @@ function importGridFromCoords(json) {
 
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
-  history.push(currentGrid.map(row => row.slice())); // Save current state
-  currentGen++;
   currentGrid = updateGrid(); // Apply update
+  history.push(currentGrid.map(row => row.slice())); // Save new state
+  currentGen++;
   drawGrid(currentGrid);
 });
+
 
 document.getElementById("backwardBtn").addEventListener("click", function () {
   reverseGrid();
@@ -185,13 +186,14 @@ document.getElementById("runBtn").addEventListener("click", function () {
   if (!running) {
     running = true;
     intervalId = setInterval(() => {
+      currentGrid = updateGrid();
       history.push(currentGrid.map(row => row.slice()));
       currentGen++;
-      currentGrid = updateGrid();
       drawGrid(currentGrid);
     }, 200); // speed here
   }
 });
+
 
 document.getElementById("stopBtn").addEventListener("click", function () {
   running = false;
@@ -202,11 +204,12 @@ document.getElementById("restartBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
 
-  // Go to first state and clear
-  currentGrid = history[0];
+  currentGrid = history[0].map(row => row.slice());
   history = [currentGrid];
+  currentGen = 0;
   drawGrid(currentGrid);
 });
+
 
 canvas.addEventListener("click", function (event) {
   const rect = canvas.getBoundingClientRect();
