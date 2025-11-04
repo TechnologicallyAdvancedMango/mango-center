@@ -195,7 +195,7 @@ function importGridFromCoords(json) {
     const coords = JSON.parse(json);
     const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
     
-    for(let coord = 0; coord < coords.length; coords++) {
+    for(let coord = 0; coord < coords.length; coord++) {
       if(coords[coord][row] == null) {
         resizeGrid(coords[coord]);
       } else {
