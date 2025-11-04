@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Game of Life</title>
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      border: 1px solid black;
+    }
+    button {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
+  <button id="backwardBtn">Backward</button>
+  <button id="forwardBtn">Forward</button>
+<script>
+const canvas = document.getElementById("lifeCanvas");
+const ctx = canvas.getContext("2d");
+
+const gridSize = 25;
+const cellSize = canvas.width / gridSize;
+
+// Starting grid (glider)
+const initialGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+initialGrid[1][2] = 1;
+initialGrid[2][3] = 1;
+initialGrid[3][1] = 1;
+initialGrid[3][2] = 1;
+initialGrid[3][3] = 1;
+
+let currentGrid = initialGrid.map(row => row.slice());
+let history = [currentGrid];
+let currentGen = 0;
+
+function drawGrid(grid) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let row = 0; row < grid.length; row++) {
+    for (let column = 0; column < grid[row].length; column++) {
+      if (grid[row][column] === 1) {
+        ctx.fillRect(column * cellSize, row * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+}
+
+function getNextState(state, neighbors) {
+  if (state === 1) {
+    return neighbors === 2 || neighbors === 3 ? 1 : 0;
+  } else {
+    return neighbors === 3 ? 1 : 0;
+  }
+}
+
+function getNeighborsSum(grid, row, col) {
+  const numRows = grid.length;
+  const numCols = grid[0].length;
+  let sum = 0;
+
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      if (i === 0 && j === 0) continue;
+      const wrappedRow = (row + i + numRows) % numRows;
+      const wrappedCol = (col + j + numCols) % numCols;
+      sum += grid[wrappedRow][wrappedCol];
+    }
+  }
+
+  return sum;
+}
+
+function updateGrid() {
+  const newGrid = [];
+  for (let row = 0; row < currentGrid.length; row++) {
+    newGrid[row] = [];
+    for (let col = 0; col < currentGrid[row].length; col++) {
+      const neighbors = getNeighborsSum(currentGrid, row, col);
+      newGrid[row][col] = getNextState(currentGrid[row][col], neighbors);
+    }
+  }
+  currentGrid = newGrid;
+}
+
+function reverseGrid() {
+  if (currentGen > 0) {
+    currentGen--;
+    currentGrid = history[currentGen].map(row => row.slice());
+  }
+}
+
+document.getElementById("forwardBtn").addEventListener("click", function () {
+  updateGrid();
+  history.push(currentGrid.map(row => row.slice()));
+  currentGen++;
+  drawGrid(currentGrid);
+});
+
+document.getElementById("backwardBtn").addEventListener("click", function () {
+  reverseGrid();
+  drawGrid(currentGrid);
+});
+
+window.onload = function () {
+  currentGrid = initialGrid.map(row => row.slice());
+  history = [currentGrid];
+  currentGen = 0;
+  drawGrid(currentGrid);
+};
+
+</script>
+</body>
+</html>
