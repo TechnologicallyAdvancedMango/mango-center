@@ -127,7 +127,7 @@ function reverseGrid() {
   }
 }
 
-function generateReverseGrid(targetGrid, maxAttempts = 10000) {
+function generateReverseGrid(targetGrid, maxAttempts = 100000) {
   const visited = new Set();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
