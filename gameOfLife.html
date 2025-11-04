@@ -103,6 +103,29 @@ function reverseGrid() {
   }
 }
 
+function exportGridToClipboard(grid) {
+  // Flatten the grid into a single array
+  const flat = grid.flat();
+
+  // Convert to binary string
+  const binary = flat.map(cell => cell ? '1' : '0').join('');
+
+  // Convert binary string to byte array
+  const byteArray = [];
+  for (let i = 0; i < binary.length; i += 8) {
+    const byte = binary.slice(i, i + 8).padEnd(8, '0');
+    byteArray.push(parseInt(byte, 2));
+  }
+
+  // Convert to Base64
+  const base64 = btoa(String.fromCharCode(...byteArray));
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(base64).then(() => {
+    alert("Grid copied to clipboard as Base64!");
+  });
+}
+
 document.getElementById("forwardBtn").addEventListener("click", function () {
   updateGrid();
   history.push(currentGrid.map(row => row.slice()));
@@ -113,6 +136,10 @@ document.getElementById("forwardBtn").addEventListener("click", function () {
 document.getElementById("backwardBtn").addEventListener("click", function () {
   reverseGrid();
   drawGrid(currentGrid);
+});
+
+document.getElementById("exportBtn").addEventListener("click", function () {
+  exportGridToClipboard(currentGrid);
 });
 
 canvas.addEventListener("click", function (event) {
