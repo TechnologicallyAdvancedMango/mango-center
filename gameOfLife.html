@@ -35,6 +35,7 @@
 <body>
   <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
   <div id="menu">
+    <div id="searchIndicator" style="display:none; font-weight:bold;">Searching for reverse…</div>
     <div class="row">
       <button id="runBtn">Run</button>
       <button id="stopBtn">Stop</button>
@@ -242,15 +243,22 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
 });
 
 document.getElementById("generateReverseBtn").addEventListener("click", function () {
-  const reverse = generateReverseGrid(currentGrid, prompt("Max Attempts: "));
-  if (reverse) {
-    currentGrid = reverse;
-    history.push(currentGrid.map(row => row.slice()));
-    currentGen++;
-    drawGrid(currentGrid);
-  } else {
-    alert("No reverse found after many attempts.");
-  }
+  const indicator = document.getElementById("searchIndicator");
+  indicator.style.display = "block";
+
+  setTimeout(() => {
+    const reverse = generateReverseGridSmart(currentGrid);
+    indicator.style.display = "none";
+
+    if (reverse) {
+      currentGrid = reverse;
+      history.push(currentGrid.map(row => row.slice()));
+      currentGen++;
+      drawGrid(currentGrid);
+    } else {
+      alert("No reverse found after many attempts.");
+    }
+  }, 50); // slight delay to ensure indicator shows
 });
 
 document.getElementById("exportBtn").addEventListener("click", () => {
