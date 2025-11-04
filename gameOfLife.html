@@ -253,23 +253,24 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
-document.getElementById("generateReverseBtn").addEventListener("click", function () {
+ddocument.getElementById("generateReverseBtn").addEventListener("click", async function () {
   const indicator = document.getElementById("searchIndicator");
   indicator.style.display = "block";
 
-  setTimeout(() => {
-    const reverse = generateReverseGrid(currentGrid, prompt("Max attempts: "));
-    indicator.style.display = "none";
+  const maxAttempts = parseInt(prompt("Max attempts:"), 10) || 10000;
+  const reverse = await generateReverseGrid(currentGrid, maxAttempts);
 
-    if (reverse) {
-      currentGrid = reverse;
-      history = [currentGrid.map(row => row.slice())];
-      currentGen = 0;
-    } else {
-      alert("No reverse found after many attempts.");
-    }
-    drawGrid(currentGrid);
-  }, 50); // slight delay to ensure indicator shows
+  indicator.style.display = "none";
+
+  if (reverse) {
+    currentGrid = reverse;
+    history = [currentGrid.map(row => row.slice())];
+    currentGen = 0;
+  } else {
+    alert("No reverse found after many attempts.");
+  }
+
+  drawGrid(currentGrid);
 });
 
 document.getElementById("exportBtn").addEventListener("click", () => {
