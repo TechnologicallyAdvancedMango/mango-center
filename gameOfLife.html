@@ -43,6 +43,7 @@
     <div class="row">
       <button id="forwardBtn">Forward</button>
       <button id="backwardBtn">Backward</button>
+      <button id="generateReverseBtn">Generate Reverse</button>
     </div>
     <div class="row">
       <button id="exportBtn">Export Grid</button>
@@ -126,6 +127,52 @@ function reverseGrid() {
   }
 }
 
+function generateReverseGrid(targetGrid, maxAttempts = 10000) {
+  const visited = new Set();
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const candidate = Array(gridSize).fill().map(() =>
+      Array(gridSize).fill().map(() => Math.random() < 0.5 ? 1 : 0)
+    );
+
+    const key = serializeGrid(candidate);
+    if (visited.has(key)) continue;
+    visited.add(key);
+
+    const evolved = updateGridFrom(candidate);
+    if (gridsEqual(evolved, targetGrid)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function updateGridFrom(grid) {
+  const newGrid = [];
+  for (let row = 0; row < grid.length; row++) {
+    newGrid[row] = [];
+    for (let col = 0; col < grid[row].length; col++) {
+      const neighbors = getNeighborsSum(grid, row, col);
+      newGrid[row][col] = getNextState(grid[row][col], neighbors);
+    }
+  }
+  return newGrid;
+}
+
+function gridsEqual(a, b) {
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      if (a[row][col] !== b[row][col]) return false;
+    }
+  }
+  return true;
+}
+  
+function serializeGrid(grid) {
+  return grid.map(row => row.join("")).join("|");
+}
+
 function exportGridAsCoords(grid) {
   const coords = [];
   for (let row = 0; row < grid.length; row++) {
@@ -167,11 +214,21 @@ document.getElementById("forwardBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
-
-
 document.getElementById("backwardBtn").addEventListener("click", function () {
   reverseGrid();
   drawGrid(currentGrid);
+});
+
+document.getElementById("generateReverseBtn").addEventListener("click", function () {
+  const reverse = generateReverseGrid(currentGrid);
+  if (reverse) {
+    currentGrid = reverse;
+    history.push(currentGrid.map(row => row.slice()));
+    currentGen++;
+    drawGrid(currentGrid);
+  } else {
+    alert("No reverse found after many attempts.");
+  }
 });
 
 document.getElementById("exportBtn").addEventListener("click", () => {
