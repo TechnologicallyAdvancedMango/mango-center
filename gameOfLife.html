@@ -31,6 +31,7 @@
     <button id="forwardBtn">Forward</button>
     <button id="backwardBtn">Backward</button>
     <button id="exportBtn">Export Grid</button>
+    <button id="importBtn">Import Grid</button>
   </div>
 <script>
 const canvas = document.getElementById("lifeCanvas");
@@ -128,6 +129,26 @@ function exportGridToClipboard(grid) {
     alert("Grid copied to clipboard as Base64!");
   });
 }
+function importGridFromBase64(base64) {
+  // Decode Base64 to binary string
+  const binaryString = atob(base64);
+  const binary = Array.from(binaryString).map(char =>
+    char.charCodeAt(0).toString(2).padStart(8, '0')
+  ).join('');
+
+  // Convert binary string to grid
+  const flat = binary.slice(0, gridSize * gridSize).split('').map(bit => parseInt(bit));
+  const newGrid = [];
+  for (let i = 0; i < gridSize; i++) {
+    newGrid[i] = flat.slice(i * gridSize, (i + 1) * gridSize);
+  }
+
+  currentGrid = newGrid;
+  history = [newGrid.map(row => row.slice())];
+  currentGen = 0;
+  drawGrid(currentGrid);
+}
+
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
   updateGrid();
@@ -143,6 +164,13 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
 
 document.getElementById("exportBtn").addEventListener("click", function () {
   exportGridToClipboard(currentGrid);
+});
+
+document.getElementById("importBtn").addEventListener("click", function () {
+  const base64 = prompt("Paste your Base64 grid string:");
+  if (base64) {
+    importGridFromBase64(base64);
+  }
 });
 
 canvas.addEventListener("click", function (event) {
