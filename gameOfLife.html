@@ -36,6 +36,7 @@
   <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
   <div id="menu">
     <div id="searchIndicator" style="display:none; font-weight:bold;">Searching for reverse…</div>
+    <div id="attemptCounter" style="font-family:monospace;"></div>
     <div class="row">
       <button id="runBtn">Run</button>
       <button id="stopBtn">Stop</button>
@@ -146,11 +147,12 @@ function getInfluenceZone(grid) {
   return zone;
 }
   
-function generateReverseGrid(targetGrid, maxAttempts = 10000) {
+async function generateReverseGrid(targetGrid, maxAttempts = 10000) {
   const influenceZone = getInfluenceZone(targetGrid);
   const visited = new Set();
+  const counter = document.getElementById("attemptCounter");
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
 
     for (const key of influenceZone) {
@@ -164,10 +166,19 @@ function generateReverseGrid(targetGrid, maxAttempts = 10000) {
 
     const evolved = updateGridFrom(candidate);
     if (gridsEqual(evolved, targetGrid)) {
+      counter.textContent = `Found match at attempt ${attempt}`;
       return candidate;
+    }
+
+    // Show every 100th attempt
+    if (attempt % 100 === 0) {
+      counter.textContent = `Attempt ${attempt}`;
+      drawGrid(candidate); // Show candidate on canvas
+      await new Promise(r => setTimeout(r, 0)); // Let browser update
     }
   }
 
+  counter.textContent = `No match after ${maxAttempts} attempts`;
   return null;
 }
 
