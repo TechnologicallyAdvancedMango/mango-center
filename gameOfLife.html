@@ -202,8 +202,9 @@ document.getElementById("restartBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
 
-  // Go to first state
+  // Go to first state and clear
   currentGrid = history[0];
+  history = [currentGrid];
 });
 
 canvas.addEventListener("click", function (event) {
