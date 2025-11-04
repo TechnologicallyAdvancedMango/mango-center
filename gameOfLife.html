@@ -265,10 +265,10 @@ document.getElementById("generateReverseBtn").addEventListener("click", function
       currentGrid = reverse;
       history = currentGrid.map(row => row.slice());
       currentGen = 0;
-      drawGrid(currentGrid);
     } else {
       alert("No reverse found after many attempts.");
     }
+    drawGrid(currentGrid);
   }, 50); // slight delay to ensure indicator shows
 });
 
