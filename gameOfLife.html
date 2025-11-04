@@ -194,16 +194,19 @@ function exportGridAsCoords(grid) {
 function importGridFromCoords(json) {
   try {
     const coords = JSON.parse(json);
-    resizeGrid(coords[0]);
-    const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-    
-    for(let coord = 1; coord < coords.length; coord++) {
-      const row = coords[coord][0];
-      const col = coords[coord][1];
-      if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+    const newSize = coords[0];
+    const newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
+
+    for (let i = 1; i < coords.length; i++) {
+      const row = coords[i][0];
+      const col = coords[i][1];
+      if (row >= 0 && row < newSize && col >= 0 && col < newSize) {
         newGrid[row][col] = 1;
       }
     }
+
+    gridSize = newSize;
+    cellSize = canvas.width / gridSize;
     currentGrid = newGrid;
     history = [newGrid.map(row => row.slice())];
     currentGen = 0;
