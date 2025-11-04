@@ -127,13 +127,35 @@ function reverseGrid() {
   }
 }
 
-function generateReverseGrid(targetGrid, maxAttempts = 100000) {
+function getInfluenceZone(grid) {
+  const zone = new Set();
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      if (grid[row][col] === 1) {
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const r = (row + dr + gridSize) % gridSize;
+            const c = (col + dc + gridSize) % gridSize;
+            zone.add(`${r},${c}`);
+          }
+        }
+      }
+    }
+  }
+  return zone;
+}
+  
+function generateReverseGrid(targetGrid, maxAttempts = 10000) {
+  const influenceZone = getInfluenceZone(targetGrid);
   const visited = new Set();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const candidate = Array(gridSize).fill().map(() =>
-      Array(gridSize).fill().map(() => Math.random() < 0.5 ? 1 : 0)
-    );
+    const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+
+    for (const key of influenceZone) {
+      const [r, c] = key.split(',').map(Number);
+      candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
+    }
 
     const key = serializeGrid(candidate);
     if (visited.has(key)) continue;
