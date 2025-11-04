@@ -356,8 +356,8 @@ document.getElementById("restartBtn").addEventListener("click", function () {
 document.getElementById("clearBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
-  currentGrid = currentGrid.map(row => for (let col of row) { col = 0 });
-  history = [currentGrid];
+  currentGrid = currentGrid.map(row => row.map(() => 0));
+  history = [currentGrid.map(row => row.slice())];
   currentGen = 0;
   drawGrid(currentGrid);
 });
