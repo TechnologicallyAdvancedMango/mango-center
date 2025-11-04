@@ -44,6 +44,12 @@
     <div class="row">
       <button id="forwardBtn">Forward</button>
       <button id="backwardBtn">Backward</button>
+    </div>
+    <div class="row">
+      <button id="increaseGridBtn">Increase Grid Size</button>
+      <button id="decreaseGridBtn">Decrease Grid Size</button>
+    </div>
+    <div class="row">
       <button id="startReverseBtn">Start Reverse Search</button>
       <button id="stopReverseBtn">Stop Reverse Search</button>
     </div>
@@ -200,12 +206,28 @@ function importGridFromCoords(json) {
   }
 }
 
+function resizeGrid(newSize) {
+  if (newSize < 5 || newSize > 100) {
+    alert("Grid size must be between 5 and 100.");
+    return;
+  }
+
+  gridSize = newSize;
+  cellSize = canvas.width / gridSize;
+
+  const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+  currentGrid = newGrid;
+  history = [newGrid.map(row => row.slice())];
+  currentGen = 0;
+  drawGrid(currentGrid);
+}
+
 function startBruteForceReverse(targetGrid) {
   const influenceZone = getInfluenceZone(targetGrid);
   const visited = new Set();
   const counter = document.getElementById("attemptCounter");
   let attempt = 0;
-  const batchSize = 1000; // Number of attempts per tick
+  const batchSize = 5000; // Number of attempts per tick
 
   bruteForceRunning = true;
 
@@ -272,6 +294,14 @@ document.getElementById("startReverseBtn").addEventListener("click", () => {
 document.getElementById("stopReverseBtn").addEventListener("click", () => {
   document.getElementById("searchIndicator").style.display = "none";
   stopBruteForceReverse();
+});
+
+document.getElementById("increaseGridBtn").addEventListener("click", () => {
+  resizeGrid(gridSize + 1);
+});
+
+document.getElementById("decreaseGridBtn").addEventListener("click", () => {
+  resizeGrid(gridSize - 1);
 });
 
 document.getElementById("exportBtn").addEventListener("click", () => {
