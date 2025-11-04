@@ -207,15 +207,20 @@ function importGridFromCoords(json) {
 }
 
 function resizeGrid(newSize) {
-  if (newSize < 5 || newSize > 100) {
-    alert("Grid size must be between 5 and 100.");
+  if (newSize < 1) {
+    alert("Grid size must be greater than 0");
     return;
+  }
+
+  const newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
+  for (let row = 0; row < Math.min(gridSize, newSize); row++) {
+    for (let col = 0; col < Math.min(gridSize, newSize); col++) {
+      newGrid[row][col] = currentGrid[row][col];
+    }
   }
 
   gridSize = newSize;
   cellSize = canvas.width / gridSize;
-
-  const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
   currentGrid = newGrid;
   history = [newGrid.map(row => row.slice())];
   currentGen = 0;
