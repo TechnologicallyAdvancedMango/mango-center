@@ -220,7 +220,7 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
 });
 
 document.getElementById("generateReverseBtn").addEventListener("click", function () {
-  const reverse = generateReverseGrid(currentGrid);
+  const reverse = generateReverseGrid(currentGrid, prompt("Max Attempts: "));
   if (reverse) {
     currentGrid = reverse;
     history.push(currentGrid.map(row => row.slice()));
