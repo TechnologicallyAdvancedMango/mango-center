@@ -18,11 +18,10 @@
       display: flex;
       flex-flow: column nowrap;
       padding: 5px;
-
       border: 2px solid black;
     }
     #menu > .row {
-      dsplay: flex;
+      display: flex;
       flex-flow: row nowrap;
       padding: 5px;
       gap: 5px;
@@ -45,13 +44,15 @@
     <div class="row">
       <button id="forwardBtn">Forward</button>
       <button id="backwardBtn">Backward</button>
-      <button id="generateReverseBtn">Generate Reverse</button>
+      <button id="startReverseBtn">Start Reverse Search</button>
+      <button id="stopReverseBtn">Stop Reverse Search</button>
     </div>
     <div class="row">
       <button id="exportBtn">Export Grid</button>
       <button id="importBtn">Import Grid</button>
     </div>
   </div>
+<script>
 <script>
 const canvas = document.getElementById("lifeCanvas");
 const ctx = canvas.getContext("2d");
@@ -61,8 +62,9 @@ const cellSize = canvas.width / gridSize;
 
 let running = false;
 let intervalId = null;
+let bruteForceRunning = false;
+let bruteForceInterval = null;
 
-// Starting grid (glider)
 const initialGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
 initialGrid[1][2] = 1;
 initialGrid[2][3] = 1;
@@ -86,18 +88,13 @@ function drawGrid(grid) {
 }
 
 function getNextState(state, neighbors) {
-  if (state === 1) {
-    return neighbors === 2 || neighbors === 3 ? 1 : 0;
-  } else {
-    return neighbors === 3 ? 1 : 0;
-  }
+  return state === 1 ? (neighbors === 2 || neighbors === 3 ? 1 : 0) : (neighbors === 3 ? 1 : 0);
 }
 
 function getNeighborsSum(grid, row, col) {
   const numRows = grid.length;
   const numCols = grid[0].length;
   let sum = 0;
-
   for (let i = -1; i <= 1; i++) {
     for (let j = -1; j <= 1; j++) {
       if (i === 0 && j === 0) continue;
@@ -106,7 +103,6 @@ function getNeighborsSum(grid, row, col) {
       sum += grid[wrappedRow][wrappedCol];
     }
   }
-
   return sum;
 }
 
@@ -146,41 +142,6 @@ function getInfluenceZone(grid) {
   }
   return zone;
 }
-  
-async function generateReverseGrid(targetGrid, maxAttempts = 10000) {
-  const influenceZone = getInfluenceZone(targetGrid);
-  const visited = new Set();
-  const counter = document.getElementById("attemptCounter");
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-
-    for (const key of influenceZone) {
-      const [r, c] = key.split(',').map(Number);
-      candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
-    }
-
-    const key = serializeGrid(candidate);
-    if (visited.has(key)) continue;
-    visited.add(key);
-
-    const evolved = updateGridFrom(candidate);
-    if (gridsEqual(evolved, targetGrid)) {
-      counter.textContent = `Found match at attempt ${attempt}`;
-      return candidate;
-    }
-
-    // Show every 100th attempt
-    if (attempt % 100 === 0) {
-      counter.textContent = `Attempt ${attempt}`;
-      drawGrid(candidate); // Show candidate on canvas
-      await new Promise(r => setTimeout(r, 0)); // Let browser update
-    }
-  }
-
-  counter.textContent = `No match after ${maxAttempts} attempts`;
-  return null;
-}
 
 function updateGridFrom(grid) {
   const newGrid = [];
@@ -202,7 +163,7 @@ function gridsEqual(a, b) {
   }
   return true;
 }
-  
+
 function serializeGrid(grid) {
   return grid.map(row => row.join("")).join("|");
 }
@@ -240,6 +201,54 @@ function importGridFromCoords(json) {
   }
 }
 
+function startBruteForceReverse(targetGrid) {
+  const influenceZone = getInfluenceZone(targetGrid);
+  const visited = new Set();
+  const counter = document.getElementById("attemptCounter");
+  let attempt = 0;
+
+  bruteForceRunning = true;
+  bruteForceInterval = setInterval(() => {
+    if (!bruteForceRunning) {
+      clearInterval(bruteForceInterval);
+      counter.textContent = `Stopped at attempt ${attempt}`;
+      return;
+    }
+
+    attempt++;
+    const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+    for (const key of influenceZone) {
+      const [r, c] = key.split(',').map(Number);
+      candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
+    }
+
+    const key = serializeGrid(candidate);
+    if (visited.has(key)) return;
+    visited.add(key);
+
+    const evolved = updateGridFrom(candidate);
+    if (gridsEqual(evolved, targetGrid)) {
+      bruteForceRunning = false;
+      clearInterval(bruteForceInterval);
+      currentGrid = candidate;
+      history = [currentGrid.map(row => row.slice())];
+      currentGen = 0;
+      drawGrid(currentGrid);
+      counter.textContent = `✅ Found match at attempt ${attempt}`;
+      return;
+    }
+
+    if (attempt % 100 === 0) {
+      counter.textContent = `Attempt ${attempt}`;
+      drawGrid(candidate);
+    }
+  }, 0);
+}
+
+function stopBruteForceReverse() {
+  bruteForceRunning = false;
+  clearInterval(bruteForceInterval);
+}
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
   history.push(currentGrid.map(row => row.slice()));
@@ -253,26 +262,15 @@ document.getElementById("backwardBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
-document.getElementById("generateReverseBtn").addEventListener("click", async function () {
-  const indicator = document.getElementById("searchIndicator");
-  indicator.style.display = "block";
-
-  const maxAttempts = parseInt(prompt("Max attempts:"), 10) || 10000;
-  const reverse = await generateReverseGrid(currentGrid, maxAttempts);
-
-  indicator.style.display = "none";
-
-  if (reverse) {
-    currentGrid = reverse;
-    history = [currentGrid.map(row => row.slice())];
-    currentGen = 0;
-  } else {
-    alert("No reverse found after many attempts.");
-  }
-
-  drawGrid(currentGrid);
+document.getElementById("startReverseBtn").addEventListener("click", () => {
+  document.getElementById("searchIndicator").style.display = "block";
+  startBruteForceReverse(currentGrid);
 });
 
+document.getElementById("stopReverseBtn").addEventListener("click", () => {
+  document.getElementById("searchIndicator").style.display = "none";
+  stopBruteForceReverse();
+});
 
 document.getElementById("exportBtn").addEventListener("click", () => {
   exportGridAsCoords(currentGrid);
@@ -291,7 +289,7 @@ document.getElementById("runBtn").addEventListener("click", function () {
       currentGrid = updateGrid();
       currentGen = history.length;
       drawGrid(currentGrid);
-    }, 200); // speed here
+    }, 200);
   }
 });
 
@@ -303,29 +301,23 @@ document.getElementById("stopBtn").addEventListener("click", function () {
 document.getElementById("restartBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
-
   currentGrid = history[0].map(row => row.slice());
   history = [currentGrid];
   currentGen = 0;
   drawGrid(currentGrid);
 });
 
-
 canvas.addEventListener("click", function (event) {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-
   const col = Math.floor(x / cellSize);
   const row = Math.floor(y / cellSize);
-
-  // Toggle the cell
   currentGrid[row][col] = currentGrid[row][col] === 1 ? 0 : 1;
-  history = [currentGrid.map(row => row.slice())]; // Clear history
+  history = [currentGrid.map(row => row.slice())];
   currentGen = 0;
   drawGrid(currentGrid);
 });
-
 
 window.onload = function () {
   currentGrid = initialGrid.map(row => row.slice());
@@ -333,7 +325,6 @@ window.onload = function () {
   currentGen = 0;
   drawGrid(currentGrid);
 };
-
 </script>
 </body>
 </html>
