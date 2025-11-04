@@ -125,6 +125,8 @@ canvas.addEventListener("click", function (event) {
 
   // Toggle the cell
   currentGrid[row][col] = currentGrid[row][col] === 1 ? 0 : 1;
+  history = [currentGrid.map(row => row.slice())]; // Clear history
+  currentGen = 0;
   drawGrid(currentGrid);
 });
 
