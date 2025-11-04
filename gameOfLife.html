@@ -17,9 +17,12 @@
     #menu {
       dsplay: flex;
       flex-flow: column nowrap;
-      width: 250px;
 
       border: 2px solid black;
+    }
+    #menu > .row {
+      dsplay: flex;
+      flex-flow: row nowrap;
     }
     #menu > button {
       margin: 5px;
@@ -30,12 +33,19 @@
 <body>
   <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
   <div id="menu">
-    <button id="runBtn">Run</button>
-    <button id="stopBtn">Stop</button>
-    <button id="forwardBtn">Forward</button>
-    <button id="backwardBtn">Backward</button>
-    <button id="exportBtn">Export Grid</button>
-    <button id="importBtn">Import Grid</button>
+    <div class="row">
+      <button id="runBtn">Run</button>
+      <button id="stopBtn">Stop</button>
+      <button id="restartBtn">Stop</button>
+    </div>
+    <div class="row">
+      <button id="forwardBtn">Forward</button>
+      <button id="backwardBtn">Backward</button>
+    </div>
+    <div class="row">
+      <button id="exportBtn">Export Grid</button>
+      <button id="importBtn">Import Grid</button>
+    </div>
   </div>
 <script>
 const canvas = document.getElementById("lifeCanvas");
@@ -186,6 +196,13 @@ document.getElementById("stopBtn").addEventListener("click", function () {
   clearInterval(intervalId);
 });
 
+document.getElementById("restartBtn").addEventListener("click", function () {
+  running = false;
+  clearInterval(intervalId);
+
+  // Go to first state
+  currentGrid = history[0];
+});
 
 canvas.addEventListener("click", function (event) {
   const rect = canvas.getBoundingClientRect();
