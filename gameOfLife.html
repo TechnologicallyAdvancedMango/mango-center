@@ -62,8 +62,8 @@
 const canvas = document.getElementById("lifeCanvas");
 const ctx = canvas.getContext("2d");
 
-const gridSize = 25;
-const cellSize = canvas.width / gridSize;
+let gridSize = 25;
+let cellSize = canvas.width / gridSize;
 
 let running = false;
 let intervalId = null;
