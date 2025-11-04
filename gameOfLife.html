@@ -205,8 +205,10 @@ function startBruteForceReverse(targetGrid) {
   const visited = new Set();
   const counter = document.getElementById("attemptCounter");
   let attempt = 0;
+  const batchSize = 500; // Number of attempts per tick
 
   bruteForceRunning = true;
+
   bruteForceInterval = setInterval(() => {
     if (!bruteForceRunning) {
       clearInterval(bruteForceInterval);
@@ -214,32 +216,33 @@ function startBruteForceReverse(targetGrid) {
       return;
     }
 
-    attempt++;
-    const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-    for (const key of influenceZone) {
-      const [r, c] = key.split(',').map(Number);
-      candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
+    for (let i = 0; i < batchSize; i++) {
+      attempt++;
+      const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+      for (const key of influenceZone) {
+        const [r, c] = key.split(',').map(Number);
+        candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
+      }
+
+      const key = serializeGrid(candidate);
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const evolved = updateGridFrom(candidate);
+      if (gridsEqual(evolved, targetGrid)) {
+        bruteForceRunning = false;
+        clearInterval(bruteForceInterval);
+        currentGrid = candidate;
+        history = [currentGrid.map(row => row.slice())];
+        currentGen = 0;
+        drawGrid(currentGrid);
+        counter.textContent = `✅ Found match at attempt ${attempt}`;
+        return;
+      }
     }
 
-    const key = serializeGrid(candidate);
-    if (visited.has(key)) return;
-    visited.add(key);
-
-    const evolved = updateGridFrom(candidate);
-    if (gridsEqual(evolved, targetGrid)) {
-      bruteForceRunning = false;
-      clearInterval(bruteForceInterval);
-      currentGrid = candidate;
-      history = [currentGrid.map(row => row.slice())];
-      currentGen = 0;
-      drawGrid(currentGrid);
-      counter.textContent = `✅ Found match at attempt ${attempt}`;
-      return;
-    }
-
-    if (attempt % 100 === 0) {
+    if (attempt % 1000 === 0) {
       counter.textContent = `Attempt ${attempt}`;
-      drawGrid(candidate);
     }
   }, 0);
 }
