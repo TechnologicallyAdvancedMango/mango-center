@@ -12,6 +12,12 @@
     canvas {
       border: 1px solid black;
     }
+    #menu {
+      dsplay: flex;
+      flex-flow: column nowrap;
+
+      border: 2px solid black;
+    }
     button {
       margin: 5px;
     }
@@ -19,8 +25,10 @@
 </head>
 <body>
   <canvas id="lifeCanvas" width="500" height="500"></canvas><br>
-  <button id="backwardBtn">Backward</button>
-  <button id="forwardBtn">Forward</button>
+  <div id="menu">
+    <button id="backwardBtn">Backward</button>
+    <button id="forwardBtn">Forward</button>
+  </div>
 <script>
 const canvas = document.getElementById("lifeCanvas");
 const ctx = canvas.getContext("2d");
