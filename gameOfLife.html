@@ -194,16 +194,13 @@ function importGridFromCoords(json) {
   try {
     const coords = JSON.parse(json);
     const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-    
-    for(let coord = 0; coord < coords.length; coord++) {
-      if(coords[coord][row] == null) {
-        resizeGrid(coords[coord]);
-      } else {
-        const row = coords[coord][0];
-        const col = coords[coord][1];
-        if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
-          newGrid[row][col] = 1;
-        }
+
+    resizeGrid(coords[0]);
+    for(let coord = 1; coord < coords.length; coord++) {
+      const row = coords[coord][0];
+      const col = coords[coord][1];
+      if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+        newGrid[row][col] = 1;
       }
     }
     currentGrid = newGrid;
