@@ -197,7 +197,7 @@ function importGridFromCoords(json) {
     
     for(let coord = 0; coord < coords.length; coords++) {
       if(typeOf coord === "number") {
-        gridSize = coord;
+        resizeGrid(coord);
       } else {
         const row = coord[0];
         const col = coord[1];
