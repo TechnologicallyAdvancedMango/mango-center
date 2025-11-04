@@ -194,9 +194,9 @@ function exportGridAsCoords(grid) {
 function importGridFromCoords(json) {
   try {
     const coords = JSON.parse(json);
-    const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-
     resizeGrid(coords[0]);
+    const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+    
     for(let coord = 1; coord < coords.length; coord++) {
       const row = coords[coord][0];
       const col = coords[coord][1];
