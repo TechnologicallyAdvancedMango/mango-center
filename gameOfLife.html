@@ -247,7 +247,7 @@ document.getElementById("generateReverseBtn").addEventListener("click", function
   indicator.style.display = "block";
 
   setTimeout(() => {
-    const reverse = generateReverseGridSmart(currentGrid, prompt("Max attempts: "));
+    const reverse = generateReverseGrid(currentGrid, prompt("Max attempts: "));
     indicator.style.display = "none";
 
     if (reverse) {
