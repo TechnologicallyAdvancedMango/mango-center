@@ -161,11 +161,12 @@ function importGridFromCoords(json) {
 
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
-  currentGrid = updateGrid(); // Apply update
-  history.push(currentGrid.map(row => row.slice())); // Save new state
-  currentGen++;
+  history.push(currentGrid.map(row => row.slice()));
+  currentGrid = updateGrid();
+  currentGen = history.length;
   drawGrid(currentGrid);
 });
+
 
 
 document.getElementById("backwardBtn").addEventListener("click", function () {
@@ -186,14 +187,13 @@ document.getElementById("runBtn").addEventListener("click", function () {
   if (!running) {
     running = true;
     intervalId = setInterval(() => {
-      currentGrid = updateGrid();
       history.push(currentGrid.map(row => row.slice()));
-      currentGen++;
+      currentGrid = updateGrid();
+      currentGen = history.length;
       drawGrid(currentGrid);
     }, 200); // speed here
   }
 });
-
 
 document.getElementById("stopBtn").addEventListener("click", function () {
   running = false;
