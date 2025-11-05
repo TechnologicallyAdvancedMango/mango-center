@@ -30,16 +30,18 @@
     #menu > .row {
       display: flex;
       flex-flow: row nowrap;
-      padding: 5px;
-      gap: 5px;
+      padding: 10px;
+      gap: 15px;
     }
     #menu button {
       flex-grow: 1;
       text-align: center;
       font-size: 20px;
+      padding: 5px;
     }
     #menu .icon {
       flex-grow: 0;
+      align-self: center;
       aspect-ratio: 1;
       font-size: 20px;
     }
@@ -51,14 +53,16 @@
     <div id="searchIndicator" style="display:none; font-weight:bold;">Searching for reverse…</div>
     <div id="attemptCounter" style="font-family:monospace;"></div>
     <div class="row">
-      <button id="runBtn">▶️</button>
-      <button id="stopBtn" style="display: none">⏹️</button>
-      <button id="restartBtn">🔄</button>
-      <button id="clearBtn">❎</button>
+      <button id="runBtn" class="icon">▶️</button>
+      <button id="stopBtn" class="icon" style="display: none">⏹️</button>
+      <button id="speedUpBtn" class="icon">⏩</button>
+      <button id="speedDownBtn" class="icon">⏪</button>
+      <button id="restartBtn" class="icon">🔄</button>
+      <button id="clearBtn" class="icon">❎</button>
     </div>
     <div class="row">
-      <button id="backwardBtn">⬅</button>
-      <button id="forwardBtn">➡</button>
+      <button id="backwardBtn" class="icon">⬅</button>
+      <button id="forwardBtn" class="icon">➡</button>
     </div>
     <div class="row">
       <button id="increaseGridBtn">Increase Grid Size</button>
@@ -75,8 +79,8 @@
     </div>
     <hr>
     <div class="row">
-      <button id="exportBtn">📤</button>
-      <button id="importBtn">📥</button>
+      <button id="exportBtn" class="icon">📤</button>
+      <button id="importBtn" class="icon">📥</button>
     </div>
   </div>
 <script>
@@ -93,6 +97,8 @@ let running = false;
 let intervalId = null;
 let bruteForceRunning = false;
 let bruteForceInterval = null;
+
+let runInterval = 200;
 
 const initialGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
 initialGrid[1][2] = 1;
@@ -542,7 +548,7 @@ document.getElementById("runBtn").addEventListener("click", function () {
       currentGrid = updateGrid();
       currentGen = history.length;
       drawGrid(currentGrid);
-    }, 200);
+    }, runInterval);
   }
   document.getElementById("runBtn").style.display = "none";
   document.getElementById("stopBtn").style.display = "block";
@@ -553,6 +559,18 @@ document.getElementById("stopBtn").addEventListener("click", function () {
   clearInterval(intervalId);
   document.getElementById("stopBtn").style.display = "none";
   document.getElementById("runBtn").style.display = "block";
+});
+
+document.getElementById("speedUpBtn").addEventListener("click", function () {
+  runInterval *= 1.1; // Speed up by 10%
+  document.getElementById("stopBtn").click();
+  document.getElementById("runBtn").click();
+});
+
+document.getElementById("speedDownBtn").addEventListener("click", function () {
+  runInterval *= 0.9; // Slow down by 10%
+  document.getElementById("stopBtn").click();
+  document.getElementById("runBtn").click();
 });
 
 document.getElementById("restartBtn").addEventListener("click", function () {
