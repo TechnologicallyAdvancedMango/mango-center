@@ -5,6 +5,7 @@
   <title>Game of Life</title>
   <style>
     body {
+      height: 100vh;
       display: flex;
       flex-flow: row wrap;
       gap: 15px;
@@ -17,6 +18,7 @@
     #menu {
       display: flex;
       flex-flow: column nowrap;
+      min-width: 500px;
       padding: 5px;
       border: 2px solid black;
     }
@@ -28,6 +30,7 @@
     }
     #menu > button {
       flex-grow: 1;
+      text-align: center;
     }
   </style>
 </head>
@@ -50,10 +53,16 @@
       <button id="increaseGridBtn">Increase Grid Size</button>
       <button id="decreaseGridBtn">Decrease Grid Size</button>
     </div>
+    <hr>
     <div class="row">
       <button id="startReverseBtn">Start Reverse Search</button>
       <button id="stopReverseBtn">Stop Reverse Search</button>
     </div>
+    <div class="row">
+      <button id="startGeneticBtn">Start Genetic Reverse Search</button>
+      <button id="stopGeneticBtn">Stop Genetic Reverse Search</button>
+    </div>
+    <hr>
     <div class="row">
       <button id="exportBtn">Export Grid</button>
       <button id="importBtn">Import Grid</button>
@@ -311,6 +320,108 @@ function stopBruteForceReverse() {
   drawGrid(currentGrid);
 }
 
+let geneticRunning = false;
+let geneticInterval = null;
+
+function startGeneticReverse(targetGrid) {
+  const influenceZone = getInfluenceZone(targetGrid);
+  const zoneCells = Array.from(influenceZone).map(key => key.split(',').map(Number));
+  const counter = document.getElementById("attemptCounter");
+
+  const populationSize = 100;
+  const mutationRate = 0.1;
+  const eliteCount = 10;
+
+  let population = Array(populationSize).fill().map(() => randomCandidate(zoneCells));
+  let generation = 0;
+
+  geneticRunning = true;
+
+  geneticInterval = setInterval(() => {
+    if (!geneticRunning) {
+      clearInterval(geneticInterval);
+      counter.textContent = `Stopped at generation ${generation}`;
+      return;
+    }
+
+    const scored = population.map(candidate => {
+      const evolved = updateGridFrom(candidate);
+      return {
+        candidate,
+        score: scoreCandidate(evolved, targetGrid, zoneCells)
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    if (scored[0].score === zoneCells.length) {
+      geneticRunning = false;
+      clearInterval(geneticInterval);
+      currentGrid = scored[0].candidate;
+      history = [currentGrid.map(row => row.slice())];
+      currentGen = 0;
+      drawGrid(currentGrid);
+      counter.textContent = `✅ Found match at generation ${generation}`;
+      return;
+    }
+
+    const elites = scored.slice(0, eliteCount).map(e => e.candidate);
+    population = [];
+
+    while (population.length < populationSize) {
+      const parentA = elites[Math.floor(Math.random() * eliteCount)];
+      const parentB = elites[Math.floor(Math.random() * eliteCount)];
+      const child = crossover(parentA, parentB, zoneCells);
+      mutate(child, zoneCells, mutationRate);
+      population.push(child);
+    }
+
+    generation++;
+    if (generation % 10 === 0) {
+      drawGrid(scored[0].candidate);
+      counter.textContent = `Generation ${generation} | Best score: ${scored[0].score}`;
+    }
+  }, 0);
+}
+
+function stopGeneticReverse() {
+  geneticRunning = false;
+  clearInterval(geneticInterval);
+}
+
+function randomCandidate(zoneCells) {
+  const grid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+  for (const [r, c] of zoneCells) {
+    grid[r][c] = Math.random() < 0.5 ? 1 : 0;
+  }
+  return grid;
+}
+
+function scoreCandidate(evolved, target, zoneCells) {
+  let score = 0;
+  for (const [r, c] of zoneCells) {
+    if (evolved[r][c] === target[r][c]) score++;
+  }
+  return score;
+}
+
+function crossover(parentA, parentB, zoneCells) {
+  const child = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+  for (const [r, c] of zoneCells) {
+    child[r][c] = Math.random() < 0.5 ? parentA[r][c] : parentB[r][c];
+  }
+  return child;
+}
+
+function mutate(grid, zoneCells, rate) {
+  for (const [r, c] of zoneCells) {
+    if (Math.random() < rate) {
+      grid[r][c] = grid[r][c] === 1 ? 0 : 1;
+    }
+  }
+}
+
+
 document.getElementById("forwardBtn").addEventListener("click", function () {
   history.push(currentGrid.map(row => row.slice()));
   currentGrid = updateGrid();
@@ -331,6 +442,16 @@ document.getElementById("startReverseBtn").addEventListener("click", () => {
 document.getElementById("stopReverseBtn").addEventListener("click", () => {
   document.getElementById("searchIndicator").style.display = "none";
   stopBruteForceReverse();
+});
+
+document.getElementById("startGeneticBtn").addEventListener("click", () => {
+  document.getElementById("searchIndicator").style.display = "block";
+  startGeneticReverse(currentGrid);
+});
+
+document.getElementById("stopGeneticBtn").addEventListener("click", () => {
+  document.getElementById("searchIndicator").style.display = "none";
+  stopGeneticReverse();
 });
 
 document.getElementById("increaseGridBtn").addEventListener("click", () => {
