@@ -488,6 +488,11 @@ function applyDrag(row, col) {
   const target = dragMode === "on" ? 1 : 0;
   if (current !== target) {
     currentGrid[row][col] = target;
+
+    // Clear history when a change is made
+    history = [currentGrid.map(row => row.slice())];
+    currentGen = 0;
+    
     drawGrid(currentGrid);
   }
 }
