@@ -110,7 +110,7 @@ initialGrid[3][2] = 1;
 initialGrid[3][3] = 1;
 
 let currentGrid = initialGrid.map(row => row.slice());
-let history = [currentGrid];
+let history = [currentGrid.map(row => row.slice())];
 let currentGen = 0;
 
 function drawGrid(grid) {
@@ -583,7 +583,7 @@ document.getElementById("restartBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
   currentGrid = history[0].map(row => row.slice());
-  history = [currentGrid];
+  history = [currentGrid.map(row => row.slice())];
   currentGen = 0;
   drawGrid(currentGrid);
 });
@@ -618,7 +618,7 @@ canvas.addEventListener("mouseup", function () {
 
 window.onload = function () {
   currentGrid = initialGrid.map(row => row.slice());
-  history = [currentGrid];
+  history = [currentGrid.map(row => row.slice())];
   currentGen = 0;
   drawGrid(currentGrid);
 };
