@@ -452,6 +452,7 @@ document.getElementById("startGeneticBtn").addEventListener("click", () => {
 document.getElementById("stopGeneticBtn").addEventListener("click", () => {
   document.getElementById("searchIndicator").style.display = "none";
   stopGeneticReverse();
+  drawGrid(currentGrid);
 });
 
 document.getElementById("increaseGridBtn").addEventListener("click", () => {
