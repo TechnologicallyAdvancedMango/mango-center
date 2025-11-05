@@ -565,14 +565,18 @@ document.getElementById("stopBtn").addEventListener("click", function () {
 
 document.getElementById("speedUpBtn").addEventListener("click", function () {
   runInterval *= 0.9; // Speed up by 10%
-  document.getElementById("stopBtn").click();
-  document.getElementById("runBtn").click();
+  if(running) {
+    document.getElementById("stopBtn").click();
+    document.getElementById("runBtn").click();
+  }
 });
 
 document.getElementById("speedDownBtn").addEventListener("click", function () {
   runInterval *= 1.1; // Slow down by 10%
-  document.getElementById("stopBtn").click();
-  document.getElementById("runBtn").click();
+  if(running) {
+    document.getElementById("stopBtn").click();
+    document.getElementById("runBtn").click();
+  }
 });
 
 document.getElementById("restartBtn").addEventListener("click", function () {
