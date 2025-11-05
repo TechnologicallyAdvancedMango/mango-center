@@ -539,12 +539,14 @@ document.getElementById("runBtn").addEventListener("click", function () {
     }, 200);
   }
   document.getElementById("runBtn").style.display = "none";
+  document.getElementById("stopBtn").style.display = "block";
 });
 
 document.getElementById("stopBtn").addEventListener("click", function () {
   running = false;
   clearInterval(intervalId);
   document.getElementById("stopBtn").style.display = "none";
+  document.getElementById("runBtn").style.display = "block";
 });
 
 document.getElementById("restartBtn").addEventListener("click", function () {
