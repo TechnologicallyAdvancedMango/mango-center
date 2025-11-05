@@ -300,7 +300,7 @@ function startBruteForceReverse(targetGrid) {
         history = [currentGrid.map(row => row.slice())];
         currentGen = 0;
         drawGrid(currentGrid);
-        counter.textContent = `✅ Found match at attempt ${attempt}`;
+        counter.textContent = `Found match at attempt ${attempt}`;
         return;
       }
 
@@ -354,6 +354,9 @@ function startGeneticReverse(targetGrid) {
 
     scored.sort((a, b) => b.score - a.score);
 
+    // Improve best candidate with hill climbing
+    scored[0].candidate = hillClimbImprove(scored[0].candidate, targetGrid, zoneCells);
+
     if (scored[0].score === zoneCells.length) {
       geneticRunning = false;
       clearInterval(geneticInterval);
@@ -361,7 +364,7 @@ function startGeneticReverse(targetGrid) {
       history = [currentGrid.map(row => row.slice())];
       currentGen = 0;
       drawGrid(currentGrid);
-      counter.textContent = `✅ Found match at generation ${generation}`;
+      counter.textContent = `Found match at generation ${generation}`;
       return;
     }
 
@@ -419,6 +422,33 @@ function mutate(grid, zoneCells, rate) {
       grid[r][c] = grid[r][c] === 1 ? 0 : 1;
     }
   }
+}
+
+function hillClimbImprove(grid, targetGrid, zoneCells) {
+  let bestScore = scoreCandidate(updateGridFrom(grid), targetGrid, zoneCells);
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+
+    for (const [r, c] of zoneCells) {
+      // Flip cell
+      grid[r][c] = grid[r][c] === 1 ? 0 : 1;
+
+      const newScore = scoreCandidate(updateGridFrom(grid), targetGrid, zoneCells);
+
+      if (newScore > bestScore) {
+        bestScore = newScore;
+        improved = true;
+        break; // Accept the change and restart loop
+      } else {
+        // Revert flip
+        grid[r][c] = grid[r][c] === 1 ? 0 : 1;
+      }
+    }
+  }
+
+  return grid;
 }
 
 
