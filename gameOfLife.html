@@ -480,41 +480,51 @@ function hillClimbImprove(grid, targetGrid, zoneCells) {
 function reverseByConstraints(targetGrid) {
   const gridSize = targetGrid.length;
   const predecessor = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
-  const neighborCounts = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
 
-  // Helper to safely increment neighbor counts
-  function addNeighbor(r, c) {
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = (r + dr + gridSize) % gridSize;
-        const nc = (c + dc + gridSize) % gridSize;
-        neighborCounts[nr][nc]++;
+  // Step 1: Copy all live cells from target
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      if (targetGrid[row][col] === 1) {
+        predecessor[row][col] = 1;
       }
     }
   }
 
+  // Step 2: Add supporting neighbors to help evolution
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
-      const target = targetGrid[row][col];
-
-      if (target === 1) {
-        // Try to place a live cell only if it won't overfill neighbors
-        if (neighborCounts[row][col] < 3 && Math.random() < 0.3) {
-          predecessor[row][col] = 1;
-          addNeighbor(row, col);
-        }
-      } else {
-        // Leave dead unless neighbor count is dangerously low
-        if (neighborCounts[row][col] === 3 && Math.random() < 0.1) {
-          predecessor[row][col] = 1;
-          addNeighbor(row, col);
+      if (targetGrid[row][col] === 1) {
+        let added = 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const r = (row + dr + gridSize) % gridSize;
+            const c = (col + dc + gridSize) % gridSize;
+            if (predecessor[r][c] === 0 && Math.random() < 0.3) {
+              predecessor[r][c] = 1;
+              added++;
+              if (added >= 2) break;
+            }
+          }
+          if (added >= 2) break;
         }
       }
     }
   }
 
   return predecessor;
+}
+
+
+function incrementNeighbors(counts, r, c, size) {
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = (r + dr + size) % size;
+      const nc = (c + dc + size) % size;
+      counts[nr][nc]++;
+    }
+  }
 }
 
 
