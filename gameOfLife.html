@@ -480,45 +480,35 @@ function hillClimbImprove(grid, targetGrid, zoneCells) {
 function reverseByConstraints(targetGrid) {
   const gridSize = targetGrid.length;
   const predecessor = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+  const neighborCounts = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+
+  // Helper to safely increment neighbor counts
+  function addNeighbor(r, c) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = (r + dr + gridSize) % gridSize;
+        const nc = (c + dc + gridSize) % gridSize;
+        neighborCounts[nr][nc]++;
+      }
+    }
+  }
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
-      const targetState = targetGrid[row][col];
+      const target = targetGrid[row][col];
 
-      // If target cell is alive, it must have had 2 or 3 neighbors
-      // If dead, it must NOT have had exactly 3 neighbors
-      // We'll assign a plausible predecessor based on that
-
-      if (targetState === 1) {
-        // Assign cell as alive and give it 2 random neighbors
-        predecessor[row][col] = 1;
-        let added = 0;
-        for (let dr = -1; dr <= 1 && added < 2; dr++) {
-          for (let dc = -1; dc <= 1 && added < 2; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const r = (row + dr + gridSize) % gridSize;
-            const c = (col + dc + gridSize) % gridSize;
-            if (predecessor[r][c] === 0) {
-              predecessor[r][c] = 1;
-              added++;
-            }
-          }
+      if (target === 1) {
+        // Try to place a live cell only if it won't overfill neighbors
+        if (neighborCounts[row][col] < 3 && Math.random() < 0.3) {
+          predecessor[row][col] = 1;
+          addNeighbor(row, col);
         }
       } else {
-        // Leave cell dead, and avoid giving it exactly 3 neighbors
-        // We'll randomly assign 0–2 neighbors
-        let added = 0;
-        const maxNeighbors = Math.floor(Math.random() * 3); // 0, 1, or 2
-        for (let dr = -1; dr <= 1 && added < maxNeighbors; dr++) {
-          for (let dc = -1; dc <= 1 && added < maxNeighbors; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const r = (row + dr + gridSize) % gridSize;
-            const c = (col + dc + gridSize) % gridSize;
-            if (predecessor[r][c] === 0) {
-              predecessor[r][c] = 1;
-              added++;
-            }
-          }
+        // Leave dead unless neighbor count is dangerously low
+        if (neighborCounts[row][col] === 3 && Math.random() < 0.1) {
+          predecessor[row][col] = 1;
+          addNeighbor(row, col);
         }
       }
     }
