@@ -308,6 +308,7 @@ function startBruteForceReverse(targetGrid) {
 function stopBruteForceReverse() {
   bruteForceRunning = false;
   clearInterval(bruteForceInterval);
+  drawGrid(currentGrid);
 }
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
