@@ -244,7 +244,7 @@ function startBruteForceReverse(targetGrid) {
   const visited = new Set();
   const counter = document.getElementById("attemptCounter");
   let attempt = 0;
-  const batchSize = 5000;
+  const batchSize = 2000;
 
   bruteForceRunning = true;
 
@@ -255,17 +255,17 @@ function startBruteForceReverse(targetGrid) {
       return;
     }
 
+    let lastCandidate = null;
+
     for (let i = 0; i < batchSize; i++) {
       attempt++;
 
-      // Generate candidate grid with random values only in influence zone
       const candidate = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
       for (const key of influenceZone) {
         const [r, c] = key.split(',').map(Number);
         candidate[r][c] = Math.random() < 0.5 ? 1 : 0;
       }
 
-      // Serialize only influence zone cells
       const zoneKey = Array.from(influenceZone).map(key => {
         const [r, c] = key.split(',').map(Number);
         return candidate[r][c];
@@ -274,7 +274,6 @@ function startBruteForceReverse(targetGrid) {
       if (visited.has(zoneKey)) continue;
       visited.add(zoneKey);
 
-      // Evolve candidate and compare only influence zone cells
       const evolved = updateGridFrom(candidate);
       let match = true;
       for (const key of influenceZone) {
@@ -295,9 +294,12 @@ function startBruteForceReverse(targetGrid) {
         counter.textContent = `✅ Found match at attempt ${attempt}`;
         return;
       }
+
+      lastCandidate = candidate;
     }
 
-    if (attempt % 1000 === 0) {
+    if (lastCandidate && attempt % 1000 === 0) {
+      drawGrid(lastCandidate);
       counter.textContent = `Attempt ${attempt}`;
     }
   }, 0);
