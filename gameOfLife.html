@@ -558,10 +558,10 @@ function applyDrag(row, col) {
 }
 
 function randomizeGrid() {
-  for(let row of currentGrid) {
-    for(let col of row) {
+  for (let i = 0; i < currentGrid.length; i++) {
+    for (let j = 0; j < currentGrid[i].length; j++) {
       const target = Math.random() < 0.5 ? 1 : 0;
-      currentGrid[row][col] = target;
+      currentGrid[i][j] = target;
     }
   }
 }
