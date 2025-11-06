@@ -777,10 +777,17 @@ document.getElementById("randomizeBtn").addEventListener("click", function () {
 
 canvas.addEventListener("mousedown", function (event) {
   const [row, col] = getCellFromEvent(event);
-  isDragging = true;
-  dragMode = currentGrid[row][col] === 1 ? "off" : "on";
-  applyDrag(row, col);
+
+  if (selectionBounds && event.button === 0) {
+    isDraggingSelection = true;
+    dragOffset = getCellFromMouse(event);
+  } else {
+    isDragging = true;
+    dragMode = currentGrid[row][col] === 1 ? "off" : "on";
+    applyDrag(row, col);
+  }
 });
+
 
 canvas.addEventListener("mousemove", function (event) {
   if (!isDragging) return;
@@ -817,12 +824,8 @@ canvas.addEventListener("touchcancel", function () {
 
 
 canvas.addEventListener('contextmenu', e => e.preventDefault()); // prevent default right-click
-canvas.addEventListener('mousedown', e => {
-  if (selectionBounds && e.button === 0) {
-    isDraggingSelection = true;
-    dragOffset = getCellFromMouse(e);
-  }
-});
+  canvas.addEventListener("touchstart", e => e.preventDefault(), { passive: false }); // prevent default touch scroll
+
 
 canvas.addEventListener('mousemove', e => {
   if (isDraggingSelection) {
