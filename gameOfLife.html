@@ -564,6 +564,7 @@ function randomizeGrid() {
       currentGrid[i][j] = target;
     }
   }
+  
 }
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
@@ -680,7 +681,10 @@ document.getElementById("clearBtn").addEventListener("click", function () {
 });
 
 document.getElementById("randomizeBtn").addEventListener("click", function () {
+  running = false;
   randomizeGrid();
+  history = [currentGrid.map(row => row.slice())];
+  currentGen = 0;
   drawGrid(currentGrid);
 });
 
