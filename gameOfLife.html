@@ -65,11 +65,12 @@
       <button id="speedDownBtn" class="icon">⏪</button>
       <button id="speedUpBtn" class="icon">⏩</button>
       <button id="restartBtn" class="icon">🔄</button>
-      <button id="clearBtn" class="icon">❎</button>
     </div>
     <div class="row">
       <button id="backwardBtn" class="icon">⬅</button>
       <button id="forwardBtn" class="icon">➡</button>
+      <button id="clearBtn" class="icon">❎</button>
+      <button id="randomizeBtn" class="icon">🔀</button>
     </div>
     <div class="row">
       <button id="increaseGridBtn">Increase Grid Size</button>
@@ -556,6 +557,15 @@ function applyDrag(row, col) {
   }
 }
 
+function randomizeGrid() {
+  for(let row of currentGrid) {
+    for(let col of row) {
+      const target = Math.random() < 0.5 ? 1 : 0;
+      currentGrid[row][col] = target;
+    }
+  }
+}
+
 document.getElementById("forwardBtn").addEventListener("click", function () {
   history.push(currentGrid.map(row => row.slice()));
   currentGrid = updateGrid();
@@ -669,6 +679,10 @@ document.getElementById("clearBtn").addEventListener("click", function () {
   drawGrid(currentGrid);
 });
 
+document.getElementById("randomizeBtn").addEventListener("click", function () {
+  randomizeGrid();
+});
+
 canvas.addEventListener("mousedown", function (event) {
   const [row, col] = getCellFromEvent(event);
   isDragging = true;
@@ -683,6 +697,28 @@ canvas.addEventListener("mousemove", function (event) {
 });
 
 canvas.addEventListener("mouseup", function () {
+  isDragging = false;
+  dragMode = null;
+});
+
+canvas.addEventListener("touchstart", function (event) {
+  const [row, col] = getCellFromEvent(event);
+  isDragging = true;
+  dragMode = currentGrid[row][col] === 1 ? "off" : "on";
+  applyDrag(row, col);
+});
+
+canvas.addEventListener("touchmove", function (event) {
+  if (!isDragging) return;
+  const [row, col] = getCellFromEvent(event);
+  applyDrag(row, col);
+});
+
+canvas.addEventListener("touchend", function () {
+  isDragging = false;
+  dragMode = null;
+});
+canvas.addEventListener("touchcancel", function () {
   isDragging = false;
   dragMode = null;
 });
