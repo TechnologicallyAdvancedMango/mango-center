@@ -776,23 +776,33 @@ document.getElementById("randomizeBtn").addEventListener("click", function () {
 });
 
 canvas.addEventListener("mousedown", function (event) {
-  const [row, col] = getCellFromEvent(event);
+  if (event.button !== 0) return; // left click
 
-  if (selectionBounds && event.button === 0) {
-    isDraggingSelection = true;
-    dragOffset = getCellFromMouse(event);
-  } else {
-    isDragging = true;
-    dragMode = currentGrid[row][col] === 1 ? "off" : "on";
-    applyDrag(row, col);
+  const [row, col] = getCellFromEvent(event);
+  isDragging = true;
+  dragMode = currentGrid[row][col] === 1 ? "off" : "on";
+  applyDrag(row, col);
+});
+
+canvas.addEventListener("mousedown", function (event) {
+  if (event.button === 2) { // right click
+    isSelecting = true;
+    selectionStart = getCellFromMouse(event);
+    selectionEnd = selectionStart;
+    drawGrid(currentGrid);
+    drawSelectionBox(selectionStart, selectionEnd);
   }
 });
 
-
 canvas.addEventListener("mousemove", function (event) {
-  if (!isDragging) return;
-  const [row, col] = getCellFromEvent(event);
-  applyDrag(row, col);
+  if (isSelecting) {
+    selectionEnd = getCellFromMouse(event);
+    drawGrid(currentGrid);
+    drawSelectionBox(selectionStart, selectionEnd);
+  } else if (isDragging) {
+    const [row, col] = getCellFromEvent(event);
+    applyDrag(row, col);
+  }
 });
 
 canvas.addEventListener("mouseup", function () {
