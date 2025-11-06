@@ -101,6 +101,14 @@ let cellSize = canvas.width / gridSize;
 let isDragging = false;
 let dragMode = null; // "on" or "off"
 
+let isSelecting = false;
+let selectionStart = null;
+let selectionEnd = null;
+let selectedCells = [];
+let selectionBounds = null;
+let isDraggingSelection = false;
+let dragOffset = { row: 0, col: 0 };
+
 let running = false;
 let intervalId = null;
 let bruteForceRunning = false;
@@ -561,8 +569,90 @@ function randomizeGrid() {
       currentGrid[i][j] = target;
     }
   }
-  
 }
+
+function drawSelectionBox(start, end) {
+  const x1 = Math.min(start.col, end.col);
+  const y1 = Math.min(start.row, end.row);
+  const x2 = Math.max(start.col, end.col);
+  const y2 = Math.max(start.row, end.row);
+
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x1 * cellSize, y1 * cellSize, (x2 - x1 + 1) * cellSize, (y2 - y1 + 1) * cellSize);
+}
+
+function openSelectionMenu(start, end) {
+  const menu = document.createElement('div');
+  menu.className = 'selection-menu';
+  menu.style.left = `${end.col * cellSize}px`;
+  menu.style.top = `${end.row * cellSize}px`;
+  menu.innerHTML = `
+    <button onclick="moveSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Move</button>
+    <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
+    <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
+  `;
+  document.body.appendChild(menu);
+}
+
+function deleteSelection(r1, c1, r2, c2) {
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      currentGrid[r][c] = 0;
+    }
+  }
+  drawGrid(currentGrid);
+}
+
+function exportSelection(r1, c1, r2, c2) {
+  const coords = [];
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      if (currentGrid[r][c] === 1) {
+        coords.push([r, c]);
+      }
+    }
+  }
+  console.log("Exported coordinates:", JSON.stringify(coords));
+}
+
+function captureSelection(r1, c1, r2, c2) {
+  selectedCells = [];
+  selectionBounds = { r1, c1, r2, c2 };
+
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      if (currentGrid[r][c] === 1) {
+        selectedCells.push({ row: r - r1, col: c - c1 });
+        currentGrid[r][c] = 0; // temporarily remove
+      }
+    }
+  }
+
+  drawGrid(currentGrid);
+  drawFloatingSelection(r1, c1);
+}
+
+function drawFloatingSelection(baseRow, baseCol) {
+  ctx.fillStyle = 'lime';
+  for (const cell of selectedCells) {
+    const r = baseRow + cell.row;
+    const c = baseCol + cell.col;
+    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+  }
+}
+
+function placeSelection(baseRow, baseCol) {
+  for (const cell of selectedCells) {
+    const r = baseRow + cell.row;
+    const c = baseCol + cell.col;
+    if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+      currentGrid[r][c] = 1;
+    }
+  }
+  drawGrid(currentGrid);
+}
+
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
   history.push(currentGrid.map(row => row.slice()));
@@ -724,6 +814,42 @@ canvas.addEventListener("touchcancel", function () {
   isDragging = false;
   dragMode = null;
 });
+
+
+canvas.addEventListener('contextmenu', e => e.preventDefault()); // prevent default right-click
+canvas.addEventListener('mousedown', e => {
+  if (selectionBounds && e.button === 0) {
+    isDraggingSelection = true;
+    dragOffset = getCellFromMouse(e);
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (isDraggingSelection) {
+    const { row, col } = getCellFromMouse(e);
+    const deltaRow = row - dragOffset.row;
+    const deltaCol = col - dragOffset.col;
+    dragOffset = { row, col };
+
+    selectionBounds.r1 += deltaRow;
+    selectionBounds.r2 += deltaRow;
+    selectionBounds.c1 += deltaCol;
+    selectionBounds.c2 += deltaCol;
+
+    drawGrid(currentGrid);
+    drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (isDraggingSelection) {
+    isDraggingSelection = false;
+    placeSelection(selectionBounds.r1, selectionBounds.c1);
+    selectedCells = [];
+    selectionBounds = null;
+  }
+});
+
 
 
 window.onload = function () {
