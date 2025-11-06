@@ -776,23 +776,22 @@ document.getElementById("randomizeBtn").addEventListener("click", function () {
 });
 
 canvas.addEventListener("mousedown", function (event) {
-  if (event.button !== 0) return; // left click
-
   const [row, col] = getCellFromEvent(event);
-  isDragging = true;
-  dragMode = currentGrid[row][col] === 1 ? "off" : "on";
-  applyDrag(row, col);
-});
 
-canvas.addEventListener("mousedown", function (event) {
-  if (event.button === 2) { // right click
+  if (event.button === 2) { // right-click
+    event.preventDefault();
     isSelecting = true;
     selectionStart = getCellFromMouse(event);
     selectionEnd = selectionStart;
     drawGrid(currentGrid);
     drawSelectionBox(selectionStart, selectionEnd);
+  } else if (event.button === 0) { // left-click
+    isDragging = true;
+    dragMode = currentGrid[row][col] === 1 ? "off" : "on";
+    applyDrag(row, col);
   }
 });
+
 
 canvas.addEventListener("mousemove", function (event) {
   if (isSelecting) {
@@ -803,11 +802,6 @@ canvas.addEventListener("mousemove", function (event) {
     const [row, col] = getCellFromEvent(event);
     applyDrag(row, col);
   }
-});
-
-canvas.addEventListener("mouseup", function () {
-  isDragging = false;
-  dragMode = null;
 });
 
 canvas.addEventListener("touchstart", function (event) {
@@ -854,14 +848,25 @@ canvas.addEventListener('mousemove', e => {
   }
 });
 
-canvas.addEventListener('mouseup', e => {
-  if (isDraggingSelection) {
-    isDraggingSelection = false;
-    placeSelection(selectionBounds.r1, selectionBounds.c1);
-    selectedCells = [];
-    selectionBounds = null;
+canvas.addEventListener("mouseup", function (event) {
+  if (isDragging) {
+    isDragging = false;
+    dragMode = null;
+  }
+
+  if (isSelecting && event.button === 2) {
+    isSelecting = false;
+    const r1 = Math.min(selectionStart.row, selectionEnd.row);
+    const r2 = Math.max(selectionStart.row, selectionEnd.row);
+    const c1 = Math.min(selectionStart.col, selectionEnd.col);
+    const c2 = Math.max(selectionStart.col, selectionEnd.col);
+    selectionBounds = { r1, r2, c1, c2 };
+    captureSelection(r1, c1, r2, c2); // your logic to store selected cells
+    drawGrid(currentGrid);
+    drawFloatingSelection(r1, c1);
   }
 });
+
 
 
 
