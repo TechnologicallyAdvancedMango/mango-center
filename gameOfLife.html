@@ -670,8 +670,15 @@ function placeSelection(baseRow, baseCol) {
       currentGrid[r][c] = 1;
     }
   }
+
+  // Clear selection state
+  selectedCells = [];
+  selectionBounds = null;
+  isDraggingSelection = false;
+
   drawGrid(currentGrid);
 }
+
 
 
 document.getElementById("forwardBtn").addEventListener("click", function () {
