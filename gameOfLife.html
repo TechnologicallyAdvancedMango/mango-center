@@ -112,9 +112,12 @@ let isSelecting = false;
 let selectionActive = false;
 let selectionStart = null;
 let selectionEnd = null;
+let isDraggingSelection = false;
+let dragOffset = null;
 let selectedCells = [];
 let selectionBounds = null;
-let isDraggingSelection = false;
+let selectionMenu = null;
+
 let dragOffset = { row: 0, col: 0 };
 
 let running = false;
