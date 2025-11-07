@@ -888,6 +888,45 @@ canvas.addEventListener("mousemove", function (event) {
   }
 });
 
+document.addEventListener("mousemove", function (event) {
+  if (!isDraggingSelection) return;
+
+  const { row, col } = getCellFromMouse(event);
+  const deltaRow = row - dragOffset.row;
+  const deltaCol = col - dragOffset.col;
+  dragOffset = { row, col };
+
+  selectionBounds.r1 += deltaRow;
+  selectionBounds.r2 += deltaRow;
+  selectionBounds.c1 += deltaCol;
+  selectionBounds.c2 += deltaCol;
+
+  if (selectionMenu) {
+    selectionMenu.style.left = `${selectionBounds.c2 * cellSize}px`;
+    selectionMenu.style.top = `${selectionBounds.r2 * cellSize}px`;
+  }
+
+  drawGrid(currentGrid);
+  drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
+});
+
+document.addEventListener("mouseup", function () {
+  if (!isDraggingSelection) return;
+
+  isDraggingSelection = false;
+  placeSelection(selectionBounds.r1, selectionBounds.c1);
+  selectedCells = [];
+  selectionBounds = null;
+
+  if (selectionMenu) {
+    selectionMenu.remove();
+    selectionMenu = null;
+  }
+
+  drawGrid(currentGrid);
+});
+
+
 canvas.addEventListener("mouseup", function (event) {
   if (isDragging) {
     isDragging = false;
