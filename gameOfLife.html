@@ -610,15 +610,16 @@ function openSelectionMenu(start, end) {
   `;
   document.body.appendChild(selectionMenu);
 
+  // Attach listener after menu is added
   const moveBtn = document.getElementById("moveBtn");
   moveBtn.addEventListener("mousedown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-
     isDraggingSelection = true;
     dragOffset = getCellFromMouse(e);
   });
 }
+
 
 function deleteSelection(r1, c1, r2, c2) {
   selectionActive = false;
