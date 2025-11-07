@@ -593,7 +593,6 @@ function drawSelectionBox(start, end) {
 }
 
 function openSelectionMenu(start, end) {
-  // Remove any existing menu
   document.querySelectorAll('.selection-menu').forEach(el => el.remove());
 
   const menu = document.createElement('div');
@@ -601,24 +600,24 @@ function openSelectionMenu(start, end) {
   menu.style.left = `${end.col * cellSize}px`;
   menu.style.top = `${end.row * cellSize}px`;
   menu.innerHTML = `
-  <button id="moveBtn">Move</button>
-  <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
-  <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
-`;
+    <button id="moveBtn">Move</button>
+    <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
+    <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
+  `;
   document.body.appendChild(menu);
-  
+
+  // Enable dragn to move
   const moveBtn = document.getElementById("moveBtn");
   moveBtn.addEventListener("mousedown", (e) => {
-    e.stopPropagation(); // prevent canvas click
-    e.preventDefault(); // prevent text selection
-    
+    e.stopPropagation();
+    e.preventDefault();
+
     isDraggingSelection = true;
     dragOffset = getCellFromMouse(e);
-    
-    // Remove the menu
     document.querySelectorAll('.selection-menu').forEach(el => el.remove());
   });
 }
+
 
 
 function deleteSelection(r1, c1, r2, c2) {
@@ -839,8 +838,23 @@ canvas.addEventListener("mousemove", function (event) {
     selectionEnd = { row, col };
     drawGrid(currentGrid);
     drawSelectionBox(selectionStart, selectionEnd);
+    
   } else if (isDragging) {
     applyDrag(row, col);
+    
+  } else if (isDraggingSelection) {
+    const { row, col } = getCellFromMouse(event);
+    const deltaRow = row - dragOffset.row;
+    const deltaCol = col - dragOffset.col;
+    dragOffset = { row, col };
+
+    selectionBounds.r1 += deltaRow;
+    selectionBounds.r2 += deltaRow;
+    selectionBounds.c1 += deltaCol;
+    selectionBounds.c2 += deltaCol;
+
+    drawGrid(currentGrid);
+    drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
   }
 });
 
