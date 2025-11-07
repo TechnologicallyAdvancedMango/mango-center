@@ -601,10 +601,10 @@ function openSelectionMenu(start, end) {
   menu.style.left = `${end.col * cellSize}px`;
   menu.style.top = `${end.row * cellSize}px`;
   menu.innerHTML = `
-    <button onclick="moveSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Move</button>
-    <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
-    <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
-  `;
+  <button id="moveBtn">Move</button>
+  <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
+  <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
+`;
   document.body.appendChild(menu);
 }
 
@@ -860,9 +860,10 @@ canvas.addEventListener('contextmenu', e => e.preventDefault()); // prevent defa
   canvas.addEventListener("touchstart", e => e.preventDefault(), { passive: false }); // prevent default touch scroll
 
 
-canvas.addEventListener('mousemove', e => {
+canvas.addEventListener("mousemove", function (event) {
+  const { row, col } = getCellFromMouse(event);
+
   if (isDraggingSelection) {
-    const { row, col } = getCellFromMouse(e);
     const deltaRow = row - dragOffset.row;
     const deltaCol = col - dragOffset.col;
     dragOffset = { row, col };
@@ -874,6 +875,13 @@ canvas.addEventListener('mousemove', e => {
 
     drawGrid(currentGrid);
     drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
+  } else if (isDragging) {
+    const [r, c] = getCellFromEvent(event);
+    applyDrag(r, c);
+  } else if (isSelecting) {
+    selectionEnd = getCellFromMouse(event);
+    drawGrid(currentGrid);
+    drawSelectionBox(selectionStart, selectionEnd);
   }
 });
 
@@ -893,6 +901,15 @@ canvas.addEventListener("mouseup", function (event) {
     captureSelection(r1, c1, r2, c2);
     openSelectionMenu({ row: r1, col: c1 }, { row: r2, col: c2 });
   }
+  if (isDraggingSelection) {
+    isDraggingSelection = false;
+    placeSelection(selectionBounds.r1, selectionBounds.c1);
+    selectedCells = [];
+    selectionBounds = null;
+  }
+
+  isDragging = false;
+  dragMode = null;
 });
 
 document.addEventListener('click', function (e) {
@@ -900,6 +917,13 @@ document.addEventListener('click', function (e) {
   if (menu && !menu.contains(e.target)) {
     menu.remove();
   }
+});
+
+document.getElementById("moveBtn").addEventListener("mousedown", (e) => {
+  e.stopPropagation();
+  isDraggingSelection = true;
+  dragOffset = getCellFromMouse(e);
+  document.querySelectorAll('.selection-menu').forEach(el => el.remove());
 });
 
 
