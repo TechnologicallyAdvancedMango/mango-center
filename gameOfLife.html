@@ -831,35 +831,6 @@ canvas.addEventListener("mousedown", function (event) {
   }
 });
 
-
-canvas.addEventListener("mousemove", function (event) {
-  const [row, col] = getCellFromEvent(event);
-
-  if (isSelecting) {
-    selectionEnd = { row, col };
-    drawGrid(currentGrid);
-    drawSelectionBox(selectionStart, selectionEnd);
-    
-  } else if (isDragging) {
-    applyDrag(row, col);
-    
-  } else if (isDraggingSelection) {
-    const { row, col } = getCellFromMouse(event);
-    const deltaRow = row - dragOffset.row;
-    const deltaCol = col - dragOffset.col;
-    dragOffset = { row, col };
-
-    selectionBounds.r1 += deltaRow;
-    selectionBounds.r2 += deltaRow;
-    selectionBounds.c1 += deltaCol;
-    selectionBounds.c2 += deltaCol;
-
-    drawGrid(currentGrid);
-    drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
-  }
-});
-
-
 canvas.addEventListener("touchstart", function (event) {
   const [row, col] = getCellFromEvent(event);
   isDragging = true;
