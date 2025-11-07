@@ -651,7 +651,7 @@ function captureSelection(r1, c1, r2, c2) {
 }
 
 function drawFloatingSelection(baseRow, baseCol) {
-  if (!selectionActive || !selectedCells || selectedCells.length === 0) return;
+  if (!selectionBounds || !selectedCells || selectedCells.length === 0 || !isDraggingSelection) return;
 
   ctx.fillStyle = 'lime';
   for (const cell of selectedCells) {
