@@ -592,6 +592,9 @@ function drawSelectionBox(start, end) {
 }
 
 function openSelectionMenu(start, end) {
+  // Remove any existing menu
+  document.querySelectorAll('.selection-menu').forEach(el => el.remove());
+
   const menu = document.createElement('div');
   menu.className = 'selection-menu';
   menu.style.left = `${end.col * cellSize}px`;
@@ -603,6 +606,7 @@ function openSelectionMenu(start, end) {
   `;
   document.body.appendChild(menu);
 }
+
 
 function deleteSelection(r1, c1, r2, c2) {
   for (let r = r1; r <= r2; r++) {
@@ -877,7 +881,12 @@ canvas.addEventListener("mouseup", function (event) {
   }
 });
 
-
+document.addEventListener('click', function (e) {
+  const menu = document.querySelector('.selection-menu');
+  if (menu && !menu.contains(e.target)) {
+    menu.remove();
+  }
+});
 
 
 window.onload = function () {
