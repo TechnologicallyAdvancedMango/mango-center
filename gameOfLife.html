@@ -109,6 +109,7 @@ let isDragging = false;
 let dragMode = null; // "on" or "off"
 
 let isSelecting = false;
+let selectionActive = false;
 let selectionStart = null;
 let selectionEnd = null;
 let selectedCells = [];
@@ -609,6 +610,7 @@ function openSelectionMenu(start, end) {
 
 
 function deleteSelection(r1, c1, r2, c2) {
+  selectionActive = false;
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
       currentGrid[r][c] = 0;
@@ -618,6 +620,7 @@ function deleteSelection(r1, c1, r2, c2) {
 }
 
 function exportSelection(r1, c1, r2, c2) {
+  selectionActive = false;
   const coords = [];
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
@@ -630,6 +633,7 @@ function exportSelection(r1, c1, r2, c2) {
 }
 
 function captureSelection(r1, c1, r2, c2) {
+  selectionActive = true;
   selectedCells = [];
   selectionBounds = { r1, c1, r2, c2 };
 
@@ -647,6 +651,8 @@ function captureSelection(r1, c1, r2, c2) {
 }
 
 function drawFloatingSelection(baseRow, baseCol) {
+  if (!selectionActive || !selectedCells || selectedCells.length === 0) return;
+
   ctx.fillStyle = 'lime';
   for (const cell of selectedCells) {
     const r = baseRow + cell.row;
@@ -654,6 +660,7 @@ function drawFloatingSelection(baseRow, baseCol) {
     ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
   }
 }
+
 
 function placeSelection(baseRow, baseCol) {
   for (const cell of selectedCells) {
