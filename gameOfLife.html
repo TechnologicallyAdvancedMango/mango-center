@@ -662,7 +662,7 @@ function captureSelection(r1, c1, r2, c2) {
 
 
 function drawFloatingSelection(baseRow, baseCol) {
-  if (!selectionBounds || !selectedCells || selectedCells.length === 0 || !isDraggingSelection) return;
+  if (!isDraggingSelection || !selectedCells || selectedCells.length === 0) return;
 
   ctx.fillStyle = 'lime';
   for (const cell of selectedCells) {
@@ -932,6 +932,7 @@ canvas.addEventListener("mouseup", function (event) {
     placeSelection(selectionBounds.r1, selectionBounds.c1);
     selectedCells = [];
     selectionBounds = null;
+    drawGrid(currentGrid);
   }
 
   isDragging = false;
