@@ -549,10 +549,12 @@ function getCellFromEvent(event) {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  const col = Math.floor(x / cellSize);
-  const row = Math.floor(y / cellSize);
-  return [row, col];
+  return [
+    Math.floor(y / cellSize),
+    Math.floor(x / cellSize)
+  ];
 }
+
 
 function applyDrag(row, col) {
   if (row < 0 || row >= gridSize || col < 0 || col >= gridSize) return;
@@ -788,8 +790,8 @@ canvas.addEventListener("mousedown", function (event) {
   if (event.button === 2) { // right-click
     event.preventDefault();
     isSelecting = true;
-    selectionStart = getCellFromMouse(event);
-    selectionEnd = selectionStart;
+    selectionStart = { row, col };
+    selectionEnd = { row, col };
     drawGrid(currentGrid);
     drawSelectionBox(selectionStart, selectionEnd);
   } else if (event.button === 0) { // left-click
@@ -801,15 +803,17 @@ canvas.addEventListener("mousedown", function (event) {
 
 
 canvas.addEventListener("mousemove", function (event) {
+  const [row, col] = getCellFromEvent(event);
+
   if (isSelecting) {
-    selectionEnd = getCellFromMouse(event);
+    selectionEnd = { row, col };
     drawGrid(currentGrid);
     drawSelectionBox(selectionStart, selectionEnd);
   } else if (isDragging) {
-    const [row, col] = getCellFromEvent(event);
     applyDrag(row, col);
   }
 });
+
 
 canvas.addEventListener("touchstart", function (event) {
   const [row, col] = getCellFromEvent(event);
@@ -868,9 +872,8 @@ canvas.addEventListener("mouseup", function (event) {
     const c1 = Math.min(selectionStart.col, selectionEnd.col);
     const c2 = Math.max(selectionStart.col, selectionEnd.col);
     selectionBounds = { r1, r2, c1, c2 };
-    captureSelection(r1, c1, r2, c2); // your logic to store selected cells
-    drawGrid(currentGrid);
-    drawFloatingSelection(r1, c1);
+    captureSelection(r1, c1, r2, c2);
+    openSelectionMenu({ row: r1, col: c1 }, { row: r2, col: c2 });
   }
 });
 
