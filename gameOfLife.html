@@ -606,6 +606,18 @@ function openSelectionMenu(start, end) {
   <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
 `;
   document.body.appendChild(menu);
+  
+  const moveBtn = document.getElementById("moveBtn");
+  moveBtn.addEventListener("mousedown", (e) => {
+    e.stopPropagation(); // prevent canvas click
+    e.preventDefault(); // prevent text selection
+    
+    isDraggingSelection = true;
+    dragOffset = getCellFromMouse(e);
+    
+    // Remove the menu
+    document.querySelectorAll('.selection-menu').forEach(el => el.remove());
+  });
 }
 
 
