@@ -595,30 +595,27 @@ function drawSelectionBox(start, end) {
 function openSelectionMenu(start, end) {
   document.querySelectorAll('.selection-menu').forEach(el => el.remove());
 
-  const menu = document.createElement('div');
-  menu.className = 'selection-menu';
-  menu.style.left = `${end.col * cellSize}px`;
-  menu.style.top = `${end.row * cellSize}px`;
-  menu.innerHTML = `
+  selectionMenu = document.createElement('div');
+  selectionMenu.className = 'selection-menu';
+  selectionMenu.style.position = 'absolute';
+  selectionMenu.style.left = `${end.col * cellSize}px`;
+  selectionMenu.style.top = `${end.row * cellSize}px`;
+  selectionMenu.innerHTML = `
     <button id="moveBtn">Move</button>
     <button onclick="deleteSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Delete</button>
     <button onclick="exportSelection(${start.row}, ${start.col}, ${end.row}, ${end.col})">Export</button>
   `;
-  document.body.appendChild(menu);
+  document.body.appendChild(selectionMenu);
 
-  // Enable dragn to move
   const moveBtn = document.getElementById("moveBtn");
   moveBtn.addEventListener("mousedown", (e) => {
-    e.stopPropagation();
     e.preventDefault();
+    e.stopPropagation();
 
     isDraggingSelection = true;
     dragOffset = getCellFromMouse(e);
-    document.querySelectorAll('.selection-menu').forEach(el => el.remove());
   });
 }
-
-
 
 function deleteSelection(r1, c1, r2, c2) {
   selectionActive = false;
@@ -890,6 +887,7 @@ canvas.addEventListener("mousemove", function (event) {
   const { row, col } = getCellFromMouse(event);
 
   if (isDraggingSelection) {
+    const { row, col } = getCellFromMouse(event);
     const deltaRow = row - dragOffset.row;
     const deltaCol = col - dragOffset.col;
     dragOffset = { row, col };
@@ -898,6 +896,10 @@ canvas.addEventListener("mousemove", function (event) {
     selectionBounds.r2 += deltaRow;
     selectionBounds.c1 += deltaCol;
     selectionBounds.c2 += deltaCol;
+
+    // Move the menu
+    selectionMenu.style.left = `${selectionBounds.c2 * cellSize}px`;
+    selectionMenu.style.top = `${selectionBounds.r2 * cellSize}px`;
 
     drawGrid(currentGrid);
     drawFloatingSelection(selectionBounds.r1, selectionBounds.c1);
@@ -932,6 +934,12 @@ canvas.addEventListener("mouseup", function (event) {
     placeSelection(selectionBounds.r1, selectionBounds.c1);
     selectedCells = [];
     selectionBounds = null;
+
+    if (selectionMenu) {
+      selectionMenu.remove();
+      selectionMenu = null;
+    }
+
     drawGrid(currentGrid);
   }
 
