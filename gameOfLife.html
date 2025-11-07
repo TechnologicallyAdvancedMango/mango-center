@@ -633,7 +633,6 @@ function exportSelection(r1, c1, r2, c2) {
 }
 
 function captureSelection(r1, c1, r2, c2) {
-  selectionActive = true;
   selectedCells = [];
   selectionBounds = { r1, c1, r2, c2 };
 
@@ -641,14 +640,15 @@ function captureSelection(r1, c1, r2, c2) {
     for (let c = c1; c <= c2; c++) {
       if (currentGrid[r][c] === 1) {
         selectedCells.push({ row: r - r1, col: c - c1 });
-        currentGrid[r][c] = 0; // temporarily remove
+        // don't modify currentGrid here
       }
     }
   }
 
   drawGrid(currentGrid);
-  drawFloatingSelection(r1, c1);
+  drawSelectionBox({ row: r1, col: c1 }, { row: r2, col: c2 });
 }
+
 
 function drawFloatingSelection(baseRow, baseCol) {
   if (!selectionBounds || !selectedCells || selectedCells.length === 0 || !isDraggingSelection) return;
