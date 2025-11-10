@@ -4,9 +4,9 @@ const ctx = canvas.getContext("2d");
 let fps = 60;
 let frameMultiplier = 1;
 
-circleFill = "white";
-circleStroke = "black";
-circleStrokeWidth = 3;
+let circleFill = "white";
+let circleStroke = "black";
+let circleStrokeWidth = 3;
 
 let objects = [];
 
