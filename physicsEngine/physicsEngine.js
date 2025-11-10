@@ -1,3 +1,5 @@
+alert("script started");
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -76,3 +78,5 @@ function mainLoop() {
 }
 
 setInterval(mainLoop, 1000 / fps);
+
+alert("script end");
