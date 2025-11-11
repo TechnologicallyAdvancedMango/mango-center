@@ -32,32 +32,36 @@ let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius, anchored = false) {
+  constructor(x, y, radius, anchored = false, restitution = 0.8) {
     this.x = x;
     this.y = y;
     this.vx = 0;
     this.vy = 0;
     this.radius = radius;
     this.anchored = anchored;
+    this.restitution = restitution;
+    
     circles.push(this);
   }
 }
 
 class Rectangle {
-  constructor(x, y, width, height, angle = 0, anchored = true) {
+  constructor(x, y, width, height, angle = 0, anchored = true, restitution = 0.8) {
     this.x = x;
     this.y = y;
     this.vx = 0;
     this.vy = 0;
-    this.angle = angle; // in radians
+    this.angle = angle;
     this.angularVelocity = 0;
     this.width = width;
     this.height = height;
     this.anchored = anchored;
+    this.restitution = restitution;
     
     rectangles.push(this);
   }
 }
+
 
 class Spring {
   constructor(a, b, restLength, stiffness, rigid = false) {
@@ -132,6 +136,25 @@ function simulate() {
       rect.angle += rect.angularVelocity;
     }
   }
+
+  // Collision
+  // Circle–Circle
+  for (let i = 0; i < circles.length; i++) {
+    for (let j = i + 1; j < circles.length; j++) {
+      if (checkCircleCircle(circles[i], circles[j])) {
+        resolveCircleCircle(circles[i], circles[j]);
+      }
+    }
+  }
+  
+  // Circle–Rectangle
+  for (const circle of circles) {
+    for (const rect of rectangles) {
+      if (checkCircleRectangle(circle, rect)) {
+        resolveCircleRectangle(circle, rect);
+      }
+    }
+  }
 }
 
 
@@ -179,6 +202,99 @@ function drawSprings() {
   }
 }
 
+function checkCircleCircle(a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  return dist < a.radius + b.radius;
+}
+
+function resolveCircleCircle(a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist === 0) return;
+
+  const overlap = a.radius + b.radius - dist;
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  // Position correction
+  if (!a.anchored && !b.anchored) {
+    a.x -= nx * overlap / 2;
+    a.y -= ny * overlap / 2;
+    b.x += nx * overlap / 2;
+    b.y += ny * overlap / 2;
+  } else if (!a.anchored) {
+    a.x -= nx * overlap;
+    a.y -= ny * overlap;
+  } else if (!b.anchored) {
+    b.x += nx * overlap;
+    b.y += ny * overlap;
+  }
+
+  // Velocity correction (bounce)
+  const dvx = b.vx - a.vx;
+  const dvy = b.vy - a.vy;
+  const impactSpeed = dvx * nx + dvy * ny;
+  if (impactSpeed > 0) return;
+
+  const restitution = Math.min(a.restitution, b.restitution);
+  const impulse = (1 + restitution) * impactSpeed / 2;
+
+  if (!a.anchored) {
+    a.vx += impulse * nx;
+    a.vy += impulse * ny;
+  }
+  if (!b.anchored) {
+    b.vx -= impulse * nx;
+    b.vy -= impulse * ny;
+  }
+}
+
+
+function checkCircleRectangle(circle, rect) {
+  const cos = Math.cos(-rect.angle);
+  const sin = Math.sin(-rect.angle);
+  const dx = circle.x - rect.x;
+  const dy = circle.y - rect.y;
+
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+
+  const halfW = rect.width / 2;
+  const halfH = rect.height / 2;
+  const closestX = Math.max(-halfW, Math.min(localX, halfW));
+  const closestY = Math.max(-halfH, Math.min(localY, halfH));
+
+  const distX = localX - closestX;
+  const distY = localY - closestY;
+  const distSq = distX * distX + distY * distY;
+
+  return distSq < circle.radius * circle.radius;
+}
+
+function resolveCircleRectangle(circle, rect) {
+  const cos = Math.cos(-rect.angle);
+  const sin = Math.sin(-rect.angle);
+  const dx = circle.x - rect.x;
+  const dy = circle.y - rect.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const impactSpeed = circle.vx * nx + circle.vy * ny;
+  if (impactSpeed > 0) return;
+
+  const restitution = Math.min(circle.restitution, rect.restitution);
+  const impulse = (1 + restitution) * impactSpeed;
+
+  if (!circle.anchored) {
+    circle.vx -= impulse * nx;
+    circle.vy -= impulse * ny;
+  }
+}
+
 function render() {
   drawSprings();
   drawRectangles();
@@ -196,6 +312,14 @@ let circle3 = new Circle(700, 400, 25);
 let spring1 = new Spring(circle1, circle2, 350, 0.1);
 let spring2 = new Spring(circle2, circle3, 350, 0.1);
 let spring3 = new Spring(circle3, circle1, 350, 0.1);
+
+let groundHeight = canvas.height * 0.2;
+let ground = new Rectangle(
+  canvas.width / 2,                  // center X
+  canvas.height - groundHeight / 2, // center Y
+  canvas.width,
+  groundHeight
+);
 
 function mainLoop() {
   clearScreen();
