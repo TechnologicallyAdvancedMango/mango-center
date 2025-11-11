@@ -81,7 +81,7 @@ class Spring {
     springs.push(this);
   }
 
-  apply() {
+  apply(dt) {
     const dx = this.b.x - this.a.x;
     const dy = this.b.y - this.a.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -130,7 +130,7 @@ class Spring {
   }
 }
 
-function simulate() {
+function simulate(dt) {
   for (const spring of springs) {
     spring.apply(dt);
   }
@@ -421,7 +421,7 @@ function mainLoop() {
   lastTime = now;
   
   for(let i = 0; i < frameMultiplier; i++) {
-    simulate();
+    simulate(deltatime);
   }
   clearScreen();
   render();
