@@ -227,17 +227,37 @@ class Spring {
 
         const relVel = circle.vx * (distX / dist) + circle.vy * (distY / dist);
         if (relVel < 0) {
-          const bounce = -relVel * this.restitution;
-          circle.vx += (distX / dist) * bounce;
-          circle.vy += (distY / dist) * bounce;
+          const restitution = this.restitution;
+          const nx = distX / dist;
+          const ny = distY / dist;
 
+          const ma = this.a.mass ?? 1;
+          const mb = this.b.mass ?? 1;
+          const mc = circle.mass ?? 1;
+
+          const invMa = this.a.anchored ? 0 : 1 / ma;
+          const invMb = this.b.anchored ? 0 : 1 / mb;
+          const invMc = circle.anchored ? 0 : 1 / mc;
+
+          const totalInvMass = invMa * (1 - t) ** 2 + invMb * t ** 2 + invMc;
+          if (totalInvMass === 0) return;
+
+          const impulseMag = -(1 + restitution) * relVel / totalInvMass;
+
+          const impulseX = impulseMag * nx;
+          const impulseY = impulseMag * ny;
+
+          if (!circle.anchored) {
+            circle.vx += impulseX * invMc;
+            circle.vy += impulseY * invMc;
+          }
           if (!this.a.anchored) {
-            this.a.vx -= nx * bounce * (1 - t);
-            this.a.vy -= ny * bounce * (1 - t);
+            this.a.vx -= impulseX * invMa * (1 - t);
+            this.a.vy -= impulseY * invMa * (1 - t);
           }
           if (!this.b.anchored) {
-            this.b.vx -= nx * bounce * t;
-            this.b.vy -= ny * bounce * t;
+            this.b.vx -= impulseX * invMb * t;
+            this.b.vy -= impulseY * invMb * t;
           }
         }
       }
@@ -642,12 +662,7 @@ function openPropertyMenu(obj, type, x, y) {
   closeBtn.style.cursor = "pointer";
   closeBtn.style.color = "#fff";
 
-  closeBtn.addEventListener("click", () => {
-    const menu = document.getElementById("propertyMenu");
-    menu.style.display = "none";
-    selectedObject = null;
-    propertyMenuOpen = false;
-  });
+  closeBtn.addEventListener("click", applyChangesAndClose);
 
   menu.appendChild(closeBtn);
 
@@ -656,15 +671,22 @@ function openPropertyMenu(obj, type, x, y) {
   props.forEach(key => {
     tempProps[key] = obj[key];
 
-    const input = document.createElement("input");
-    input.value = obj[key];
+    let input;
+    if (typeof obj[key] === "boolean") {
+      input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = obj[key];
+    } else {
+      input = document.createElement("input");
+      input.value = obj[key];
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyChangesAndClose();
+      });
+    }
+
     input.dataset.key = key;
     input.id = `prop-${key}`;
     input.name = key;
-
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") applyChangesAndClose();
-    });
 
     const label = document.createElement("label");
     label.textContent = key + ": ";
@@ -696,8 +718,8 @@ function applyChangesAndClose() {
     const original = selectedObject.ref[key];
 
     if (typeof original === "boolean") {
-      val = val === "true";
-    } else {
+      val = input.checked;
+    }else {
       const num = parseFloat(val);
       val = isNaN(num) ? val : num;
     }
@@ -825,7 +847,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     isPaused = !isPaused;
     document.getElementById("pauseIcon").style.display = isPaused ? "block" : "none";
-    
+
     console.log("Simulation paused:", isPaused);
 
     if (!isPaused && propertyMenuOpen) {
