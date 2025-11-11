@@ -11,18 +11,19 @@ window.addEventListener("resize", () => {
 
 
 let fps = 60;
-let frameMultiplier = 10;
+let frameMultiplier = 20;
 
 let lastTime = performance.now();
 
-let gravity = 1000;
-let drag = 0.04;
+let gravity = 2000;
+let drag = 0.01;
 
 let mouseX = 0;
 let mouseY = 0;
 let draggingCircle = null;
 
 let circleFill = "white";
+let anchoredCircleFill = "red";
 let circleStroke = "black";
 let circleStrokeWidth = 3;
 
@@ -39,7 +40,7 @@ let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius, anchored = false, restitution = 0.8) {
+  constructor(x, y, radius, anchored = false, restitution = 1) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -82,52 +83,54 @@ class Spring {
   }
 
   apply(dt) {
-    const dx = this.b.x - this.a.x;
-    const dy = this.b.y - this.a.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist === 0) return;
-  
-    const nx = dx / dist;
-    const ny = dy / dist;
-  
-    const force = this.stiffness * (dist - this.restLength);
-    
-    const dvx = this.b.vx - this.a.vx;
-    const dvy = this.b.vy - this.a.vy;
-    const relativeSpeed = dvx * nx + dvy * ny;
-    
-    const dampingForce = -this.damping * relativeSpeed;
-    const totalForce = force + dampingForce;
-    
-    const fx = nx * totalForce;
-    const fy = ny * totalForce;
-  
-    if (!this.a.anchored) {
-      this.a.vx += fx * dt;
-      this.a.vy += fy * dt;
-    }
-    if (!this.b.anchored) {
-      this.b.vx -= fx * dt;
-      this.b.vy -= fy * dt;
-    }
-  
-    // Enforce rigid constraint
-    if (this.rigid) {
-      const correction = (dist - this.restLength);
-      if (!this.a.anchored && !this.b.anchored) {
-        this.a.x -= nx * correction / 2;
-        this.a.y -= ny * correction / 2;
-        this.b.x += nx * correction / 2;
-        this.b.y += ny * correction / 2;
-      } else if (!this.a.anchored) {
-        this.a.x -= nx * correction;
-        this.a.y -= ny * correction;
-      } else if (!this.b.anchored) {
-        this.b.x += nx * correction;
-        this.b.y += ny * correction;
-      }
+  const dx = this.b.x - this.a.x;
+  const dy = this.b.y - this.a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist === 0) return;
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const springForce = this.stiffness * (dist - this.restLength);
+
+  const dvx = this.b.vx - this.a.vx;
+  const dvy = this.b.vy - this.a.vy;
+  const relativeVel = dvx * nx + dvy * ny;
+
+  const dampingForce = this.damping * relativeVel;
+
+  const totalForce = springForce + dampingForce;
+
+  const fx = nx * totalForce;
+  const fy = ny * totalForce;
+
+  if (!this.a.anchored) {
+    this.a.vx += fx * dt;
+    this.a.vy += fy * dt;
+  }
+  if (!this.b.anchored) {
+    this.b.vx -= fx * dt;
+    this.b.vy -= fy * dt;
+  }
+
+  // Enforce rigid constraint
+  if (this.rigid) {
+    const correction = dist - this.restLength;
+    if (!this.a.anchored && !this.b.anchored) {
+      this.a.x -= nx * correction / 2;
+      this.a.y -= ny * correction / 2;
+      this.b.x += nx * correction / 2;
+      this.b.y += ny * correction / 2;
+    } else if (!this.a.anchored) {
+      this.a.x -= nx * correction;
+      this.a.y -= ny * correction;
+    } else if (!this.b.anchored) {
+      this.b.x += nx * correction;
+      this.b.y += ny * correction;
     }
   }
+}
+
 }
 
 function simulate(dt) {
@@ -192,11 +195,13 @@ function simulate(dt) {
 
 
 function drawCircles() {
-  ctx.fillStyle = circleFill;
   ctx.strokeStyle = circleStroke;
   ctx.lineWidth = circleStrokeWidth;
   
   for(const circle of circles) {
+    if (circle.anchored) ctx.fillStyle = anchoredCircleFill;
+    else ctx.fillStyle = circleFill;
+
     ctx.beginPath();
     ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     ctx.fill();
@@ -249,9 +254,8 @@ function resolveCircleCircle(a, b) {
   if (dist < 0.0001) return;
 
   const overlap = a.radius + b.radius - dist;
-  
   if (overlap <= 0) return;
-  
+
   const nx = dx / dist;
   const ny = dy / dist;
 
@@ -276,17 +280,25 @@ function resolveCircleCircle(a, b) {
   if (dot > 0) return;
 
   const restitution = Math.min(a.restitution, b.restitution);
-  const impulse = (1 + restitution) * dot;
+
+  // Assume unit mass for simplicity
+  const invMassA = a.anchored ? 0 : 1;
+  const invMassB = b.anchored ? 0 : 1;
+  const impulseMag = -(1 + restitution) * dot / (invMassA + invMassB);
+
+  const impulseX = impulseMag * nx;
+  const impulseY = impulseMag * ny;
 
   if (!a.anchored) {
-    a.vx += impulse * nx;
-    a.vy += impulse * ny;
+    a.vx -= impulseX * invMassA;
+    a.vy -= impulseY * invMassA;
   }
   if (!b.anchored) {
-    b.vx -= impulse * nx;
-    b.vy -= impulse * ny;
+    b.vx += impulseX * invMassB;
+    b.vy += impulseY * invMassB;
   }
 }
+
 
 
 function checkCircleRectangle(circle, rect) {
@@ -375,13 +387,6 @@ canvas.addEventListener("mousedown", (e) => {
 canvas.addEventListener("mousemove", (e) => {
   mouseX = e.clientX;
   mouseY = e.clientY;
-
-  if (draggingCircle && !draggingCircle.anchored) {
-    draggingCircle.x = mouseX;
-    draggingCircle.y = mouseY;
-    draggingCircle.vx = 0;
-    draggingCircle.vy = 0;
-  }
 });
 
 canvas.addEventListener("mouseup", () => {
@@ -399,21 +404,56 @@ function clearScreen() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-let circle1 = new Circle(400, 200, 25);
-let circle2 = new Circle(680, 200, 25);
-let circle3 = new Circle(700, 250, 25);
+let circle1 = new Circle(400, 200, 35);
+let circle2 = new Circle(500, 500, 35);
+let circle3 = new Circle(700, 250, 35);
+let circle4 = new Circle(700, 150, 35);
 
-let spring1 = new Spring(circle1, circle2, 400, 50, 0);
-let spring2 = new Spring(circle2, circle3, 400, 50, 0);
-let spring3 = new Spring(circle3, circle1, 400, 50, 0);
+let spring1 = new Spring(circle1, circle2, 150, 200, 5.0, false);
+let spring2 = new Spring(circle2, circle3, 150, 200, 5.0, false);
+let spring3 = new Spring(circle3, circle4, 150, 200, 5.0, false);
+let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, false);
 
-let groundHeight = canvas.height * 0.2;
-let ground = new Rectangle(
-  canvas.width / 2,                  // center X
-  canvas.height - groundHeight / 2, // center Y
+let diagonal1 = new Spring(circle1, circle3, 100 * Math.sqrt(2), 200, 5.0, false);
+let diagonal2 = new Spring(circle2, circle4, 100 * Math.sqrt(2), 200, 5.0, false);
+
+
+let slope = new Rectangle(800, 600, 400, 20, -Math.PI / 6, true);
+
+let floor = new Rectangle(
+  canvas.width / 2,
+  canvas.height + 50,
   10000,
-  groundHeight
+  100
 );
+let leftWall = new Rectangle(
+  -50,
+  canvas.height / 2,
+  100,
+  10000
+);
+let rightWall = new Rectangle(
+  canvas.width + 50,
+  canvas.height / 2,
+  100,
+  10000
+);
+let ceiling = new Rectangle(
+  canvas.width / 2,
+  -50,
+  10000,
+  100
+);
+
+/*
+for(let i = 0; i < 300; i++) {
+  new Circle(
+    Math.random() * canvas.width,
+    Math.random() * canvas.height,
+    10 + Math.random() * 20
+  );
+}
+*/
 
 function mainLoop() {
   const now = performance.now();
@@ -423,6 +463,13 @@ function mainLoop() {
   
   for (let i = 0; i < frameMultiplier; i++) {
     simulate(subDelta);
+  }
+
+  if (draggingCircle && !draggingCircle.anchored) {
+    draggingCircle.x = mouseX;
+    draggingCircle.y = mouseY;
+    draggingCircle.vx = 0;
+    draggingCircle.vy = 0;
   }
   
   clearScreen();
