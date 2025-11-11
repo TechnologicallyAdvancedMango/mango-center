@@ -13,7 +13,7 @@ window.addEventListener("resize", () => {
 let fps = 60;
 let frameMultiplier = 1;
 
-const gravity = 1;
+const gravity = 0;
 
 let circleFill = "white";
 let circleStroke = "black";
