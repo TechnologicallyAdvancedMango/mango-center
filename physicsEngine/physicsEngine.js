@@ -36,25 +36,25 @@ let selectedObject = null;
 let propertyMenuOpen = false;
 let justOpenedMenu = false;
 
-let circleFill = "white";
-let anchoredCircleFill = "red";
-let circleStroke = "black";
+let circleFill = "#ffffff";
+let anchoredCircleFill = "#b10000";
+let circleStroke = "#000000";
 let circleStrokeWidth = 3;
 
-let rectFill = "white";
-let rectStroke = "black";
+let rectFill = "#ffffff";
+let rectStroke = "#000000";
 let rectStrokeWidth = 3;
 
-let springColor = "white";
-let rigidSpringColor = "red";
-let springWidth = "10";
+let springColor = "#ffffff";
+let rigidSpringColor = "#b10000";
+let springWidth = "5";
 
 let circles = [];
 let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius, anchored = false, restitution = 1) {
+  constructor(x, y, radius, anchored = false, restitution = 1, mass = null) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -62,6 +62,10 @@ class Circle {
     this.radius = radius;
     this.anchored = anchored;
     this.restitution = restitution;
+
+    // If no mass provided, derive it from radius
+    this.mass = mass !== null ? mass : Math.PI * radius * radius;
+    this.mass *= 0.001; // scale mass down
     
     circles.push(this);
   }
@@ -124,33 +128,36 @@ class Spring {
     const fx = nx * totalForce;
     const fy = ny * totalForce;
 
+    const ma = this.a.mass ?? 1;
+    const mb = this.b.mass ?? 1;
+
+    const totalMass = ma + mb;
+
+    // Distribute force based on mass ratio
+    const faRatio = mb / totalMass;
+    const fbRatio = ma / totalMass;
+
     if (!this.a.anchored) {
-      this.a.vx += fx * dt;
-      this.a.vy += fy * dt;
+      this.a.vx += fx * faRatio * dt / ma;
+      this.a.vy += fy * faRatio * dt / ma;
     }
     if (!this.b.anchored) {
-      this.b.vx -= fx * dt;
-      this.b.vy -= fy * dt;
+      this.b.vx -= fx * fbRatio * dt / mb;
+      this.b.vy -= fy * fbRatio * dt / mb;
     }
 
-    // Enforce rigid constraint
+    // Rigid constraint remains unchanged
     if (this.rigid) {
       const correction = this.restLength - dist;
-
-      // Only correct if there's a meaningful deviation
       if (Math.abs(correction) > 0.01) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-
-        // Optional: clamp correction to avoid jitter
         const maxCorrection = 10;
         const clamped = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
 
         if (!this.a.anchored && !this.b.anchored) {
-          this.a.x -= nx * clamped / 2;
-          this.a.y -= ny * clamped / 2;
-          this.b.x += nx * clamped / 2;
-          this.b.y += ny * clamped / 2;
+          this.a.x -= nx * clamped * fbRatio;
+          this.a.y -= ny * clamped * fbRatio;
+          this.b.x += nx * clamped * faRatio;
+          this.b.y += ny * clamped * faRatio;
         } else if (!this.a.anchored) {
           this.a.x -= nx * clamped;
           this.a.y -= ny * clamped;
@@ -159,16 +166,15 @@ class Spring {
           this.b.y += ny * clamped;
         }
 
-        // Dampen velocity along the spring axis to prevent expansion
         const dvx = this.b.vx - this.a.vx;
         const dvy = this.b.vy - this.a.vy;
         const relVel = dvx * nx + dvy * ny;
 
         if (!this.a.anchored && !this.b.anchored) {
-          this.a.vx += nx * relVel / 2;
-          this.a.vy += ny * relVel / 2;
-          this.b.vx -= nx * relVel / 2;
-          this.b.vy -= ny * relVel / 2;
+          this.a.vx += nx * relVel * fbRatio;
+          this.a.vy += ny * relVel * fbRatio;
+          this.b.vx -= nx * relVel * faRatio;
+          this.b.vy -= ny * relVel * faRatio;
         } else if (!this.a.anchored) {
           this.a.vx += nx * relVel;
           this.a.vy += ny * relVel;
@@ -179,6 +185,7 @@ class Spring {
       }
     }
   }
+
 
   collide(circles, rectangles) {
     if (!this.collides) return;
@@ -294,16 +301,17 @@ function simulate(dt) {
   }
 
   for (const circle of circles) {
-    if (circle.anchored) {
-      circle.vx = 0;
-      circle.vy = 0;
-    } else {
+    if (!circle.anchored) {
       circle.vy += gravity * dt;
 
       circle.x += circle.vx * dt;
       circle.y += circle.vy * dt;
+    } else {
+      circle.vx = 0;
+      circle.vy = 0;
     }
   }
+
 
   for (const rect of rectangles) {
     if (rect.anchored) {
@@ -393,7 +401,7 @@ function drawSprings() {
   ctx.lineCap = "round";
 
   for (const spring of springs) {
-    if (!spring.visible) continue;
+    if (!spring.visible && !isPaused) continue;
 
     let color = springColor;
 
@@ -442,18 +450,23 @@ function resolveCircleCircle(a, b) {
   const nx = dx / dist;
   const ny = dy / dist;
 
+  const ma = a.mass ?? 1;
+  const mb = b.mass ?? 1;
+  const invMassA = a.anchored ? 0 : 1 / ma;
+  const invMassB = b.anchored ? 0 : 1 / mb;
+  const totalInvMass = invMassA + invMassB;
+
   // Position correction
-  if (!a.anchored && !b.anchored) {
-    a.x -= nx * overlap / 2;
-    a.y -= ny * overlap / 2;
-    b.x += nx * overlap / 2;
-    b.y += ny * overlap / 2;
-  } else if (!a.anchored) {
-    a.x -= nx * overlap;
-    a.y -= ny * overlap;
-  } else if (!b.anchored) {
-    b.x += nx * overlap;
-    b.y += ny * overlap;
+  if (totalInvMass > 0) {
+    const correction = overlap / totalInvMass;
+    if (!a.anchored) {
+      a.x -= nx * correction * invMassA;
+      a.y -= ny * correction * invMassA;
+    }
+    if (!b.anchored) {
+      b.x += nx * correction * invMassB;
+      b.y += ny * correction * invMassB;
+    }
   }
 
   // Velocity reflection
@@ -463,11 +476,7 @@ function resolveCircleCircle(a, b) {
   if (dot > 0) return;
 
   const restitution = Math.min(a.restitution, b.restitution);
-
-  // Assume unit mass for simplicity
-  const invMassA = a.anchored ? 0 : 1;
-  const invMassB = b.anchored ? 0 : 1;
-  const impulseMag = -(1 + restitution) * dot / (invMassA + invMassB);
+  const impulseMag = -(1 + restitution) * dot / totalInvMass;
 
   const impulseX = impulseMag * nx;
   const impulseY = impulseMag * ny;
@@ -587,12 +596,12 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
 
       if (col < cols - 1) {
         const right = nodeMatrix[row][col + 1];
-        new Spring(current, right, spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, right, spacing, springConfig.stiffness, springConfig.damping, true, springConfig.collides, springConfig.restitution, springConfig.visible);
       }
 
       if (row < rows - 1) {
         const below = nodeMatrix[row + 1][col];
-        new Spring(current, below, spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, below, spacing, springConfig.stiffness, springConfig.damping, true, springConfig.collides, springConfig.restitution, springConfig.visible);
       }
 
       // diagonals
@@ -892,25 +901,25 @@ function clearScreen() {
 }
 
 
-/* semi-soft square
+// semi-soft square
 let circle1 = new Circle(400, 200, 35);
 let circle2 = new Circle(500, 500, 35);
 let circle3 = new Circle(700, 250, 35);
 let circle4 = new Circle(700, 150, 35);
 
-let spring1 = new Spring(circle1, circle2, 150, 200, 5.0, true, true, 0.8);
-let spring2 = new Spring(circle2, circle3, 150, 200, 5.0, true, true, 0.8);
-let spring3 = new Spring(circle3, circle4, 150, 200, 5.0, true, true, 0.8);
-let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, true, true, 0.8);
+let spring1 = new Spring(circle1, circle2, 150, 500, 5.0, true, true, 0.8);
+let spring2 = new Spring(circle2, circle3, 150, 500, 5.0, true, true, 0.8);
+let spring3 = new Spring(circle3, circle4, 150, 500, 5.0, true, true, 0.8);
+let spring4 = new Spring(circle4, circle1, 150, 500, 5.0, true, true, 0.8);
 
-let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 200, 5.0, false);
-let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 200, 5.0, false);
-*/
+let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 500, 5.0, false);
+let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false);
 
-createSoftbodyGrid(10, 10, 30, canvas.width/2, canvas.height/2, {
+
+createSoftbodyGrid(8, 8, 50, canvas.width/2, canvas.height/2, {
   radius: 8,
   anchorEdges: false,
-  springConfig: { stiffness: 15000, damping: 150.0, restitution: 0.9 }
+  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: false }
 });
 
 
@@ -962,12 +971,15 @@ function mainLoop() {
       simulate(subDelta);
     }
 
-    if (draggingCircle) {
+    if (draggingCircle && !draggingCircle.anchored) {
       const dx = mouseX - draggingCircle.x;
       const dy = mouseY - draggingCircle.y;
 
-      draggingCircle.vx += dx * mouseStrength;
-      draggingCircle.vy += dy * mouseStrength;
+      const mass = draggingCircle.mass ?? 1;
+
+      // Apply force scaled by mouseStrength, then convert to acceleration
+      draggingCircle.vx += (dx * mouseStrength) / mass;
+      draggingCircle.vy += (dy * mouseStrength) / mass;
     }
   }
 
