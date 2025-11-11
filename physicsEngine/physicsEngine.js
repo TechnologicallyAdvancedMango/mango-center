@@ -330,6 +330,9 @@ function resolveCircleRectangle(circle, rect) {
 
   const dist = Math.sqrt(distSq);
   const overlap = circle.radius - dist;
+
+  if (overlap <= 0) return;
+  
   const nx = distX / dist;
   const ny = distY / dist;
 
