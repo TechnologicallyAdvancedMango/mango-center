@@ -403,7 +403,7 @@ let circle3 = new Circle(700, 400, 25);
 
 let spring1 = new Spring(circle1, circle2, 350, 0.1, 0.5);
 let spring2 = new Spring(circle2, circle3, 350, 0.1, 0.5);
-let spring3 = new Spring(circle3, circle1, 350, 0.1, 0.5);
+// let spring3 = new Spring(circle3, circle1, 350, 0.1, 0.5);
 
 let groundHeight = canvas.height * 0.2;
 let ground = new Rectangle(
