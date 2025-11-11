@@ -13,6 +13,8 @@ window.addEventListener("resize", () => {
 let fps = 60;
 let frameMultiplier = 1;
 
+let lastTime = performance.now();
+
 let gravity = 1;
 let drag = 0.03;
 
@@ -101,12 +103,12 @@ class Spring {
     const fy = ny * totalForce;
   
     if (!this.a.anchored) {
-      this.a.vx += fx;
-      this.a.vy += fy;
+      this.a.vx += fx * dt;
+      this.a.vy += fy * dt;
     }
     if (!this.b.anchored) {
-      this.b.vx -= fx;
-      this.b.vy -= fy;
+      this.b.vx -= fx * dt;
+      this.b.vy -= fy * dt;
     }
   
     // Enforce rigid constraint
@@ -130,25 +132,25 @@ class Spring {
 
 function simulate() {
   for (const spring of springs) {
-    spring.apply();
+    spring.apply(dt);
   }
 
   for (const circle of circles) {
     if (circle.anchored) continue;
-    circle.vy += gravity;
-    
-    circle.x += circle.vx;
-    circle.y += circle.vy;
+    circle.vy += gravity * dt;
+
+    circle.x += circle.vx * dt;
+    circle.y += circle.vy * dt;
   }
 
   for (const rect of rectangles) {
     if (!rect.anchored) {
-      rect.vy += gravity;
-      
-      rect.x += rect.vx;
-      rect.y += rect.vy;
-      
-      rect.angle += rect.angularVelocity;
+      rect.vy += gravity * dt;
+
+      rect.x += rect.vx * dt;
+      rect.y += rect.vy * dt;
+
+      rect.angle += rect.angularVelocity * dt;
     }
   }
 
@@ -174,16 +176,16 @@ function simulate() {
   // Apply drag
   for (const circle of circles) {
     if (!circle.anchored) {
-      circle.vx *= 1 - drag;
-      circle.vy *= 1 - drag;
+      circle.vx *= Math.pow(1 - drag, dt * 60);
+      circle.vy *= Math.pow(1 - drag, dt * 60);
     }
   }
-  
+
   for (const rect of rectangles) {
     if (!rect.anchored) {
-      rect.vx *= 1 - drag;
-      rect.vy *= 1 - drag;
-      rect.angularVelocity -= rect.angularVelocity * drag;
+      rect.vx *= Math.pow(1 - drag, dt * 60);
+      rect.vy *= Math.pow(1 - drag, dt * 60);
+      rect.angularVelocity *= Math.pow(1 - drag, dt * 60);
     }
   }
 }
@@ -414,12 +416,14 @@ let ground = new Rectangle(
 );
 
 function mainLoop() {
-  clearScreen();
+  const now = performance.now();
+  const deltaTime = (now - lastTime) / 1000; // seconds
+  lastTime = now;
   
   for(let i = 0; i < frameMultiplier; i++) {
     simulate();
   }
-  
+  clearScreen();
   render();
 }
 
