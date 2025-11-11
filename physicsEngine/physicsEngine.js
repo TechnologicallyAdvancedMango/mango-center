@@ -279,19 +279,47 @@ function resolveCircleRectangle(circle, rect) {
   const sin = Math.sin(-rect.angle);
   const dx = circle.x - rect.x;
   const dy = circle.y - rect.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const nx = dx / dist;
-  const ny = dy / dist;
 
-  const impactSpeed = circle.vx * nx + circle.vy * ny;
+  // Transform circle center into rectangle's local space
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+
+  const halfW = rect.width / 2;
+  const halfH = rect.height / 2;
+  const closestX = Math.max(-halfW, Math.min(localX, halfW));
+  const closestY = Math.max(-halfH, Math.min(localY, halfH));
+
+  const distX = localX - closestX;
+  const distY = localY - closestY;
+  const distSq = distX * distX + distY * distY;
+
+  if (distSq >= circle.radius * circle.radius) return;
+
+  const dist = Math.sqrt(distSq);
+  const overlap = circle.radius - dist;
+  const nx = distX / dist;
+  const ny = distY / dist;
+
+  // Transform normal back to world space
+  const worldNX = nx * cos + ny * sin;
+  const worldNY = -nx * sin + ny * cos;
+
+  // Position correction
+  if (!circle.anchored) {
+    circle.x += worldNX * overlap;
+    circle.y += worldNY * overlap;
+  }
+
+  // Velocity correction (bounce)
+  const impactSpeed = circle.vx * worldNX + circle.vy * worldNY;
   if (impactSpeed > 0) return;
 
   const restitution = Math.min(circle.restitution, rect.restitution);
   const impulse = (1 + restitution) * impactSpeed;
 
   if (!circle.anchored) {
-    circle.vx -= impulse * nx;
-    circle.vy -= impulse * ny;
+    circle.vx -= impulse * worldNX;
+    circle.vy -= impulse * worldNY;
   }
 }
 
