@@ -137,9 +137,6 @@ function simulate() {
     if (circle.anchored) continue;
     circle.vy += gravity;
     
-    circle.vx -= circle.vx * drag;
-    circle.vy -= circle.vy * drag;
-    
     circle.x += circle.vx;
     circle.y += circle.vy;
   }
@@ -147,9 +144,6 @@ function simulate() {
   for (const rect of rectangles) {
     if (!rect.anchored) {
       rect.vy += gravity;
-
-      rect.vx -= rect.vx * drag;
-      rect.vy -= rect.vy * drag;
       
       rect.x += rect.vx;
       rect.y += rect.vy;
@@ -174,6 +168,22 @@ function simulate() {
       if (checkCircleRectangle(circle, rect)) {
         resolveCircleRectangle(circle, rect);
       }
+    }
+  }
+
+  // Apply drag
+  for (const circle of circles) {
+    if (!circle.anchored) {
+      circle.vx *= 1 - drag;
+      circle.vy *= 1 - drag;
+    }
+  }
+  
+  for (const rect of rectangles) {
+    if (!rect.anchored) {
+      rect.vx *= 1 - drag;
+      rect.vy *= 1 - drag;
+      rect.angularVelocity -= rect.angularVelocity * drag;
     }
   }
 }
