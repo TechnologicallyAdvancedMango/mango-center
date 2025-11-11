@@ -71,66 +71,94 @@ class Rectangle {
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, damping = 0.1, rigid = false) {
+  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
     this.stiffness = stiffness;
-    this.rigid = rigid;
     this.damping = damping;
-
+    this.rigid = rigid;
+    this.collides = collides;
     springs.push(this);
   }
 
   apply(dt) {
-  const dx = this.b.x - this.a.x;
-  const dy = this.b.y - this.a.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist === 0) return;
+    const dx = this.b.x - this.a.x;
+    const dy = this.b.y - this.a.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) return;
 
-  const nx = dx / dist;
-  const ny = dy / dist;
+    const nx = dx / dist;
+    const ny = dy / dist;
 
-  const springForce = this.stiffness * (dist - this.restLength);
+    const springForce = this.stiffness * (dist - this.restLength);
 
-  const dvx = this.b.vx - this.a.vx;
-  const dvy = this.b.vy - this.a.vy;
-  const relativeVel = dvx * nx + dvy * ny;
+    const dvx = this.b.vx - this.a.vx;
+    const dvy = this.b.vy - this.a.vy;
+    const relativeVel = dvx * nx + dvy * ny;
 
-  const dampingForce = this.damping * relativeVel;
+    const dampingForce = this.damping * relativeVel;
 
-  const totalForce = springForce + dampingForce;
+    const totalForce = springForce + dampingForce;
 
-  const fx = nx * totalForce;
-  const fy = ny * totalForce;
+    const fx = nx * totalForce;
+    const fy = ny * totalForce;
 
-  if (!this.a.anchored) {
-    this.a.vx += fx * dt;
-    this.a.vy += fy * dt;
-  }
-  if (!this.b.anchored) {
-    this.b.vx -= fx * dt;
-    this.b.vy -= fy * dt;
-  }
+    if (!this.a.anchored) {
+      this.a.vx += fx * dt;
+      this.a.vy += fy * dt;
+    }
+    if (!this.b.anchored) {
+      this.b.vx -= fx * dt;
+      this.b.vy -= fy * dt;
+    }
 
-  // Enforce rigid constraint
-  if (this.rigid) {
-    const correction = dist - this.restLength;
-    if (!this.a.anchored && !this.b.anchored) {
-      this.a.x -= nx * correction / 2;
-      this.a.y -= ny * correction / 2;
-      this.b.x += nx * correction / 2;
-      this.b.y += ny * correction / 2;
-    } else if (!this.a.anchored) {
-      this.a.x -= nx * correction;
-      this.a.y -= ny * correction;
-    } else if (!this.b.anchored) {
-      this.b.x += nx * correction;
-      this.b.y += ny * correction;
+    // Enforce rigid constraint
+    if (this.rigid) {
+      const correction = this.restLength - dist;
+
+      // Only correct if there's a meaningful deviation
+      if (Math.abs(correction) > 0.01) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+
+        // Optional: clamp correction to avoid jitter
+        const maxCorrection = 10;
+        const clamped = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
+
+        if (!this.a.anchored && !this.b.anchored) {
+          this.a.x -= nx * clamped / 2;
+          this.a.y -= ny * clamped / 2;
+          this.b.x += nx * clamped / 2;
+          this.b.y += ny * clamped / 2;
+        } else if (!this.a.anchored) {
+          this.a.x -= nx * clamped;
+          this.a.y -= ny * clamped;
+        } else if (!this.b.anchored) {
+          this.b.x += nx * clamped;
+          this.b.y += ny * clamped;
+        }
+
+        // Dampen velocity along the spring axis to prevent expansion
+        const dvx = this.b.vx - this.a.vx;
+        const dvy = this.b.vy - this.a.vy;
+        const relVel = dvx * nx + dvy * ny;
+
+        if (!this.a.anchored && !this.b.anchored) {
+          this.a.vx += nx * relVel / 2;
+          this.a.vy += ny * relVel / 2;
+          this.b.vx -= nx * relVel / 2;
+          this.b.vy -= ny * relVel / 2;
+        } else if (!this.a.anchored) {
+          this.a.vx += nx * relVel;
+          this.a.vy += ny * relVel;
+        } else if (!this.b.anchored) {
+          this.b.vx -= nx * relVel;
+          this.b.vy -= ny * relVel;
+        }
+      }
     }
   }
-}
-
 }
 
 function simulate(dt) {
@@ -300,7 +328,6 @@ function resolveCircleCircle(a, b) {
 }
 
 
-
 function checkCircleRectangle(circle, rect) {
   const cos = Math.cos(-rect.angle);
   const sin = Math.sin(-rect.angle);
@@ -414,11 +441,11 @@ let spring2 = new Spring(circle2, circle3, 150, 200, 5.0, false);
 let spring3 = new Spring(circle3, circle4, 150, 200, 5.0, false);
 let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, false);
 
-let diagonal1 = new Spring(circle1, circle3, 100 * Math.sqrt(2), 200, 5.0, false);
-let diagonal2 = new Spring(circle2, circle4, 100 * Math.sqrt(2), 200, 5.0, false);
+let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 200, 5.0, true);
+let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 200, 5.0, true);
 
 
-let slope = new Rectangle(800, 600, 400, 20, -Math.PI / 6, true);
+let slope = new Rectangle(800, 600, 1000, 20, -Math.PI / 1.1, true);
 
 let floor = new Rectangle(
   canvas.width / 2,
