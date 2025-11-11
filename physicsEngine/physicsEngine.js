@@ -28,6 +28,10 @@ let springStartCircle = null;
 let springEndCircle = null;
 let isRightDragging = false;
 
+let selectedObject = null;
+let propertyMenuOpen = false;
+let justOpenedMenu = false;
+
 let circleFill = "white";
 let anchoredCircleFill = "red";
 let circleStroke = "black";
@@ -203,8 +207,10 @@ class Spring {
         const pushX = distX / dist * overlap;
         const pushY = distY / dist * overlap;
 
-        circle.x += pushX;
-        circle.y += pushY;
+        if(!circle.anchored) {
+          circle.x += pushX;
+          circle.y += pushY;
+        }
 
         const relVel = circle.vx * (distX / dist) + circle.vy * (distY / dist);
         if (relVel < 0) {
@@ -282,15 +288,22 @@ function simulate(dt) {
   }
 
   for (const circle of circles) {
-    if (circle.anchored) continue;
-    circle.vy += gravity * dt;
+    if (circle.anchored) {
+      circle.vx = 0;
+      circle.vy = 0;
+    } else {
+      circle.vy += gravity * dt;
 
-    circle.x += circle.vx * dt;
-    circle.y += circle.vy * dt;
+      circle.x += circle.vx * dt;
+      circle.y += circle.vy * dt;
+    }
   }
 
   for (const rect of rectangles) {
-    if (!rect.anchored) {
+    if (rect.anchored) {
+      rect.vx = 0;
+      rect.vy = 0;
+    } else {
       rect.vy += gravity * dt;
 
       rect.x += rect.vx * dt;
@@ -511,17 +524,168 @@ function resolveCircleRectangle(circle, rect) {
   circle.vy -= (1 + restitution) * dot * worldNY;
 }
 
-canvas.addEventListener("mousedown", (e) => {
-    if (e.button === 0) { // left click
-    mouseX = e.clientX;
-    mouseY = e.clientY;
 
-    for (const circle of circles) {
-      const dx = mouseX - circle.x;
-      const dy = mouseY - circle.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < circle.radius) {
-        draggingCircle = circle;
+
+// Property menu
+let tempProps = {}; // make sure this is accessible globally or in shared scope
+function openPropertyMenu(obj, type, x, y) {
+  if (!isPaused) return;
+
+  selectedObject = { ref: obj, type };
+  propertyMenuOpen = true;
+  tempProps = {};
+
+  const menu = document.getElementById("propertyMenu");
+  menu.innerHTML = "";
+
+  const props = Object.keys(obj).filter(k => typeof obj[k] !== "function");
+
+  props.forEach(key => {
+    tempProps[key] = obj[key];
+
+    const input = document.createElement("input");
+    input.value = obj[key];
+    input.dataset.key = key;
+    input.id = `prop-${key}`;
+    input.name = key;
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") applyChangesAndClose();
+    });
+
+    const label = document.createElement("label");
+    label.textContent = key + ": ";
+    label.htmlFor = input.id;
+    label.appendChild(input);
+    menu.appendChild(label);
+    menu.appendChild(document.createElement("br"));
+  });
+
+  justOpenedMenu = true;
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+  menu.style.display = "block";
+
+  console.log("Opening menu at", x, y, "for", type);
+}
+
+function applyChangesAndClose() {
+  const menu = document.getElementById("propertyMenu");
+  const inputs = menu.querySelectorAll("input");
+
+  inputs.forEach(input => {
+    const key = input.dataset.key;
+
+    // Skip spring endpoints
+    if (selectedObject.type === "spring" && (key === "a" || key === "b")) return;
+
+    let val = input.value;
+    const original = selectedObject.ref[key];
+
+    if (typeof original === "boolean") {
+      val = val === "true";
+    } else {
+      const num = parseFloat(val);
+      val = isNaN(num) ? val : num;
+    }
+
+    tempProps[key] = val;
+  });
+
+  if (selectedObject && selectedObject.ref) {
+    Object.assign(selectedObject.ref, tempProps);
+  }
+
+  menu.style.display = "none";
+  console.log("closed menu");
+  selectedObject = null;
+  propertyMenuOpen = false;
+}
+
+document.addEventListener("mousedown", (e) => {
+  if (justOpenedMenu) {
+    justOpenedMenu = false;
+    return; // skip the click that opened the menu
+  }
+
+  const menu = document.getElementById("propertyMenu");
+  if (propertyMenuOpen && !menu.contains(e.target)) {
+    applyChangesAndClose();
+  }
+});
+
+
+canvas.addEventListener("mousedown", (e) => {
+  const x = e.offsetX;
+  const y = e.offsetY;
+
+  if (e.button === 0) { // left-click
+    if (isPaused) {
+      selectedObject = null;
+
+      // Check circles
+      for (let circle of circles) {
+        const dx = x - circle.x;
+        const dy = y - circle.y;
+        if (dx * dx + dy * dy < circle.radius * circle.radius) {
+          selectedObject = circle;
+          openPropertyMenu(circle, "circle", e.offsetX, e.offsetY);
+          return;
+        }
+      }
+
+      // Check rectangles
+      for (let rect of rectangles) {
+        const halfW = rect.width / 2;
+        const halfH = rect.height / 2;
+        if (
+          x >= rect.x - halfW &&
+          x <= rect.x + halfW &&
+          y >= rect.y - halfH &&
+          y <= rect.y + halfH
+        ) {
+          selectedObject = rect;
+          openPropertyMenu(rect, "rectangle", e.offsetX, e.offsetY);
+          return;
+        }
+      }
+
+      // Check springs
+      for (let spring of springs) {
+        const dx = spring.b.x - spring.a.x;
+        const dy = spring.b.y - spring.a.y;
+        const t = ((x - spring.a.x) * dx + (y - spring.a.y) * dy) / (dx * dx + dy * dy);
+        if (t >= 0 && t <= 1) {
+          const px = spring.a.x + t * dx;
+          const py = spring.a.y + t * dy;
+          const distSq = (x - px) ** 2 + (y - py) ** 2;
+          if (distSq < 100) {
+            selectedObject = spring;
+            openPropertyMenu(spring, "spring", e.offsetX, e.offsetY);
+            return;
+          }
+        }
+      }
+    } else {
+      // Not paused → begin dragging
+      for (let circle of circles) {
+        const dx = x - circle.x;
+        const dy = y - circle.y;
+        if (dx * dx + dy * dy < circle.radius * circle.radius) {
+          draggingCircle = circle;
+          break;
+        }
+      }
+    }
+  }
+
+  if (e.button === 2 && isPaused) { // right-click drag start
+    for (let circle of circles) {
+      const dx = x - circle.x;
+      const dy = y - circle.y;
+      if (dx * dx + dy * dy < circle.radius * circle.radius) {
+        springStartCircle = circle;
+        isRightDragging = true;
         break;
       }
     }
@@ -538,16 +702,28 @@ canvas.addEventListener("mouseup", () => {
 });
 
 
-// Actions while dragging a circle
+// Actions
 document.addEventListener("keydown", (e) => {
-  if (!draggingCircle) return;
+  if (isPaused) {
+    draggingCircle = null; // prevent accidental toggling
+  }
+  if (propertyMenuOpen) return; // don't trigger shortcuts while menu is open
 
-  if (e.key === "a") { // press A to toggle anchor
-    draggingCircle.anchored = ! draggingCircle.anchored;
+  if (e.key === "Escape") {
+    isPaused = !isPaused;
+    console.log("Simulation paused:", isPaused);
+
+    if (!isPaused && propertyMenuOpen) {
+      applyChangesAndClose();
+    }
+  }
+
+  if (e.key === "a" && draggingCircle && !isPaused) {
+    draggingCircle.anchored = !draggingCircle.anchored;
     console.log("Anchor toggled:", draggingCircle.anchored);
   }
 
-  if ((e.key === "Backspace" || e.key === "Delete") && draggingCircle) { // press Backspace  or Delete to delete circle
+  if ((e.key === "Backspace" || e.key === "Delete") && draggingCircle) { // press Backspace or Delete to delete circle
     e.preventDefault(); // prevent browser from navigating back
 
     // Remove connected springs
@@ -561,31 +737,13 @@ document.addEventListener("keydown", (e) => {
     // Clear the drag reference
     draggingCircle = null;
   }
-});
 
-// Pause simulation
-document.addEventListener("keydown", (e) => {
-  if (e.key === " ") { // spacebar toggles pause
-    isPaused = !isPaused;
-    console.log("Simulation paused:", isPaused);
+  if (e.key === "c") { // press 'c' to create a new circle at mouse position
+    new Circle(mouseX, mouseY, 20);
   }
 });
 
 
-// Create springs with right mouse drag
-canvas.addEventListener("mousedown", (e) => {
-  if (e.button === 2 && isPaused) {
-    for (let circle of circles) {
-      const dx = e.offsetX - circle.x;
-      const dy = e.offsetY - circle.y;
-      if (dx * dx + dy * dy < circle.radius * circle.radius) {
-        springStartCircle = circle;
-        isRightDragging = true;
-        break;
-      }
-    }
-  }
-});
 canvas.addEventListener("mouseup", (e) => {
   if (e.button === 2 && isRightDragging && springStartCircle && isPaused) {
     for (let circle of circles) {
@@ -593,7 +751,7 @@ canvas.addEventListener("mouseup", (e) => {
       const dy = e.offsetY - circle.y;
       if (dx * dx + dy * dy < circle.radius * circle.radius && circle !== springStartCircle) {
         const dist = Math.sqrt((circle.x - springStartCircle.x) ** 2 + (circle.y - springStartCircle.y) ** 2);
-        springs.push(new Spring(springStartCircle, circle, dist, 200, 5.0, true, true, 0.8));
+        springs.push(new Spring(springStartCircle, circle, dist, 200, 5.0, true, false));
         break;
       }
     }
