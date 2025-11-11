@@ -13,11 +13,15 @@ window.addEventListener("resize", () => {
 let fps = 60;
 let frameMultiplier = 20;
 
+let showStress = true; // or false to disable
+
+let mouseStrength = 5.0;
+
 let isPaused = false;
 
 let lastTime = performance.now();
 
-let gravity = 2000;
+let gravity = 1000;
 let drag = 0.01;
 
 let mouseX = 0;
@@ -84,7 +88,7 @@ class Rectangle {
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8) {
+  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8, visible = true) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
@@ -93,6 +97,8 @@ class Spring {
     this.rigid = rigid;
     this.collides = collides;
     this.restitution = restitution
+    this.visible = visible;
+
     springs.push(this);
   }
 
@@ -387,8 +393,29 @@ function drawSprings() {
   ctx.lineCap = "round";
 
   for (const spring of springs) {
-    ctx.strokeStyle = spring.rigid ? rigidSpringColor : springColor;
-    
+    if (!spring.visible) continue;
+
+    let color = springColor;
+
+    if (showStress && !spring.rigid) {
+      const dx = spring.b.x - spring.a.x;
+      const dy = spring.b.y - spring.a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const stretch = dist - spring.restLength;
+
+      const maxStretch = spring.restLength * 0.5; // tweak sensitivity
+      const normalized = Math.max(-1, Math.min(1, stretch / maxStretch));
+
+      // Gradient: red (compressed) → white → blue (stretched)
+      const r = normalized < 0 ? 255 : Math.round(255 * (1 - normalized));
+      const g = Math.round(255 * (1 - Math.abs(normalized)));
+      const b = normalized > 0 ? 255 : Math.round(255 * (1 + normalized));
+
+      color = `rgb(${r},${g},${b})`;
+    }
+
+    ctx.strokeStyle = spring.rigid ? rigidSpringColor : color;
+
     ctx.beginPath();
     ctx.moveTo(spring.a.x, spring.a.y);
     ctx.lineTo(spring.b.x, spring.b.y);
@@ -524,6 +551,63 @@ function resolveCircleRectangle(circle, rect) {
   circle.vy -= (1 + restitution) * dot * worldNY;
 }
 
+function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
+  const {
+    radius = 10,
+    anchorEdges = false,
+    springConfig = {
+      stiffness: 2000,       // increase resistance to stretching
+      damping: 20.0,        // reduce oscillation
+      restLength: spacing,  // match grid spacing
+      visible: false,
+      collides: true,
+      restitution: 0.3      // lower bounce to prevent jitter
+    }
+
+  } = options;
+
+  const nodeMatrix = [];
+
+  for (let row = 0; row < rows; row++) {
+    nodeMatrix[row] = [];
+    for (let col = 0; col < cols; col++) {
+      const x = startX + col * spacing;
+      const y = startY + row * spacing;
+      const anchored = false; // force unanchored
+
+      const circle = new Circle(x, y, radius, anchored);
+      circles.push(circle);
+      nodeMatrix[row][col] = circle;
+    }
+  }
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const current = nodeMatrix[row][col];
+
+      if (col < cols - 1) {
+        const right = nodeMatrix[row][col + 1];
+        new Spring(current, right, spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+      }
+
+      if (row < rows - 1) {
+        const below = nodeMatrix[row + 1][col];
+        new Spring(current, below, spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+      }
+
+      // diagonals
+      if (row < rows - 1 && col < cols - 1) {
+        new Spring(current, nodeMatrix[row + 1][col + 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+      }
+
+      if (row < rows - 1 && col > 0) {
+        new Spring(current, nodeMatrix[row + 1][col - 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+      }
+    }
+  }
+
+  return nodeMatrix;
+}
 
 
 // Property menu
@@ -767,6 +851,18 @@ canvas.addEventListener("contextmenu", (e) => {
 });
 
 
+document.addEventListener("wheel", (e) => {
+  const delta = Math.sign(e.deltaY); // -1 = up, 1 = down
+
+  // Scroll up → increase strength, down → decrease
+  mouseStrength = mouseStrength * (1 - (0.1 * delta));
+
+  // Clamp to reasonable range
+  mouseStrength = Math.max(0.1, Math.min(25, mouseStrength));
+
+  console.log("Mouse strength:", mouseStrength.toFixed(2));
+});
+
 
 function render() {
   drawSprings();
@@ -795,6 +891,8 @@ function clearScreen() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
+
+/* semi-soft square
 let circle1 = new Circle(400, 200, 35);
 let circle2 = new Circle(500, 500, 35);
 let circle3 = new Circle(700, 250, 35);
@@ -807,9 +905,16 @@ let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, true, true, 0.8);
 
 let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 200, 5.0, false);
 let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 200, 5.0, false);
+*/
+
+createSoftbodyGrid(10, 10, 30, canvas.width/2, canvas.height/2, {
+  radius: 8,
+  anchorEdges: false,
+  springConfig: { stiffness: 15000, damping: 150.0, restitution: 0.9 }
+});
 
 
-let slope = new Rectangle(800, 600, 1000, 20, -Math.PI / 1.1, true);
+//let slope = new Rectangle(900, 600, 1000, 20, -Math.PI / 1.1, true);
 
 let floor = new Rectangle(
   canvas.width / 2,
@@ -836,6 +941,7 @@ let ceiling = new Rectangle(
   100
 );
 
+/*
 for(let i = 0; i < 10; i++) {
   new Circle(
     Math.random() * canvas.width,
@@ -843,6 +949,7 @@ for(let i = 0; i < 10; i++) {
     10
   );
 }
+*/
 
 function mainLoop() {
   const now = performance.now();
@@ -859,9 +966,8 @@ function mainLoop() {
       const dx = mouseX - draggingCircle.x;
       const dy = mouseY - draggingCircle.y;
 
-      const strength = 5.0; // tweak for responsiveness
-      draggingCircle.vx += dx * strength;
-      draggingCircle.vy += dy * strength;
+      draggingCircle.vx += dx * mouseStrength;
+      draggingCircle.vy += dy * mouseStrength;
     }
   }
 
