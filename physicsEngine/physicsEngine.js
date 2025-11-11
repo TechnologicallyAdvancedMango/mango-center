@@ -24,6 +24,7 @@ let rectStroke = "black";
 let rectStrokeWidth = 3;
 
 let springColor = "white";
+let rigidSpringColor = "red";
 let springWidth = "10";
 
 let circles = [];
@@ -43,7 +44,7 @@ class Circle {
 }
 
 class Rectangle {
-  constructor(x, y, width, height, angle = 0, anchored = false) {
+  constructor(x, y, width, height, angle = 0, anchored = true) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -53,30 +54,35 @@ class Rectangle {
     this.width = width;
     this.height = height;
     this.anchored = anchored;
+    
     rectangles.push(this);
   }
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness) {
+  constructor(a, b, restLength, stiffness, rigid = false) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
     this.stiffness = stiffness;
+    this.rigid = rigid;
 
-    springs.push(this)
+    springs.push(this);
   }
 
   apply() {
     const dx = this.b.x - this.a.x;
     const dy = this.b.y - this.a.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) return;
+  
+    const nx = dx / dist;
+    const ny = dy / dist;
+  
     const force = this.stiffness * (dist - this.restLength);
-    const angle = Math.atan2(dy, dx);
-
-    const fx = Math.cos(angle) * force;
-    const fy = Math.sin(angle) * force;
-
+    const fx = nx * force;
+    const fy = ny * force;
+  
     if (!this.a.anchored) {
       this.a.vx += fx;
       this.a.vy += fy;
@@ -84,6 +90,23 @@ class Spring {
     if (!this.b.anchored) {
       this.b.vx -= fx;
       this.b.vy -= fy;
+    }
+  
+    // Enforce rigid constraint
+    if (this.rigid) {
+      const correction = (dist - this.restLength);
+      if (!this.a.anchored && !this.b.anchored) {
+        this.a.x -= nx * correction / 2;
+        this.a.y -= ny * correction / 2;
+        this.b.x += nx * correction / 2;
+        this.b.y += ny * correction / 2;
+      } else if (!this.a.anchored) {
+        this.a.x -= nx * correction;
+        this.a.y -= ny * correction;
+      } else if (!this.b.anchored) {
+        this.b.x += nx * correction;
+        this.b.y += ny * correction;
+      }
     }
   }
 }
@@ -143,11 +166,12 @@ function drawRectangles() {
 }
 
 function drawSprings() {
-  ctx.strokeStyle = springColor;
   ctx.lineWidth = springWidth;
   ctx.lineCap = "round";
 
   for (const spring of springs) {
+    ctx.strokeStyle = spring.rigid ? rigidSpringColor : springColor;
+    
     ctx.beginPath();
     ctx.moveTo(spring.a.x, spring.a.y);
     ctx.lineTo(spring.b.x, spring.b.y);
