@@ -19,23 +19,41 @@ let circleFill = "white";
 let circleStroke = "black";
 let circleStrokeWidth = 3;
 
+let rectFill = "white";
+let rectStroke = "black";
+let rectStrokeWidth = 3;
+
 let springColor = "white";
 let springWidth = "10";
 
 let circles = [];
+let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius) {
+  constructor(x, y, radius, anchored = false) {
     this.x = x;
     this.y = y;
-    
     this.vx = 0;
     this.vy = 0;
-    
     this.radius = radius;
-
+    this.anchored = anchored;
     circles.push(this);
+  }
+}
+
+class Rectangle {
+  constructor(x, y, width, height, angle = 0, anchored = false) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.angle = angle; // in radians
+    this.angularVelocity = 0;
+    this.width = width;
+    this.height = height;
+    this.anchored = anchored;
+    rectangles.push(this);
   }
 }
 
@@ -59,25 +77,40 @@ class Spring {
     const fx = Math.cos(angle) * force;
     const fy = Math.sin(angle) * force;
 
-    this.a.vx += fx;
-    this.a.vy += fy;
-    this.b.vx -= fx;
-    this.b.vy -= fy;
+    if (!this.a.anchored) {
+      this.a.vx += fx;
+      this.a.vy += fy;
+    }
+    if (!this.b.anchored) {
+      this.b.vx -= fx;
+      this.b.vy -= fy;
+    }
   }
 }
 
 
 function simulate() {
+  for (const spring of springs) {
+    spring.apply();
+  }
+
   for (const circle of circles) {
+    if (circle.anchored) continue;
     circle.vy += gravity;
     circle.x += circle.vx;
     circle.y += circle.vy;
   }
-  
-  for (const spring of springs) {
-    spring.apply(); // apply spring forces
+
+  for (const rect of rectangles) {
+    if (!rect.anchored) {
+      rect.vy += gravity;
+      rect.x += rect.vx;
+      rect.y += rect.vy;
+      rect.angle += rect.angularVelocity;
+    }
   }
 }
+
 
 function drawCircles() {
   ctx.fillStyle = circleFill;
@@ -89,6 +122,23 @@ function drawCircles() {
     ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
+  }
+}
+
+function drawRectangles() {
+  ctx.fillStyle = rectFill;
+  ctx.strokeStyle = rectStroke
+  ctx.lineWidth = rectStrokeWidth;
+
+  for (const rect of rectangles) {
+    ctx.save();
+    ctx.translate(rect.x, rect.y);
+    ctx.rotate(rect.angle);
+    ctx.beginPath();
+    ctx.rect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -107,6 +157,7 @@ function drawSprings() {
 
 function render() {
   drawSprings();
+  drawRectangles();
   drawCircles();
 }
 
@@ -120,7 +171,7 @@ let circle3 = new Circle(500, 400, 25);
 
 let spring1 = new Spring(circle1, circle2, 350, 0.1);
 let spring2 = new Spring(circle2, circle3, 350, 0.1);
-let spring2 = new Spring(circle3, circle1, 350, 0.1);
+let spring3 = new Spring(circle3, circle1, 350, 0.1);
 
 function mainLoop() {
   clearScreen();
