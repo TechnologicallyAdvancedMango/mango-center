@@ -631,6 +631,26 @@ function openPropertyMenu(obj, type, x, y) {
   const menu = document.getElementById("propertyMenu");
   menu.innerHTML = "";
 
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "✕";
+  closeBtn.style.position = "absolute";
+  closeBtn.style.top = "4px";
+  closeBtn.style.right = "4px";
+  closeBtn.style.background = "transparent";
+  closeBtn.style.border = "none";
+  closeBtn.style.fontSize = "16px";
+  closeBtn.style.cursor = "pointer";
+  closeBtn.style.color = "#fff";
+
+  closeBtn.addEventListener("click", () => {
+    const menu = document.getElementById("propertyMenu");
+    menu.style.display = "none";
+    selectedObject = null;
+    propertyMenuOpen = false;
+  });
+
+  menu.appendChild(closeBtn);
+
   const props = Object.keys(obj).filter(k => typeof obj[k] !== "function");
 
   props.forEach(key => {
@@ -804,6 +824,8 @@ document.addEventListener("keydown", (e) => {
 
   if (e.key === "Escape") {
     isPaused = !isPaused;
+    document.getElementById("pauseIcon").style.display = isPaused ? "block" : "none";
+    
     console.log("Simulation paused:", isPaused);
 
     if (!isPaused && propertyMenuOpen) {
@@ -919,7 +941,7 @@ let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false
 createSoftbodyGrid(8, 8, 50, canvas.width/2, canvas.height/2, {
   radius: 8,
   anchorEdges: false,
-  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: false }
+  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: true }
 });
 
 
