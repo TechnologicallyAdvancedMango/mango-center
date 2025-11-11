@@ -116,7 +116,7 @@ function clearScreen() {
 
 let circle1 = new Circle(400, 200, 25);
 let circle2 = new Circle(700, 200, 25);
-let spring1 = new Spring(circle1, circle2, 450, 0.3);
+let spring1 = new Spring(circle1, circle2, 450, 0.1);
 
 function mainLoop() {
   clearScreen();
