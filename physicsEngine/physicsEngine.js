@@ -15,8 +15,8 @@ let frameMultiplier = 1;
 
 let lastTime = performance.now();
 
-let gravity = 1000;
-let drag = 0.03;
+let gravity = 500;
+let drag = 0.01;
 
 let mouseX = 0;
 let mouseY = 0;
