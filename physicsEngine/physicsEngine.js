@@ -13,7 +13,8 @@ window.addEventListener("resize", () => {
 let fps = 60;
 let frameMultiplier = 1;
 
-const gravity = 1;
+let gravity = 1;
+let drag = 0.03;
 
 let mouseX = 0;
 let mouseY = 0;
@@ -67,12 +68,13 @@ class Rectangle {
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, rigid = false) {
+  constructor(a, b, restLength, stiffness, damping = 0.1, rigid = false) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
     this.stiffness = stiffness;
     this.rigid = rigid;
+    this.damping = damping;
 
     springs.push(this);
   }
@@ -87,8 +89,16 @@ class Spring {
     const ny = dy / dist;
   
     const force = this.stiffness * (dist - this.restLength);
-    const fx = nx * force;
-    const fy = ny * force;
+    
+    const dvx = this.b.vx - this.a.vx;
+    const dvy = this.b.vy - this.a.vy;
+    const relativeSpeed = dvx * nx + dvy * ny;
+    
+    const dampingForce = -this.damping * relativeSpeed;
+    const totalForce = force + dampingForce;
+    
+    const fx = nx * totalForce;
+    const fy = ny * totalForce;
   
     if (!this.a.anchored) {
       this.a.vx += fx;
@@ -126,6 +136,10 @@ function simulate() {
   for (const circle of circles) {
     if (circle.anchored) continue;
     circle.vy += gravity;
+    
+    circle.vx -= circle.vx * drag;
+    circle.vy -= circle.vy * drag;
+    
     circle.x += circle.vx;
     circle.y += circle.vy;
   }
@@ -133,8 +147,13 @@ function simulate() {
   for (const rect of rectangles) {
     if (!rect.anchored) {
       rect.vy += gravity;
+
+      rect.vx -= rect.vx * drag;
+      rect.vy -= rect.vy * drag;
+      
       rect.x += rect.vx;
       rect.y += rect.vy;
+      
       rect.angle += rect.angularVelocity;
     }
   }
