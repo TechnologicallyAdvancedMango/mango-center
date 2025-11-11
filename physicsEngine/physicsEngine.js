@@ -418,11 +418,13 @@ let ground = new Rectangle(
 function mainLoop() {
   const now = performance.now();
   const deltaTime = (now - lastTime) / 1000; // seconds
+  const subDelta = deltaTime / frameMultiplier;
   lastTime = now;
   
-  for(let i = 0; i < frameMultiplier; i++) {
-    simulate(deltaTime);
+  for (let i = 0; i < frameMultiplier; i++) {
+    simulate(subDelta);
   }
+  
   clearScreen();
   render();
 }
