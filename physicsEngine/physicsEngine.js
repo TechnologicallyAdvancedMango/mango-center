@@ -247,6 +247,9 @@ function resolveCircleCircle(a, b) {
   if (dist < 0.0001) return;
 
   const overlap = a.radius + b.radius - dist;
+  
+  if (overlap <= 0) return;
+  
   const nx = dx / dist;
   const ny = dy / dist;
 
