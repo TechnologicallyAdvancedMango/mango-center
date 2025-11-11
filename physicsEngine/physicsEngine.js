@@ -114,9 +114,9 @@ function clearScreen() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-let circle1 = new Circle(200, 200, 25);
-let circle2 = new Circle(300, 200, 25);
-let spring1 = new Spring(circle1, circle2, 75, 0.5);
+let circle1 = new Circle(400, 200, 25);
+let circle2 = new Circle(700, 200, 25);
+let spring1 = new Spring(circle1, circle2, 450, 0.3);
 
 function mainLoop() {
   clearScreen();
