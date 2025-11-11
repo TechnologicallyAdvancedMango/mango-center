@@ -97,8 +97,8 @@ class Spring {
     const dampingForce = -this.damping * relativeSpeed;
     const totalForce = force + dampingForce;
     
-    const fx = -nx * totalForce;
-    const fy = -ny * totalForce;
+    const fx = nx * totalForce;
+    const fy = ny * totalForce;
   
     if (!this.a.anchored) {
       this.a.vx += fx;
