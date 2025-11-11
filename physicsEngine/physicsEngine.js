@@ -13,6 +13,8 @@ window.addEventListener("resize", () => {
 let fps = 60;
 let frameMultiplier = 20;
 
+let isPaused = false;
+
 let lastTime = performance.now();
 
 let gravity = 2000;
@@ -21,6 +23,10 @@ let drag = 0.01;
 let mouseX = 0;
 let mouseY = 0;
 let draggingCircle = null;
+
+let springStartCircle = null;
+let springEndCircle = null;
+let isRightDragging = false;
 
 let circleFill = "white";
 let anchoredCircleFill = "red";
@@ -68,10 +74,13 @@ class Rectangle {
     
     rectangles.push(this);
   }
+  getCenter() {
+    return { x: this.x + this.width / 2, y: this.y + this.height / 2 };
+  }
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false) {
+  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
@@ -79,6 +88,7 @@ class Spring {
     this.damping = damping;
     this.rigid = rigid;
     this.collides = collides;
+    this.restitution = restitution
     springs.push(this);
   }
 
@@ -159,11 +169,116 @@ class Spring {
       }
     }
   }
+
+  collide(circles, rectangles) {
+    if (!this.collides) return;
+
+    const dx = this.b.x - this.a.x;
+    const dy = this.b.y - this.a.y;
+    const lengthSq = dx * dx + dy * dy;
+    const length = Math.sqrt(lengthSq);
+    if (length === 0) return;
+
+    const nx = dx / length;
+    const ny = dy / length;
+
+    // --- Circle collisions ---
+    for (let circle of circles) {
+      if (circle === this.a || circle === this.b) continue;
+
+      const t = ((circle.x - this.a.x) * dx + (circle.y - this.a.y) * dy) / lengthSq;
+      if (t < 0 || t > 1) continue;
+
+      const closestX = this.a.x + t * dx;
+      const closestY = this.a.y + t * dy;
+
+      const distX = circle.x - closestX;
+      const distY = circle.y - closestY;
+      const distSq = distX * distX + distY * distY;
+      const minDist = circle.radius;
+
+      if (distSq < minDist * minDist) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        const overlap = minDist - dist;
+        const pushX = distX / dist * overlap;
+        const pushY = distY / dist * overlap;
+
+        circle.x += pushX;
+        circle.y += pushY;
+
+        const relVel = circle.vx * (distX / dist) + circle.vy * (distY / dist);
+        if (relVel < 0) {
+          const bounce = -relVel * this.restitution;
+          circle.vx += (distX / dist) * bounce;
+          circle.vy += (distY / dist) * bounce;
+
+          if (!this.a.anchored) {
+            this.a.vx -= nx * bounce * (1 - t);
+            this.a.vy -= ny * bounce * (1 - t);
+          }
+          if (!this.b.anchored) {
+            this.b.vx -= nx * bounce * t;
+            this.b.vy -= ny * bounce * t;
+          }
+        }
+      }
+    }
+
+    // --- Rectangle collisions ---
+    for (let rect of rectangles) {
+      const halfW = rect.width / 2;
+      const halfH = rect.height / 2;
+
+      // Clamp spring projection to rectangle bounds
+      const closestX = Math.max(rect.x - halfW, Math.min(this.a.x, rect.x + halfW));
+      const closestY = Math.max(rect.y - halfH, Math.min(this.a.y, rect.y + halfH));
+
+      const t = ((closestX - this.a.x) * dx + (closestY - this.a.y) * dy) / lengthSq;
+      if (t < 0 || t > 1) continue;
+
+      const springX = this.a.x + t * dx;
+      const springY = this.a.y + t * dy;
+
+      const distX = closestX - springX;
+      const distY = closestY - springY;
+      const distSq = distX * distX + distY * distY;
+      const minDist = springWidth; // spring thickness
+
+      if (distSq < minDist * minDist) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        const overlap = minDist - dist;
+        const nx = distX / dist;
+        const ny = distY / dist;
+
+        if (!rect.anchored) {
+          rect.x += nx * overlap;
+          rect.y += ny * overlap;
+
+          const relVel = rect.vx * nx + rect.vy * ny;
+          if (relVel < 0) {
+            const bounce = -relVel * this.restitution;
+            rect.vx += nx * bounce;
+            rect.vy += ny * bounce;
+
+            if (!this.a.anchored) {
+              this.a.vx -= nx * bounce * (1 - t);
+              this.a.vy -= ny * bounce * (1 - t);
+            }
+            if (!this.b.anchored) {
+              this.b.vx -= nx * bounce * t;
+              this.b.vy -= ny * bounce * t;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 function simulate(dt) {
   for (const spring of springs) {
     spring.apply(dt);
+    spring.collide(circles, rectangles);
   }
 
   for (const circle of circles) {
@@ -397,16 +512,18 @@ function resolveCircleRectangle(circle, rect) {
 }
 
 canvas.addEventListener("mousedown", (e) => {
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+    if (e.button === 0) { // left click
+    mouseX = e.clientX;
+    mouseY = e.clientY;
 
-  for (const circle of circles) {
-    const dx = mouseX - circle.x;
-    const dy = mouseY - circle.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < circle.radius) {
-      draggingCircle = circle;
-      break;
+    for (const circle of circles) {
+      const dx = mouseX - circle.x;
+      const dy = mouseY - circle.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < circle.radius) {
+        draggingCircle = circle;
+        break;
+      }
     }
   }
 });
@@ -421,10 +538,99 @@ canvas.addEventListener("mouseup", () => {
 });
 
 
+// Actions while dragging a circle
+document.addEventListener("keydown", (e) => {
+  if (!draggingCircle) return;
+
+  if (e.key === "a") { // press A to toggle anchor
+    draggingCircle.anchored = ! draggingCircle.anchored;
+    console.log("Anchor toggled:", draggingCircle.anchored);
+  }
+
+  if ((e.key === "Backspace" || e.key === "Delete") && draggingCircle) { // press Backspace  or Delete to delete circle
+    e.preventDefault(); // prevent browser from navigating back
+
+    // Remove connected springs
+    springs = springs.filter(spring => {
+      return spring.a !== draggingCircle && spring.b !== draggingCircle;
+    });
+
+    // Remove the circle
+    circles = circles.filter(c => c !== draggingCircle);
+
+    // Clear the drag reference
+    draggingCircle = null;
+  }
+});
+
+// Pause simulation
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") { // spacebar toggles pause
+    isPaused = !isPaused;
+    console.log("Simulation paused:", isPaused);
+  }
+});
+
+
+// Create springs with right mouse drag
+canvas.addEventListener("mousedown", (e) => {
+  if (e.button === 2 && isPaused) {
+    for (let circle of circles) {
+      const dx = e.offsetX - circle.x;
+      const dy = e.offsetY - circle.y;
+      if (dx * dx + dy * dy < circle.radius * circle.radius) {
+        springStartCircle = circle;
+        isRightDragging = true;
+        break;
+      }
+    }
+  }
+});
+canvas.addEventListener("mouseup", (e) => {
+  if (e.button === 2 && isRightDragging && springStartCircle && isPaused) {
+    for (let circle of circles) {
+      const dx = e.offsetX - circle.x;
+      const dy = e.offsetY - circle.y;
+      if (dx * dx + dy * dy < circle.radius * circle.radius && circle !== springStartCircle) {
+        const dist = Math.sqrt((circle.x - springStartCircle.x) ** 2 + (circle.y - springStartCircle.y) ** 2);
+        springs.push(new Spring(springStartCircle, circle, dist, 200, 5.0, true, true, 0.8));
+        break;
+      }
+    }
+  }
+
+  springStartCircle = null;
+  springEndCircle = null;
+  isRightDragging = false;
+});
+
+canvas.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+});
+
+
+
 function render() {
   drawSprings();
   drawRectangles();
   drawCircles();
+
+  if (draggingCircle) {
+    ctx.beginPath();
+    ctx.moveTo(mouseX, mouseY);
+    ctx.lineTo(draggingCircle.x, draggingCircle.y);
+    ctx.strokeStyle = "rgba(21, 255, 0, 0.36)"; // green line with transparency
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
+  if (isRightDragging && springStartCircle) {
+    ctx.beginPath();
+    ctx.moveTo(springStartCircle.x, springStartCircle.y);
+    ctx.lineTo(mouseX, mouseY);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.36)"; // white line with transparency
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 }
 
 function clearScreen() {
@@ -436,13 +642,13 @@ let circle2 = new Circle(500, 500, 35);
 let circle3 = new Circle(700, 250, 35);
 let circle4 = new Circle(700, 150, 35);
 
-let spring1 = new Spring(circle1, circle2, 150, 200, 5.0, false);
-let spring2 = new Spring(circle2, circle3, 150, 200, 5.0, false);
-let spring3 = new Spring(circle3, circle4, 150, 200, 5.0, false);
-let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, false);
+let spring1 = new Spring(circle1, circle2, 150, 200, 5.0, true, true, 0.8);
+let spring2 = new Spring(circle2, circle3, 150, 200, 5.0, true, true, 0.8);
+let spring3 = new Spring(circle3, circle4, 150, 200, 5.0, true, true, 0.8);
+let spring4 = new Spring(circle4, circle1, 150, 200, 5.0, true, true, 0.8);
 
-let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 200, 5.0, true);
-let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 200, 5.0, true);
+let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 200, 5.0, false);
+let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 200, 5.0, false);
 
 
 let slope = new Rectangle(800, 600, 1000, 20, -Math.PI / 1.1, true);
@@ -472,15 +678,13 @@ let ceiling = new Rectangle(
   100
 );
 
-/*
-for(let i = 0; i < 300; i++) {
+for(let i = 0; i < 10; i++) {
   new Circle(
     Math.random() * canvas.width,
     Math.random() * canvas.height,
-    10 + Math.random() * 20
+    10
   );
 }
-*/
 
 function mainLoop() {
   const now = performance.now();
@@ -488,17 +692,21 @@ function mainLoop() {
   const subDelta = deltaTime / frameMultiplier;
   lastTime = now;
   
-  for (let i = 0; i < frameMultiplier; i++) {
-    simulate(subDelta);
+  if(!isPaused) {
+    for (let i = 0; i < frameMultiplier; i++) {
+      simulate(subDelta);
+    }
+
+    if (draggingCircle) {
+      const dx = mouseX - draggingCircle.x;
+      const dy = mouseY - draggingCircle.y;
+
+      const strength = 5.0; // tweak for responsiveness
+      draggingCircle.vx += dx * strength;
+      draggingCircle.vy += dy * strength;
+    }
   }
 
-  if (draggingCircle && !draggingCircle.anchored) {
-    draggingCircle.x = mouseX;
-    draggingCircle.y = mouseY;
-    draggingCircle.vx = 0;
-    draggingCircle.vy = 0;
-  }
-  
   clearScreen();
   render();
 }
