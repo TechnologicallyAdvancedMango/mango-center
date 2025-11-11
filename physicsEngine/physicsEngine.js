@@ -234,7 +234,7 @@ function resolveCircleCircle(a, b) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist === 0) return;
+  if (dist < 0.0001) return;
 
   const overlap = a.radius + b.radius - dist;
   const nx = dx / dist;
@@ -254,14 +254,14 @@ function resolveCircleCircle(a, b) {
     b.y += ny * overlap;
   }
 
-  // Velocity correction (bounce)
+  // Velocity reflection
   const dvx = b.vx - a.vx;
   const dvy = b.vy - a.vy;
-  const impactSpeed = dvx * nx + dvy * ny;
-  if (impactSpeed > 0) return;
+  const dot = dvx * nx + dvy * ny;
+  if (dot > 0) return;
 
   const restitution = Math.min(a.restitution, b.restitution);
-  const impulse = (1 + restitution) * impactSpeed / 2;
+  const impulse = (1 + restitution) * dot;
 
   if (!a.anchored) {
     a.vx += impulse * nx;
@@ -301,7 +301,7 @@ function resolveCircleRectangle(circle, rect) {
   const dx = circle.x - rect.x;
   const dy = circle.y - rect.y;
 
-  // Transform circle center into rectangle's local space
+  // Transform to rectangle's local space
   const localX = dx * cos - dy * sin;
   const localY = dx * sin + dy * cos;
 
@@ -313,8 +313,7 @@ function resolveCircleRectangle(circle, rect) {
   const distX = localX - closestX;
   const distY = localY - closestY;
   const distSq = distX * distX + distY * distY;
-
-  if (distSq >= circle.radius * circle.radius) return;
+  if (distSq >= circle.radius * circle.radius || distSq < 0.0001) return;
 
   const dist = Math.sqrt(distSq);
   const overlap = circle.radius - dist;
@@ -331,17 +330,13 @@ function resolveCircleRectangle(circle, rect) {
     circle.y += worldNY * overlap;
   }
 
-  // Velocity correction (bounce)
-  const impactSpeed = circle.vx * worldNX + circle.vy * worldNY;
-  if (impactSpeed > 0) return;
+  // Velocity reflection
+  const dot = circle.vx * worldNX + circle.vy * worldNY;
+  if (dot > 0) return;
 
   const restitution = Math.min(circle.restitution, rect.restitution);
-  const impulse = (1 + restitution) * impactSpeed;
-
-  if (!circle.anchored) {
-    circle.vx -= impulse * worldNX;
-    circle.vy -= impulse * worldNY;
-  }
+  circle.vx -= (1 + restitution) * dot * worldNX;
+  circle.vy -= (1 + restitution) * dot * worldNY;
 }
 
 canvas.addEventListener("mousedown", (e) => {
