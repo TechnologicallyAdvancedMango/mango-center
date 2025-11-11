@@ -54,7 +54,7 @@ let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius, anchored = false, restitution = 1, mass = null) {
+  constructor(x, y, radius, anchored = false, restitution = 1, mass = null, visible = true) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -62,6 +62,7 @@ class Circle {
     this.radius = radius;
     this.anchored = anchored;
     this.restitution = restitution;
+    this.visible = visible;
 
     // If no mass provided, derive it from radius
     this.mass = mass !== null ? mass : Math.PI * radius * radius;
@@ -92,7 +93,7 @@ class Rectangle {
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8, visible = true) {
+  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8, elasticLimit = null, visible = true) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
@@ -101,6 +102,7 @@ class Spring {
     this.rigid = rigid;
     this.collides = collides;
     this.restitution = restitution
+    this.elasticLimit = elasticLimit; // or set to a number like 3 for destructible springs
     this.visible = visible;
 
     springs.push(this);
@@ -110,6 +112,18 @@ class Spring {
     const dx = this.b.x - this.a.x;
     const dy = this.b.y - this.a.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (this.elasticLimit !== null) {
+      const maxStretch = this.restLength * this.elasticLimit;
+      const minCompress = this.restLength / this.elasticLimit;
+
+      if (dist > maxStretch || dist < minCompress) {
+        // Remove the spring
+        springs.splice(springs.indexOf(this), 1);
+        return;
+      }
+    }
+
     if (dist === 0) return;
 
     const nx = dx / dist;
@@ -389,6 +403,8 @@ function drawCircles() {
   ctx.lineWidth = circleStrokeWidth;
   
   for(const circle of circles) {
+    if (!circle.visible && !isPaused) continue;
+
     if (circle.anchored) ctx.fillStyle = anchoredCircleFill;
     else ctx.fillStyle = circleFill;
 
@@ -585,12 +601,14 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
     radius = 10,
     anchorEdges = false,
     springConfig = {
-      stiffness: 2000,       // increase resistance to stretching
-      damping: 20.0,        // reduce oscillation
-      restLength: spacing,  // match grid spacing
+      stiffness: 2000, // increase resistance to stretching
+      damping: 20.0, // reduce oscillation
+      restLength: spacing, // match grid spacing
       visible: false,
       collides: true,
-      restitution: 0.3      // lower bounce to prevent jitter
+      elasticLimit: null, // indestructible
+      restitution: 0.3, // lower bounce to prevent jitter
+      rigidFrame: true
     }
 
   } = options;
@@ -616,21 +634,21 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
 
       if (col < cols - 1) {
         const right = nodeMatrix[row][col + 1];
-        new Spring(current, right, spacing, springConfig.stiffness, springConfig.damping, true, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, right, spacing, springConfig.stiffness, springConfig.damping, springConfig.rigidFrame, springConfig.collides, springConfig.restitution, springConfig.elasticLimit, springConfig.visible);
       }
 
       if (row < rows - 1) {
         const below = nodeMatrix[row + 1][col];
-        new Spring(current, below, spacing, springConfig.stiffness, springConfig.damping, true, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, below, spacing, springConfig.stiffness, springConfig.damping, springConfig.rigidFrame, springConfig.collides, springConfig.restitution, springConfig.elasticLimit, springConfig.visible);
       }
 
       // diagonals
       if (row < rows - 1 && col < cols - 1) {
-        new Spring(current, nodeMatrix[row + 1][col + 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, nodeMatrix[row + 1][col + 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.elasticLimit, springConfig.visible);
       }
 
       if (row < rows - 1 && col > 0) {
-        new Spring(current, nodeMatrix[row + 1][col - 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.visible);
+        new Spring(current, nodeMatrix[row + 1][col - 1], Math.sqrt(2) * spacing, springConfig.stiffness, springConfig.damping, false, springConfig.collides, springConfig.restitution, springConfig.elasticLimit, springConfig.visible);
       }
     }
   }
@@ -963,7 +981,7 @@ let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false
 createSoftbodyGrid(8, 8, 50, canvas.width/2, canvas.height/2, {
   radius: 8,
   anchorEdges: false,
-  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: true }
+  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: true, elasticLimit: 5, rigidFrame: true }
 });
 
 
