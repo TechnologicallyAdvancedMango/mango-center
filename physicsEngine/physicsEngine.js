@@ -49,6 +49,9 @@ let springColor = "#ffffff";
 let rigidSpringColor = "#b10000";
 let springWidth = "5";
 
+// Width used for collision detection
+let springPhysicalWidth = "5";
+
 let circles = [];
 let rectangles = [];
 let springs = [];
@@ -164,7 +167,7 @@ class Spring {
     if (this.rigid) {
       const correction = this.restLength - dist;
       if (Math.abs(correction) > 0.01) {
-        const maxCorrection = 10;
+        const maxCorrection = 20; // limit max correction
         const clamped = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
 
         if (!this.a.anchored && !this.b.anchored) {
@@ -295,7 +298,7 @@ class Spring {
       const distX = closestX - springX;
       const distY = closestY - springY;
       const distSq = distX * distX + distY * distY;
-      const minDist = springWidth; // spring thickness
+      const minDist = springPhysicalWidth; // spring thickness
 
       if (distSq < minDist * minDist) {
         const dist = Math.sqrt(distSq) || 0.001;
@@ -963,7 +966,45 @@ function clearScreen() {
 }
 
 
+function createRope(start, end, segmentCount, slack = 0) {
+  const nodes = [start];
+  const dx = (end.x - start.x) / segmentCount;
+  const dy = (end.y - start.y) / segmentCount;
+
+  for (let i = 1; i < segmentCount; i++) {
+    const t = i / segmentCount;
+    const x = start.x + dx * i;
+    const y = start.y + dy * i + Math.sin(t * Math.PI) * slack;
+
+    const node = new Circle(x, y, 5);
+    nodes.push(node);
+  }
+
+  nodes.push(end);
+
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+
+    springs.push(new Spring(
+      a,
+      b,
+      dist,
+      1000,        // stiffness (rigid)
+      50,          // damping (rigid)
+      true,        // rigid
+      true,        // collides
+      0.1,         // restitution
+      null,        // elasticLimit (indestructible)
+      true         // visible
+    ));
+  }
+}
+
+
 // semi-soft square
+
 let circle1 = new Circle(400, 200, 35);
 let circle2 = new Circle(500, 500, 35);
 let circle3 = new Circle(700, 250, 35);
@@ -978,15 +1019,24 @@ let diagonal1 = new Spring(circle1, circle3, 150 * Math.sqrt(2), 500, 5.0, false
 let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false);
 
 
-createSoftbodyGrid(8, 8, 50, canvas.width/2, canvas.height/2, {
+// soft square grid
+createSoftbodyGrid(8, 8, 50, canvas.width/2, 0, {
   radius: 8,
   anchorEdges: false,
   springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: true, elasticLimit: 5, rigidFrame: true }
 });
 
+// rope
+/*
+let ropeStart = new Circle(50, 200, 10, true);
+let ropeEnd = new Circle(canvas.width - 50, 500, 10, true);
+createRope(ropeStart, ropeEnd, 15, 50);
+*/
 
 //let slope = new Rectangle(900, 600, 1000, 20, -Math.PI / 1.1, true);
 
+
+// boundaries
 let floor = new Rectangle(
   canvas.width / 2,
   canvas.height + 50,
