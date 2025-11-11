@@ -421,7 +421,7 @@ function mainLoop() {
   lastTime = now;
   
   for(let i = 0; i < frameMultiplier; i++) {
-    simulate(deltatime);
+    simulate(deltaTime);
   }
   clearScreen();
   render();
