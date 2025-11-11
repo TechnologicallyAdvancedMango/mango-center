@@ -15,6 +15,10 @@ let frameMultiplier = 1;
 
 const gravity = 1;
 
+let mouseX = 0;
+let mouseY = 0;
+let draggingCircle = null;
+
 let circleFill = "white";
 let circleStroke = "black";
 let circleStrokeWidth = 3;
@@ -61,7 +65,6 @@ class Rectangle {
     rectangles.push(this);
   }
 }
-
 
 class Spring {
   constructor(a, b, restLength, stiffness, rigid = false) {
@@ -114,7 +117,6 @@ class Spring {
     }
   }
 }
-
 
 function simulate() {
   for (const spring of springs) {
@@ -322,6 +324,38 @@ function resolveCircleRectangle(circle, rect) {
     circle.vy -= impulse * worldNY;
   }
 }
+
+canvas.addEventListener("mousedown", (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+
+  for (const circle of circles) {
+    const dx = mouseX - circle.x;
+    const dy = mouseY - circle.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < circle.radius) {
+      draggingCircle = circle;
+      break;
+    }
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+
+  if (draggingCircle && !draggingCircle.anchored) {
+    draggingCircle.x = mouseX;
+    draggingCircle.y = mouseY;
+    draggingCircle.vx = 0;
+    draggingCircle.vy = 0;
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  draggingCircle = null;
+});
+
 
 function render() {
   drawSprings();
