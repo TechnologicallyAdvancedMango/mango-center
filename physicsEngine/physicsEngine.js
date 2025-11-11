@@ -11,12 +11,12 @@ window.addEventListener("resize", () => {
 
 
 let fps = 60;
-let frameMultiplier = 1;
+let frameMultiplier = 10;
 
 let lastTime = performance.now();
 
 let gravity = 1000;
-let drag = 0.01;
+let drag = 0.04;
 
 let mouseX = 0;
 let mouseY = 0;
@@ -400,18 +400,18 @@ function clearScreen() {
 }
 
 let circle1 = new Circle(400, 200, 25);
-let circle2 = new Circle(700, 200, 25);
-let circle3 = new Circle(700, 400, 25);
+let circle2 = new Circle(680, 200, 25);
+let circle3 = new Circle(700, 250, 25);
 
-// let spring1 = new Spring(circle1, circle2, 350, 0.1, 0.5);
-// let spring2 = new Spring(circle2, circle3, 350, 0.1, 0.5);
-// let spring3 = new Spring(circle3, circle1, 350, 0.1, 0.5);
+let spring1 = new Spring(circle1, circle2, 400, 50, 0);
+let spring2 = new Spring(circle2, circle3, 400, 50, 0);
+let spring3 = new Spring(circle3, circle1, 400, 50, 0);
 
 let groundHeight = canvas.height * 0.2;
 let ground = new Rectangle(
   canvas.width / 2,                  // center X
   canvas.height - groundHeight / 2, // center Y
-  canvas.width,
+  10000,
   groundHeight
 );
 
