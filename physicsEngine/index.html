@@ -123,6 +123,7 @@
 <canvas id="canvas"></canvas>
 <div id="toolSidebar">
 	<button onclick="setTool('none')">None</button>
+	<button onclick="setTool('pan')">🎦 Pan</button>
   	<button onclick="setTool('select')">🖱️ Select</button>
 	<label for="selectFilter">Filter:</label>
 	<select id="selectFilter">
@@ -131,6 +132,7 @@
 		<option value="spring">Spring</option>
 	</select>
   	<button onclick="setTool('move')">🔀 Move</button>
+	<button onclick="panX = 0; panY = 0; draw();">Reset View</button>
   	<button onclick="copySelected()">📄 Copy</button>
   	<button onclick="setTool('paste')">📋 Paste</button>
   	<button onclick="deleteSelected()">🗑️ Delete</button>

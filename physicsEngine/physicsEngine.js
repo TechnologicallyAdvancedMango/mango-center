@@ -27,6 +27,12 @@ let mouseX = 0;
 let mouseY = 0;
 let draggingCircle = null;
 
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+
 let selectFilter = "any";
 document.getElementById("selectFilter").addEventListener("change", e => {
   selectFilter = e.target.value;
@@ -718,10 +724,14 @@ function clearSelection() {
 }
 
 function findObjectAt(x, y) {
+  // Adjusts for pan offset
+  const worldX = x - panX;
+  const worldY = y - panY;
+
   // Check circles
   for (const c of circles) {
-    const dx = x - c.x;
-    const dy = y - c.y;
+    const dx = worldX - c.x;
+    const dy = worldY - c.y;
     if (dx * dx + dy * dy < c.radius * c.radius) {
       return c;
     }
@@ -732,10 +742,10 @@ function findObjectAt(x, y) {
     const halfW = r.width / 2;
     const halfH = r.height / 2;
     if (
-      x >= r.x - halfW &&
-      x <= r.x + halfW &&
-      y >= r.y - halfH &&
-      y <= r.y + halfH
+      worldX >= r.x - halfW &&
+      worldX <= r.x + halfW &&
+      worldY >= r.y - halfH &&
+      worldY <= r.y + halfH
     ) {
       return r;
     }
@@ -745,13 +755,14 @@ function findObjectAt(x, y) {
   for (const s of springs) {
     const mx = (s.a.x + s.b.x) / 2;
     const my = (s.a.y + s.b.y) / 2;
-    if (Math.hypot(mx - x, my - y) < 10) {
+    if (Math.hypot(mx - worldX, my - worldY) < 10) {
       return s;
     }
   }
 
   return null;
 }
+
 
 // Select box
 let dragSelectStart = null;
@@ -766,18 +777,31 @@ canvas.addEventListener("mousedown", (e) => {
   if (e.button === 0) {
     if (currentTool === "none") {
       if (!isPaused && clicked instanceof Circle && !clicked.anchored) {
+        console.log("Drag start screen:", e.offsetX, e.offsetY);
+        console.log("Drag start world:", e.offsetX - panX, e.offsetY - panY);
+        console.log("Circle position:", draggingCircle?.x, draggingCircle?.y);
+
         draggingCircle = clicked;
-        dragStartX = x;
-        dragStartY = y;
+        dragStartX = draggingCircle.x;
+        dragStartY = draggingCircle.y;
       }
       return;
     }
+    
 
     // Tool logic for other modes
     if (currentTool === "select" && !clicked) {
       dragSelectStart = { x, y };
       return;
     }
+
+    if (currentTool === "pan") {
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      return;
+    }
+
 
     switch (currentTool) {
       case "select":
@@ -834,54 +858,90 @@ canvas.addEventListener("mousemove", (e) => {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
 
-  if (currentTool === "none" && draggingCircle && isPaused) {
-    const dx = e.offsetX - dragStartX;
-    const dy = e.offsetY - dragStartY;
+  const worldX = e.offsetX - panX;
+  const worldY = e.offsetY - panY;
+
+  // Dragging a circle with the none tool
+  if (currentTool === "none" && draggingCircle && !isPaused) {
+    console.log("Mouse screen:", e.offsetX, e.offsetY);
+    console.log("Mouse world:", worldX, worldY);
+    console.log("Drag delta:", worldX - dragStartX, worldY - dragStartY);
+    console.log("Circle new position:", draggingCircle?.x, draggingCircle?.y);
+
+    const dx = worldX - dragStartX;
+    const dy = worldY - dragStartY;
     draggingCircle.x += dx;
     draggingCircle.y += dy;
-    dragStartX = e.offsetX;
-    dragStartY = e.offsetY;
+    dragStartX = worldX;
+    dragStartY = worldY;
   }
 
+  // Panning the canvas
+  if (isPanning) {
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+    panX += dx;
+    panY += dy;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+  }
+
+
+  // Paste preview offset
   if (currentTool === "paste" && clipboard && clipboard.length > 0) {
     const circlesOnly = clipboard.filter(obj => obj instanceof Circle);
     const minX = Math.min(...circlesOnly.map(c => c.x));
     const minY = Math.min(...circlesOnly.map(c => c.y));
-    pasteOffsetX = e.offsetX - minX;
-    pasteOffsetY = e.offsetY - minY;
+    pasteOffsetX = worldX - minX;
+    pasteOffsetY = worldY - minY;
   }
 
+  // Box select preview
   if (currentTool === "select" && dragSelectStart) {
-    dragSelectEnd = { x: e.offsetX, y: e.offsetY };
+    dragSelectEnd = { x: worldX, y: worldY };
   }
 
+  // Spring preview line
   if (currentTool === "spring" && springStart) {
-    springPreviewEnd = { x: e.offsetX, y: e.offsetY };
+    springPreviewEnd = { x: worldX, y: worldY };
   }
 
+  // Dragging selected objects
   if (isDraggingSelection) {
-    const dx = e.offsetX - dragStartX;
-    const dy = e.offsetY - dragStartY;
+    const dx = worldX - dragStartX;
+    const dy = worldY - dragStartY;
     selectedObjects.forEach(obj => {
       if (obj instanceof Circle) {
         obj.x += dx;
         obj.y += dy;
       }
     });
-    dragStartX = e.offsetX;
-    dragStartY = e.offsetY;
+    dragStartX = worldX;
+    dragStartY = worldY;
   }
 });
 
+
 canvas.addEventListener("mouseup", (e) => {
+  const mouseX = e.offsetX;
+  const mouseY = e.offsetY;
+
+  const worldX = mouseX - panX;
+  const worldY = mouseY - panY;
+
   draggingCircle = null;
 
   if (currentTool === "move") {
     isDraggingSelection = false;
   }
 
+  if (currentTool === "pan") {
+    isPanning = false;
+
+  }
+
   if (currentTool === "spring" && springStart) {
-    const springEnd = findObjectAt(e.offsetX, e.offsetY);
+    const springEnd = findObjectAt(worldX, worldY);
 
     if (
       springEnd &&
@@ -927,10 +987,10 @@ canvas.addEventListener("mouseup", (e) => {
 
 
   if (dragSelectStart) {
-    const x1 = Math.min(dragSelectStart.x, e.offsetX);
-    const y1 = Math.min(dragSelectStart.y, e.offsetY);
-    const x2 = Math.max(dragSelectStart.x, e.offsetX);
-    const y2 = Math.max(dragSelectStart.y, e.offsetY);
+    const x1 = Math.min(dragSelectStart.x, worldX);
+    const y1 = Math.min(dragSelectStart.y, worldY);
+    const x2 = Math.max(dragSelectStart.x, worldX);
+    const y2 = Math.max(dragSelectStart.y, worldY);
 
     clearSelection();
 
@@ -993,7 +1053,6 @@ function pasteClipboardAt(x, y) {
   clearSelection();
   pasted.forEach(selectObject);
 }
-
 
 function cloneObject(obj, offsetX = 0, offsetY = 0, circleMap = new Map(), ghost = true) {
   if (obj instanceof Circle) {
@@ -1194,7 +1253,6 @@ function applyChangesAndClose() {
       k !== "a" &&
       k !== "b"
     );
-
 
     keys.forEach(key => {
       const input = document.getElementById(`prop-${key}`);
@@ -1427,6 +1485,9 @@ function renderPastePreview() {
 }
 
 function render() {
+  ctx.save();
+  ctx.translate(panX, panY);
+
   drawSprings();
   drawRectangles();
   drawCircles();
@@ -1452,6 +1513,9 @@ function render() {
 
   renderPastePreview()
   renderBoxSelect()
+
+  ctx.restore();
+  // out of world UI
   renderToolOverlay()
 }
 
