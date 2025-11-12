@@ -124,12 +124,18 @@
 <div id="toolSidebar">
 	<button onclick="setTool('none')">None</button>
   	<button onclick="setTool('select')">🖱️ Select</button>
+	<label for="selectFilter">Filter:</label>
+	<select id="selectFilter">
+		<option value="any">Any</option>
+		<option value="circle">Circle</option>
+		<option value="spring">Spring</option>
+	</select>
   	<button onclick="setTool('move')">🔀 Move</button>
   	<button onclick="copySelected()">📄 Copy</button>
   	<button onclick="setTool('paste')">📋 Paste</button>
   	<button onclick="deleteSelected()">🗑️ Delete</button>
   	<button onclick="showProperties()">⚙️ Properties</button>
-	<button onclick="setTool('spring')">➖ Spring</button>
+	<button onclick="setTool('spring')">-- Spring</button>
 </div>
 <div id="propertyMenu"></div>
 <div id="pauseIcon">| |</div>

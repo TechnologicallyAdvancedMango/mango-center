@@ -27,6 +27,11 @@ let mouseX = 0;
 let mouseY = 0;
 let draggingCircle = null;
 
+let selectFilter = "any";
+document.getElementById("selectFilter").addEventListener("change", e => {
+  selectFilter = e.target.value;
+});
+
 let springStart = null;
 
 let isDraggingSelection = false;
@@ -690,6 +695,12 @@ let selectedObjects = []; // circles and springs
 
 function setTool(toolName) {
   currentTool = toolName;
+
+  const selectOptions = document.getElementById("selectToolOptions");
+  if (selectOptions) {
+    selectOptions.style.display = toolName === "select" ? "block" : "none";
+  }
+
   if (toolName !== "paste") pastePreview = [];
   if (toolName === "select" || toolName === "none") clearSelection();
 }
@@ -751,48 +762,71 @@ canvas.addEventListener("mousedown", (e) => {
   const y = e.offsetY;
   const clicked = findObjectAt(x, y);
 
-  if (currentTool === "none") {
-    if (clicked && clicked instanceof Circle && !clicked.anchored) {
-      draggingCircle = clicked;
-      dragStartX = x;
-      dragStartY = y;
-    }
-    return;
-  }
-
-  // Tool logic for other modes (select, move, paste, etc.)
-  if (currentTool === "select" && !clicked) {
-    dragSelectStart = { x, y };
-    return;
-  }
-
-  switch (currentTool) {
-    case "select":
-      if (clicked) {
-        if (!e.shiftKey && !e.ctrlKey) clearSelection();
-        selectObject(clicked);
-      } else {
-        clearSelection();
-      }
-      break;
-
-    case "move":
-      if (selectedObjects.length > 0) {
-        isDraggingSelection = true;
+  // left click
+  if (e.button === 0) {
+    if (currentTool === "none") {
+      if (!isPaused && clicked instanceof Circle && !clicked.anchored) {
+        draggingCircle = clicked;
         dragStartX = x;
         dragStartY = y;
       }
-      break;
+      return;
+    }
 
-    case "paste":
-      if (clipboard.length > 0) {
-        pasteClipboardAt(x, y);
+    // Tool logic for other modes
+    if (currentTool === "select" && !clicked) {
+      dragSelectStart = { x, y };
+      return;
+    }
+
+    switch (currentTool) {
+      case "select":
+        if (clicked) {
+          const matchesFilter =
+            selectFilter === "any" ||
+            (selectFilter === "circle" && clicked instanceof Circle) ||
+            (selectFilter === "spring" && clicked instanceof Spring);
+
+          if (matchesFilter) {
+            if (!e.shiftKey && !e.ctrlKey) clearSelection();
+            selectObject(clicked);
+          }
+        } else {
+          clearSelection();
+        }
+        break;
+
+      case "move":
+        if (selectedObjects.length > 0) {
+          isDraggingSelection = true;
+          dragStartX = x;
+          dragStartY = y;
+        }
+        break;
+
+      case "paste":
+        if (clipboard.length > 0) {
+          pasteClipboardAt(x, y);
+        }
+        break;
+
+      case "spring":
+        springStart = findObjectAt(x, y);
+        break;
+    }
+  }
+
+  // right click
+  if (e.button === 2 && isPaused && currentTool === "none") {
+    for (let circle of circles) {
+      const dx = x - circle.x;
+      const dy = y - circle.y;
+      if (dx * dx + dy * dy < circle.radius * circle.radius) {
+        springStartCircle = circle;
+        isRightDragging = true;
+        break;
       }
-      break;
-    
-    case "spring":
-      springStart = findObjectAt(x, y);
-      break;
+    }
   }
 });
 
@@ -899,14 +933,20 @@ canvas.addEventListener("mouseup", (e) => {
     const y2 = Math.max(dragSelectStart.y, e.offsetY);
 
     clearSelection();
-    circles.forEach(c => {
-      if (c.x > x1 && c.x < x2 && c.y > y1 && c.y < y2) selectObject(c);
-    });
-    springs.forEach(s => {
-      const mx = (s.a.x + s.b.x) / 2;
-      const my = (s.a.y + s.b.y) / 2;
-      if (mx > x1 && mx < x2 && my > y1 && my < y2) selectObject(s);
-    });
+
+    if (selectFilter === "any" || selectFilter === "circle") {
+      circles.forEach(c => {
+        if (c.x > x1 && c.x < x2 && c.y > y1 && c.y < y2) selectObject(c);
+      });
+    }
+
+    if (selectFilter === "any" || selectFilter === "spring") {
+      springs.forEach(s => {
+        const mx = (s.a.x + s.b.x) / 2;
+        const my = (s.a.y + s.b.y) / 2;
+        if (mx > x1 && mx < x2 && my > y1 && my < y2) selectObject(s);
+      });
+    }
 
     dragSelectStart = null;
     dragSelectEnd = null;
@@ -1021,7 +1061,7 @@ function showProperties() {
     openPropertyMenu(null, type, x, y); // batch edit
   } else {
     alert("Cannot edit properties of objects of different types");
-    openPropertyMenu(first, type, x, y); // fallback to single edit
+    //openPropertyMenu(first, type, x, y); // fallback to single edit
   }
 }
 
@@ -1029,7 +1069,11 @@ function showProperties() {
 // Property menu
 let tempProps = {}; // make sure this is accessible globally or in shared scope
 function openPropertyMenu(obj, type, x, y) {
-  if (!isPaused) return;
+  if(!isPaused) {
+    isPaused = true;
+    document.getElementById("pauseIcon").style.display = isPaused ? "block" : "none";
+    console.log("Simulation paused:", isPaused);
+  }
 
   selectedObject = { ref: obj, type };
   propertyMenuOpen = true;
@@ -1192,43 +1236,6 @@ document.addEventListener("mousedown", (e) => {
   if (propertyMenuOpen && !menu.contains(e.target)) {
     applyChangesAndClose();
   }
-});
-
-
-canvas.addEventListener("mousedown", (e) => {
-  const x = e.offsetX;
-  const y = e.offsetY;
-  
-  if (e.button === 0) { // left-click
-    if(!isPaused) {
-      // Not paused → begin dragging
-      for (let circle of circles) {
-        const dx = x - circle.x;
-        const dy = y - circle.y;
-        if (dx * dx + dy * dy < circle.radius * circle.radius) {
-          draggingCircle = circle;
-          break;
-        }
-      }
-    }
-  }
-
-  if (e.button === 2 && isPaused) { // right-click drag start
-    for (let circle of circles) {
-      const dx = x - circle.x;
-      const dy = y - circle.y;
-      if (dx * dx + dy * dy < circle.radius * circle.radius) {
-        springStartCircle = circle;
-        isRightDragging = true;
-        break;
-      }
-    }
-  }
-});
-
-canvas.addEventListener("mousemove", (e) => {
-  mouseX = e.offsetX;
-  mouseY = e.offsetY;
 });
 
 // Actions
