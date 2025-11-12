@@ -9,7 +9,6 @@ window.addEventListener("resize", () => {
   canvas.height = window.innerHeight;
 });
 
-
 let fps = 60;
 let frameMultiplier = 20;
 
@@ -1023,7 +1022,7 @@ let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false
 createSoftbodyGrid(8, 8, 50, canvas.width/2, 0, {
   radius: 8,
   anchorEdges: false,
-  springConfig: { stiffness: 1500, damping: 10.0, restitution: 0.9, visible: true, collides: true, elasticLimit: 5, rigidFrame: true }
+  springConfig: { stiffness: 1000, damping: 10.0, restitution: 0.9, visible: true, collides: true, elasticLimit: 5, rigidFrame: true }
 });
 
 // rope
@@ -1097,6 +1096,8 @@ function mainLoop() {
 
   clearScreen();
   render();
+
+  requestAnimationFrame(mainLoop);
 }
 
-setInterval(mainLoop, 1000 / fps);
+requestAnimationFrame(mainLoop);
