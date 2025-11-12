@@ -3,7 +3,7 @@
 <head>
 	<title>Physics Engine</title>
 <style>
-	body{
+	body {
 		background-color: white;
     
 		margin: 0;
@@ -11,9 +11,16 @@
 		overflow: hidden;
 	}
 
-	#canvas{
+	#canvas {
 		background-color: #707070;
 		border: 0px;
+
+		position: fixed;
+		top: 0;
+		right: 0;
+		
+		width: calc(100vw - 120px);
+		height: 100vh;
 		
 		margin: 0;
 		padding: 0;
@@ -68,7 +75,7 @@
 		display: none;
 		position: fixed;
 		top: 5px;
-		left: 15px;
+		left: 150px;
 		font-size: 100px;
 		font-weight: bolder;
 		color: rgba(255, 255, 255, 0.7);
@@ -76,10 +83,54 @@
 		user-select: none;
 		z-index: 1000;
 	}
+
+	#toolSidebar {
+		position: fixed;
+		left: 0;
+		top: 0;
+		width: 120px;
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-start;
+		background: #333;
+		color: white;
+		padding: 10px;
+		z-index: 2000;
+	}
+	#toolSidebar button {
+		width: 100%;
+		height: 40px;
+		background: #444;
+		color: white;
+		border: none;
+		border-radius: 5px;
+		padding: 6px;
+		margin: 5px;
+		font-size: 16px;
+		cursor: pointer;
+	}
+	#toolSidebar button:hover {
+		background: #666;
+	}
+	#toolSidebar button:active {
+		background: #3b3b3b;
+	}
 </style>
 </head>
 <body>
-<canvas id="canvas" width="100" height="100"></canvas>
+<canvas id="canvas"></canvas>
+<div id="toolSidebar">
+	<button onclick="setTool('none')">None</button>
+  	<button onclick="setTool('select')">🖱️ Select</button>
+  	<button onclick="setTool('move')">🔀 Move</button>
+  	<button onclick="copySelected()">📄 Copy</button>
+  	<button onclick="setTool('paste')">📋 Paste</button>
+  	<button onclick="deleteSelected()">🗑️ Delete</button>
+  	<button onclick="showProperties()">⚙️ Properties</button>
+	<button onclick="setTool('spring')">➖ Spring</button>
+</div>
 <div id="propertyMenu"></div>
 <div id="pauseIcon">| |</div>
 <div id="help" data-tooltip=

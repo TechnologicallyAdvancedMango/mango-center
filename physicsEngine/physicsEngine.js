@@ -1,11 +1,11 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
+canvas.width = window.innerWidth - 120; // leave space for sidebar
 canvas.height = window.innerHeight;
 
 window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
+  canvas.width = window.innerWidth - 120; // leave space for sidebar;
   canvas.height = window.innerHeight;
 });
 
@@ -27,6 +27,21 @@ let mouseX = 0;
 let mouseY = 0;
 let draggingCircle = null;
 
+let springStart = null;
+
+let isDraggingSelection = false;
+let dragStartX = 0;
+let dragStartY = 0;
+
+let pastePreview = [];
+let pasteOffsetX = 0;
+let pasteOffsetY = 0;
+
+let clipboard = null;
+
+let springPreviewStart = null;
+let springPreviewEnd = null;
+
 let springStartCircle = null;
 let springEndCircle = null;
 let isRightDragging = false;
@@ -46,7 +61,7 @@ let rectStrokeWidth = 3;
 
 let springColor = "#ffffff";
 let rigidSpringColor = "#b10000";
-let springWidth = "5";
+let springWidth = "3";
 
 // Width used for collision detection
 let springPhysicalWidth = "5";
@@ -56,7 +71,7 @@ let rectangles = [];
 let springs = [];
 
 class Circle {
-  constructor(x, y, radius, anchored = false, restitution = 1, mass = null, visible = true) {
+  constructor(x, y, radius, anchored = false, restitution = 1, mass = null, visible = true, ghost = false) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -65,12 +80,17 @@ class Circle {
     this.anchored = anchored;
     this.restitution = restitution;
     this.visible = visible;
+    this.ghost = ghost;
 
     // If no mass provided, derive it from radius
-    this.mass = mass !== null ? mass : Math.PI * radius * radius;
-    this.mass *= 0.001; // scale mass down
+    if (mass !== null) {
+      this.mass = mass; // use provided mass directly
+    } else {
+      this.mass = Math.PI * radius * radius * 0.001; // derive and scale
+    }
     
-    circles.push(this);
+    if(!ghost) circles.push(this);
+    if (!ghost) console.log("Circle created:", this, "ghost =", ghost);
   }
 }
 
@@ -95,7 +115,7 @@ class Rectangle {
 }
 
 class Spring {
-  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8, elasticLimit = null, visible = true) {
+  constructor(a, b, restLength, stiffness, damping, rigid = false, collides = false, restitution = 0.8, elasticLimit = null, visible = true, ghost = false) {
     this.a = a;
     this.b = b;
     this.restLength = restLength;
@@ -104,10 +124,12 @@ class Spring {
     this.rigid = rigid;
     this.collides = collides;
     this.restitution = restitution
-    this.elasticLimit = elasticLimit; // or set to a number like 3 for destructible springs
+    this.elasticLimit = elasticLimit; // or set to a number like 2 for destructible springs
     this.visible = visible;
+    this.ghost = ghost;
 
-    springs.push(this);
+    if(!ghost) springs.push(this);
+    if (!ghost) console.log("Spring created:", this, "ghost =", ghost);
   }
 
   apply(dt) {
@@ -332,11 +354,15 @@ class Spring {
 
 function simulate(dt) {
   for (const spring of springs) {
+    if (spring.ghost) continue; // skip ghosts
+
     spring.apply(dt);
     spring.collide(circles, rectangles);
   }
 
   for (const circle of circles) {
+    if (circle.ghost) continue; // skip ghosts
+
     if (!circle.anchored) {
       circle.vy += gravity * dt;
 
@@ -658,6 +684,343 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
   return nodeMatrix;
 }
 
+// Tools
+let currentTool = "none";
+let selectedObjects = []; // circles and springs
+
+function setTool(toolName) {
+  currentTool = toolName;
+  if (toolName !== "paste") pastePreview = [];
+  if (toolName === "select" || toolName === "none") clearSelection();
+}
+
+function selectObject(obj) {
+  if (!selectedObjects.includes(obj)) {
+    selectedObjects.push(obj);
+    obj.selected = true;
+  }
+}
+
+function clearSelection() {
+  selectedObjects.forEach(obj => obj.selected = false);
+  selectedObjects = [];
+}
+
+function findObjectAt(x, y) {
+  // Check circles
+  for (const c of circles) {
+    const dx = x - c.x;
+    const dy = y - c.y;
+    if (dx * dx + dy * dy < c.radius * c.radius) {
+      return c;
+    }
+  }
+
+  // Check rectangles (if you use them)
+  for (const r of rectangles ?? []) {
+    const halfW = r.width / 2;
+    const halfH = r.height / 2;
+    if (
+      x >= r.x - halfW &&
+      x <= r.x + halfW &&
+      y >= r.y - halfH &&
+      y <= r.y + halfH
+    ) {
+      return r;
+    }
+  }
+
+  // Check springs (click near midpoint)
+  for (const s of springs) {
+    const mx = (s.a.x + s.b.x) / 2;
+    const my = (s.a.y + s.b.y) / 2;
+    if (Math.hypot(mx - x, my - y) < 10) {
+      return s;
+    }
+  }
+
+  return null;
+}
+
+// Select box
+let dragSelectStart = null;
+let dragSelectEnd = null;
+ 
+canvas.addEventListener("mousedown", (e) => {
+  const x = e.offsetX;
+  const y = e.offsetY;
+  const clicked = findObjectAt(x, y);
+
+  if (currentTool === "none") {
+    if (clicked && clicked instanceof Circle && !clicked.anchored) {
+      draggingCircle = clicked;
+      dragStartX = x;
+      dragStartY = y;
+    }
+    return;
+  }
+
+  // Tool logic for other modes (select, move, paste, etc.)
+  if (currentTool === "select" && !clicked) {
+    dragSelectStart = { x, y };
+    return;
+  }
+
+  switch (currentTool) {
+    case "select":
+      if (clicked) {
+        if (!e.shiftKey && !e.ctrlKey) clearSelection();
+        selectObject(clicked);
+      } else {
+        clearSelection();
+      }
+      break;
+
+    case "move":
+      if (selectedObjects.length > 0) {
+        isDraggingSelection = true;
+        dragStartX = x;
+        dragStartY = y;
+      }
+      break;
+
+    case "paste":
+      if (clipboard.length > 0) {
+        pasteClipboardAt(x, y);
+      }
+      break;
+    
+    case "spring":
+      springStart = findObjectAt(x, y);
+      break;
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  mouseX = e.offsetX;
+  mouseY = e.offsetY;
+
+  if (currentTool === "none" && draggingCircle && isPaused) {
+    const dx = e.offsetX - dragStartX;
+    const dy = e.offsetY - dragStartY;
+    draggingCircle.x += dx;
+    draggingCircle.y += dy;
+    dragStartX = e.offsetX;
+    dragStartY = e.offsetY;
+  }
+
+  if (currentTool === "paste" && clipboard && clipboard.length > 0) {
+    const circlesOnly = clipboard.filter(obj => obj instanceof Circle);
+    const minX = Math.min(...circlesOnly.map(c => c.x));
+    const minY = Math.min(...circlesOnly.map(c => c.y));
+    pasteOffsetX = e.offsetX - minX;
+    pasteOffsetY = e.offsetY - minY;
+  }
+
+  if (currentTool === "select" && dragSelectStart) {
+    dragSelectEnd = { x: e.offsetX, y: e.offsetY };
+  }
+
+  if (currentTool === "spring" && springStart) {
+    springPreviewEnd = { x: e.offsetX, y: e.offsetY };
+  }
+
+  if (isDraggingSelection) {
+    const dx = e.offsetX - dragStartX;
+    const dy = e.offsetY - dragStartY;
+    selectedObjects.forEach(obj => {
+      if (obj instanceof Circle) {
+        obj.x += dx;
+        obj.y += dy;
+      }
+    });
+    dragStartX = e.offsetX;
+    dragStartY = e.offsetY;
+  }
+});
+
+canvas.addEventListener("mouseup", (e) => {
+  draggingCircle = null;
+
+  if (currentTool === "move") {
+    isDraggingSelection = false;
+  }
+
+  if (currentTool === "spring" && springStart) {
+  const springEnd = findObjectAt(e.offsetX, e.offsetY);
+
+  if (
+    springEnd &&
+    springEnd !== springStart &&
+    springStart instanceof Circle &&
+    springEnd instanceof Circle
+  ) {
+    const dx = springEnd.x - springStart.x;
+    const dy = springEnd.y - springStart.y;
+    const dist = Math.hypot(dx, dy);
+
+    const newSpring = new Spring(
+      springStart,
+      springEnd,
+      1,
+      500,
+      5.0,
+      false,
+      false,
+      1,
+      10000,
+      true,
+      false
+    );
+
+    newSpring.restLength = dist;
+
+    springs.push(newSpring);
+    clearSelection();
+    selectObject(newSpring);
+
+    const cx = (springStart.x + springEnd.x) / 2;
+    const cy = (springStart.y + springEnd.y) / 2;
+    openPropertyMenu(newSpring, "spring", cx, cy);
+  }
+
+  springStart = null;
+}
+
+
+  if (dragSelectStart) {
+    const x1 = Math.min(dragSelectStart.x, e.offsetX);
+    const y1 = Math.min(dragSelectStart.y, e.offsetY);
+    const x2 = Math.max(dragSelectStart.x, e.offsetX);
+    const y2 = Math.max(dragSelectStart.y, e.offsetY);
+
+    clearSelection();
+    circles.forEach(c => {
+      if (c.x > x1 && c.x < x2 && c.y > y1 && c.y < y2) selectObject(c);
+    });
+    springs.forEach(s => {
+      const mx = (s.a.x + s.b.x) / 2;
+      const my = (s.a.y + s.b.y) / 2;
+      if (mx > x1 && mx < x2 && my > y1 && my < y2) selectObject(s);
+    });
+
+    dragSelectStart = null;
+    dragSelectEnd = null;
+    isDraggingSelection = false;
+  }
+});
+
+
+function deleteSelected() {
+  selectedObjects.forEach(obj => {
+    if (obj instanceof Circle) {
+      circles = circles.filter(c => c !== obj);
+      springs = springs.filter(s => s.a !== obj && s.b !== obj);
+    } else if (obj instanceof Spring) {
+      springs = springs.filter(s => s !== obj);
+    }
+  });
+  clearSelection();
+}
+
+function copySelected() {
+  if (selectedObjects.length > 0) {
+    clipboard = [...selectedObjects];
+    console.log("Copied", clipboard.length, "objects");
+  }
+}
+
+function pasteClipboardAt(x, y) {
+  const circleMap = new Map();
+  const pasted = [];
+
+  const circlesOnly = clipboard.filter(obj => obj instanceof Circle);
+  const minX = Math.min(...circlesOnly.map(c => c.x));
+  const minY = Math.min(...circlesOnly.map(c => c.y));
+  const offsetX = x - minX;
+  const offsetY = y - minY;
+
+  clipboard.forEach(obj => {
+    const clone = cloneObject(obj, offsetX, offsetY, circleMap, false); // ghost = false
+    console.log("Cloned", clone, "ghost =", clone.ghost);
+    pasted.push(clone);
+  });
+
+  clearSelection();
+  pasted.forEach(selectObject);
+}
+
+
+function cloneObject(obj, offsetX = 0, offsetY = 0, circleMap = new Map(), ghost = true) {
+  if (obj instanceof Circle) {
+    if (circleMap.has(obj)) return circleMap.get(obj);
+    const clone = new Circle(
+      obj.x + offsetX,
+      obj.y + offsetY,
+      obj.radius,
+      obj.anchored,
+      obj.restitution,
+      obj.mass,
+      obj.visible,
+      ghost
+    );
+    circleMap.set(obj, clone);
+    return clone;
+  }
+
+  if (obj instanceof Spring) {
+    const a = cloneObject(obj.a, offsetX, offsetY, circleMap, ghost);
+    const b = cloneObject(obj.b, offsetX, offsetY, circleMap, ghost);
+
+    if (!a || !b) {
+      console.warn("Skipping spring with missing endpoints:", obj);
+      return null;
+    }
+
+    const springClone = new Spring(
+      a,
+      b,
+      obj.restLength,
+      obj.stiffness,
+      obj.damping,
+      obj.rigid,
+      obj.collides,
+      obj.restitution,
+      obj.elasticLimit,
+      obj.visible,
+      ghost
+    );
+    return springClone;
+  }
+}
+
+function showProperties() {
+  if (selectedObjects.length === 0) return;
+
+  const first = selectedObjects[0];
+  const type = first instanceof Circle ? "circle" :
+               first instanceof Spring ? "spring" :
+               first instanceof Rectangle ? "rectangle" : null;
+
+  if (!type) return;
+
+  const allSameType = selectedObjects.every(obj =>
+    (type === "circle" && obj instanceof Circle) ||
+    (type === "spring" && obj instanceof Spring) ||
+    (type === "rectangle" && obj instanceof Rectangle)
+  );
+
+  const x = canvas.width / 2;
+  const y = canvas.height / 2;
+
+  if (allSameType) {
+    openPropertyMenu(null, type, x, y); // batch edit
+  } else {
+    alert("Cannot edit properties of objects of different types");
+    openPropertyMenu(first, type, x, y); // fallback to single edit
+  }
+}
+
 
 // Property menu
 let tempProps = {}; // make sure this is accessible globally or in shared scope
@@ -670,7 +1033,14 @@ function openPropertyMenu(obj, type, x, y) {
 
   const menu = document.getElementById("propertyMenu");
   menu.innerHTML = "";
+  menu.style.position = "absolute";
+  menu.style.background = "rgba(0, 0, 0, 0.9)";
+  menu.style.border = "1px solid #666";
+  menu.style.padding = "10px";
+  menu.style.color = "#fff";
+  menu.style.zIndex = "20";
 
+  // Close button
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "✕";
   closeBtn.style.position = "absolute";
@@ -681,28 +1051,64 @@ function openPropertyMenu(obj, type, x, y) {
   closeBtn.style.fontSize = "16px";
   closeBtn.style.cursor = "pointer";
   closeBtn.style.color = "#fff";
-
   closeBtn.addEventListener("click", applyChangesAndClose);
-
   menu.appendChild(closeBtn);
 
-  const props = Object.keys(obj).filter(k => typeof obj[k] !== "function");
+  // Use sample object to infer fields
+  const sample = obj ?? selectedObjects[0];
+  const props = Object.keys(sample).filter(k => typeof sample[k] !== "function");
 
   props.forEach(key => {
-    tempProps[key] = obj[key];
+    // detect shared values
+    let sharedValue = null;
+    let allMatch = true;
+
+    for (let i = 1; i < selectedObjects.length; i++) {
+      const a = selectedObjects[0][key];
+      const b = selectedObjects[i][key];
+      if (a !== b) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) {
+      sharedValue = selectedObjects[0][key];
+    }
+    tempProps[key] = obj ? obj[key] : (sharedValue ?? "");
 
     let input;
-    if (typeof obj[key] === "boolean") {
-      input = document.createElement("input");
-      input.type = "checkbox";
-      input.checked = obj[key];
+    if (typeof sample[key] === "boolean") {
+      input = document.createElement("select");
+      input.id = `prop-${key}`;
+      input.name = key;
+
+      const optSkip = document.createElement("option");
+      optSkip.value = "";
+      optSkip.textContent = "(skip)";
+      input.appendChild(optSkip);
+
+      const optTrue = document.createElement("option");
+      optTrue.value = "true";
+      optTrue.textContent = "true";
+      input.appendChild(optTrue);
+
+      const optFalse = document.createElement("option");
+      optFalse.value = "false";
+      optFalse.textContent = "false";
+      input.appendChild(optFalse);
+
+      input.value = obj ? (obj[key] ? "true" : "false") :
+                  sharedValue === true ? "true" :
+                  sharedValue === false ? "false" : "";
     } else {
       input = document.createElement("input");
-      input.value = obj[key];
+      input.value = obj ? obj[key] : (sharedValue ?? "");
+      input.placeholder = obj ? "" : "(leave blank to skip)";
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") applyChangesAndClose();
       });
     }
+
 
     input.dataset.key = key;
     input.id = `prop-${key}`;
@@ -711,48 +1117,58 @@ function openPropertyMenu(obj, type, x, y) {
     const label = document.createElement("label");
     label.textContent = key + ": ";
     label.htmlFor = input.id;
+    label.style.display = "block";
     label.appendChild(input);
     menu.appendChild(label);
-    menu.appendChild(document.createElement("br"));
   });
 
   justOpenedMenu = true;
   menu.style.left = x + "px";
   menu.style.top = y + "px";
   menu.style.display = "block";
-
-  console.log("Opening menu at", x, y, "for", type);
 }
+
 
 function applyChangesAndClose() {
   const menu = document.getElementById("propertyMenu");
-  const inputs = menu.querySelectorAll("input");
+  if (!menu || selectedObjects.length === 0) return;
 
-  inputs.forEach(input => {
-    const key = input.dataset.key;
+  const type = selectedObject?.type;
+  const isBatch = selectedObject?.ref === null;
 
-    // Skip spring endpoints
-    if (selectedObject.type === "spring" && (key === "a" || key === "b")) return;
+  selectedObjects.forEach(obj => {
+    if ((type === "circle" && !(obj instanceof Circle)) ||
+        (type === "spring" && !(obj instanceof Spring)) ||
+        (type === "rectangle" && !(obj instanceof Rectangle))) return;
 
-    let val = input.value;
-    const original = selectedObject.ref[key];
+    const keys = Object.keys(obj).filter(k => typeof obj[k] !== "function");
 
-    if (typeof original === "boolean") {
-      val = input.checked;
-    }else {
-      const num = parseFloat(val);
-      val = isNaN(num) ? val : num;
-    }
+    keys.forEach(key => {
+      const input = document.getElementById(`prop-${key}`);
+      if (!input) return;
 
-    tempProps[key] = val;
+      let val = input.value;
+
+      if (typeof obj[key] === "boolean") {
+        // if using a <select> for booleans
+        if (input.tagName === "SELECT") {
+          if (input.value === "") return; // skip if "(skip)" selected
+          val = input.value === "true";
+        } else {
+          // fallback for checkbox (single-object edit)
+          val = input.checked;
+        }
+      } else {
+        if (val === "") return; // skip empty fields
+        const num = parseFloat(val);
+        if (!isNaN(num)) val = num;
+      }
+
+      obj[key] = val;
+    });
   });
 
-  if (selectedObject && selectedObject.ref) {
-    Object.assign(selectedObject.ref, tempProps);
-  }
-
   menu.style.display = "none";
-  console.log("closed menu");
   selectedObject = null;
   propertyMenuOpen = false;
 }
@@ -773,55 +1189,9 @@ document.addEventListener("mousedown", (e) => {
 canvas.addEventListener("mousedown", (e) => {
   const x = e.offsetX;
   const y = e.offsetY;
-
+  
   if (e.button === 0) { // left-click
-    if (isPaused) {
-      selectedObject = null;
-
-      // Check circles
-      for (let circle of circles) {
-        const dx = x - circle.x;
-        const dy = y - circle.y;
-        if (dx * dx + dy * dy < circle.radius * circle.radius) {
-          selectedObject = circle;
-          openPropertyMenu(circle, "circle", e.offsetX, e.offsetY);
-          return;
-        }
-      }
-
-      // Check rectangles
-      for (let rect of rectangles) {
-        const halfW = rect.width / 2;
-        const halfH = rect.height / 2;
-        if (
-          x >= rect.x - halfW &&
-          x <= rect.x + halfW &&
-          y >= rect.y - halfH &&
-          y <= rect.y + halfH
-        ) {
-          selectedObject = rect;
-          openPropertyMenu(rect, "rectangle", e.offsetX, e.offsetY);
-          return;
-        }
-      }
-
-      // Check springs
-      for (let spring of springs) {
-        const dx = spring.b.x - spring.a.x;
-        const dy = spring.b.y - spring.a.y;
-        const t = ((x - spring.a.x) * dx + (y - spring.a.y) * dy) / (dx * dx + dy * dy);
-        if (t >= 0 && t <= 1) {
-          const px = spring.a.x + t * dx;
-          const py = spring.a.y + t * dy;
-          const distSq = (x - px) ** 2 + (y - py) ** 2;
-          if (distSq < 100) {
-            selectedObject = spring;
-            openPropertyMenu(spring, "spring", e.offsetX, e.offsetY);
-            return;
-          }
-        }
-      }
-    } else {
+    if(!isPaused) {
       // Not paused → begin dragging
       for (let circle of circles) {
         const dx = x - circle.x;
@@ -848,14 +1218,9 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+  mouseX = e.offsetX;
+  mouseY = e.offsetY;
 });
-
-canvas.addEventListener("mouseup", () => {
-  draggingCircle = null;
-});
-
 
 // Actions
 document.addEventListener("keydown", (e) => {
@@ -880,19 +1245,9 @@ document.addEventListener("keydown", (e) => {
     console.log("Anchor toggled:", draggingCircle.anchored);
   }
 
-  if ((e.key === "Backspace" || e.key === "Delete") && draggingCircle) { // press Backspace or Delete to delete circle
-    e.preventDefault(); // prevent browser from navigating back
-
-    // Remove connected springs
-    springs = springs.filter(spring => {
-      return spring.a !== draggingCircle && spring.b !== draggingCircle;
-    });
-
-    // Remove the circle
-    circles = circles.filter(c => c !== draggingCircle);
-
-    // Clear the drag reference
-    draggingCircle = null;
+  if ((e.key === "Backspace" || e.key === "Delete") && selectedObjects.length > 0) {
+    e.preventDefault();
+    deleteSelected();
   }
 
   if (e.key === "c") { // press 'c' to create a new circle at mouse position
@@ -903,11 +1258,13 @@ document.addEventListener("keydown", (e) => {
 
 canvas.addEventListener("mouseup", (e) => {
   if (e.button === 2 && isRightDragging && springStartCircle && isPaused) {
+    const x = e.offsetX;
+    const y = e.offsetY;
     for (let circle of circles) {
-      const dx = e.offsetX - circle.x;
-      const dy = e.offsetY - circle.y;
+      const dx = x - circle.x;
+      const dy = y - circle.y;
       if (dx * dx + dy * dy < circle.radius * circle.radius && circle !== springStartCircle) {
-        const dist = Math.sqrt((circle.x - springStartCircle.x) ** 2 + (circle.y - springStartCircle.y) ** 2);
+        const dist = Math.hypot(circle.x - springStartCircle.x, circle.y - springStartCircle.y);
         springs.push(new Spring(springStartCircle, circle, dist, 200, 5.0, true, false));
         break;
       }
@@ -916,8 +1273,10 @@ canvas.addEventListener("mouseup", (e) => {
 
   springStartCircle = null;
   springEndCircle = null;
+  draggingCircle = null;
   isRightDragging = false;
 });
+
 
 window.addEventListener("contextmenu", e => {
   e.preventDefault();
@@ -945,11 +1304,119 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+function renderSelection() {
+  selectedObjects.forEach(obj => {
+    if (obj instanceof Circle) {
+      ctx.strokeStyle = "yellow";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, obj.radius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (obj instanceof Spring) {
+      ctx.strokeStyle = "orange";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(obj.a.x, obj.a.y);
+      ctx.lineTo(obj.b.x, obj.b.y);
+      ctx.stroke();
+    }
+  });
+}
+
+function renderBoxSelect() {
+  if (currentTool === "select" && dragSelectStart && dragSelectEnd) {
+    const x = Math.min(dragSelectStart.x, dragSelectEnd.x);
+    const y = Math.min(dragSelectStart.y, dragSelectEnd.y);
+    const w = Math.abs(dragSelectEnd.x - dragSelectStart.x);
+    const h = Math.abs(dragSelectEnd.y - dragSelectStart.y);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 3]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+  }
+}
+
+function renderToolOverlay() {
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(canvas.width - 200, 10, 150, 30);
+  ctx.fillStyle = "white";
+  ctx.font = "16px sans-serif";
+  ctx.fillText("Tool: " + currentTool, canvas.width - 190, 30);
+}
+
+function renderPastePreview() {
+  if (!clipboard) return;
+  if (currentTool === "paste" && clipboard.length > 0) {
+    const circleMap = new Map();
+    const circlesOnly = clipboard.filter(obj => obj instanceof Circle);
+    const minX = Math.min(...circlesOnly.map(c => c.x));
+    const minY = Math.min(...circlesOnly.map(c => c.y));
+
+    const offsetX = pasteOffsetX;
+    const offsetY = pasteOffsetY;
+
+    // Clone circles for preview
+    circlesOnly.forEach(obj => {
+      const ghost = new Circle(
+        obj.x + offsetX,
+        obj.y + offsetY,
+        obj.radius,
+        obj.anchored,
+        obj.restitution,
+        obj.mass,
+        obj.visible,
+        true // ghost flag
+      );
+      circleMap.set(obj, ghost);
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = "cyan";
+      ctx.beginPath();
+      ctx.arc(ghost.x, ghost.y, ghost.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    });
+
+    // Clone springs for preview
+    clipboard.forEach(obj => {
+      if (obj instanceof Spring) {
+        const a = circleMap.get(obj.a);
+        const b = circleMap.get(obj.b);
+        if (a && b) {
+          const springGhost = new Spring(
+            a,
+            b,
+            obj.length,
+            obj.stiffness,
+            obj.damping,
+            obj.rigid,
+            obj.collides,
+            obj.restitution,
+            obj.elasticLimit,
+            obj.visible,
+            true // ghost flag
+          );
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = "cyan";
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+        }
+      }
+    });
+  }
+}
+
 function render() {
   drawSprings();
   drawRectangles();
   drawCircles();
+  renderSelection()
 
+  // Dragging lines
   if (draggingCircle) {
     ctx.beginPath();
     ctx.moveTo(mouseX, mouseY);
@@ -958,14 +1425,18 @@ function render() {
     ctx.lineWidth = 5;
     ctx.stroke();
   }
-  if (isRightDragging && springStartCircle) {
+  if (currentTool === "spring" && springStart && springPreviewEnd) {
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(springStartCircle.x, springStartCircle.y);
-    ctx.lineTo(mouseX, mouseY);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.36)"; // white line with transparency
-    ctx.lineWidth = 2;
+    ctx.moveTo(springStart.x, springStart.y);
+    ctx.lineTo(springPreviewEnd.x, springPreviewEnd.y);
     ctx.stroke();
   }
+
+  renderPastePreview()
+  renderBoxSelect()
+  renderToolOverlay()
 }
 
 function clearScreen() {
