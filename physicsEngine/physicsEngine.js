@@ -847,45 +847,49 @@ canvas.addEventListener("mouseup", (e) => {
   }
 
   if (currentTool === "spring" && springStart) {
-  const springEnd = findObjectAt(e.offsetX, e.offsetY);
+    const springEnd = findObjectAt(e.offsetX, e.offsetY);
 
-  if (
-    springEnd &&
-    springEnd !== springStart &&
-    springStart instanceof Circle &&
-    springEnd instanceof Circle
-  ) {
-    const dx = springEnd.x - springStart.x;
-    const dy = springEnd.y - springStart.y;
-    const dist = Math.hypot(dx, dy);
+    if (
+      springEnd &&
+      springEnd !== springStart &&
+      springStart instanceof Circle &&
+      springEnd instanceof Circle
+    ) {
+      const dx = springEnd.x - springStart.x;
+      const dy = springEnd.y - springStart.y;
+      const dist = Math.hypot(dx, dy);
 
-    const newSpring = new Spring(
-      springStart,
-      springEnd,
-      1,
-      500,
-      5.0,
-      false,
-      false,
-      1,
-      10000,
-      true,
-      false
-    );
+      console.assert(springStart instanceof Circle, "springStart is not a Circle:", springStart);
+      console.assert(springEnd instanceof Circle, "springEnd is not a Circle:", springEnd);
 
-    newSpring.restLength = dist;
+      const newSpring = new Spring(
+        springStart,
+        springEnd,
+        1,       // restitution
+        500,     // stiffness
+        5.0,     // damping
+        false,   // rigid
+        false,   // collides
+        1,       // thickness
+        10000,   // elasticLimit
+        true,    // visible
+        false    // ghost
+      );
 
-    springs.push(newSpring);
-    clearSelection();
-    selectObject(newSpring);
+      newSpring.restLength = dist;
 
-    const cx = (springStart.x + springEnd.x) / 2;
-    const cy = (springStart.y + springEnd.y) / 2;
-    openPropertyMenu(newSpring, "spring", cx, cy);
+      springs.push(newSpring);
+      clearSelection();
+      selectObject(newSpring);
+
+      const cx = (springStart.x + springEnd.x) / 2;
+      const cy = (springStart.y + springEnd.y) / 2;
+      openPropertyMenu(newSpring, "spring", cx, cy);
+    }
+
+    springStart = null;
   }
 
-  springStart = null;
-}
 
 
   if (dragSelectStart) {
@@ -1141,7 +1145,12 @@ function applyChangesAndClose() {
         (type === "spring" && !(obj instanceof Spring)) ||
         (type === "rectangle" && !(obj instanceof Rectangle))) return;
 
-    const keys = Object.keys(obj).filter(k => typeof obj[k] !== "function");
+    const keys = Object.keys(obj).filter(k =>
+      typeof obj[k] !== "function" &&
+      k !== "a" &&
+      k !== "b"
+    );
+
 
     keys.forEach(key => {
       const input = document.getElementById(`prop-${key}`);
