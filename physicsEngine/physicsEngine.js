@@ -9,7 +9,6 @@ window.addEventListener("resize", () => {
   canvas.height = window.innerHeight;
 });
 
-let fps = 60;
 let frameMultiplier = 20;
 
 let showStress = true; // or false to disable
@@ -17,6 +16,7 @@ let showStress = true; // or false to disable
 let mouseStrength = 5.0;
 
 let isPaused = false;
+let windowFocused = true;
 
 let lastTime = performance.now();
 
@@ -609,7 +609,7 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
       visible: false,
       collides: true,
       elasticLimit: null, // indestructible
-      restitution: 0.3, // lower bounce to prevent jitter
+      restitution: 0.5, // lower bounce to prevent jitter
       rigidFrame: true
     }
 
@@ -919,7 +919,7 @@ canvas.addEventListener("mouseup", (e) => {
   isRightDragging = false;
 });
 
-canvas.addEventListener("contextmenu", (e) => {
+window.addEventListener("contextmenu", e => {
   e.preventDefault();
 });
 
@@ -936,6 +936,14 @@ document.addEventListener("wheel", (e) => {
   console.log("Mouse strength:", mouseStrength.toFixed(2));
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    windowFocused = false;
+  } else {
+    windowFocused = true;
+    lastTime = performance.now(); // reset clock
+  }
+});
 
 function render() {
   drawSprings();
@@ -1032,7 +1040,7 @@ let ropeEnd = new Circle(canvas.width - 50, 500, 10, true);
 createRope(ropeStart, ropeEnd, 15, 50);
 */
 
-//let slope = new Rectangle(900, 600, 1000, 20, -Math.PI / 1.1, true);
+// let slope = new Rectangle(900, 600, 1000, 20, -Math.PI / 1.1, true);
 
 
 // boundaries
@@ -1072,12 +1080,15 @@ for(let i = 0; i < 10; i++) {
 */
 
 function mainLoop() {
+  const maxFrameTime = 0.1; // 10 FPS floor
+  
   const now = performance.now();
-  const deltaTime = (now - lastTime) / 1000; // seconds
+  let deltaTime = (now - lastTime) / 1000; // seconds
+  deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
   const subDelta = deltaTime / frameMultiplier;
   lastTime = now;
   
-  if(!isPaused) {
+  if(!isPaused && windowFocused) {
     for (let i = 0; i < frameMultiplier; i++) {
       simulate(subDelta);
     }
