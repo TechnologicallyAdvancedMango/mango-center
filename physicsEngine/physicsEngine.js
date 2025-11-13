@@ -786,7 +786,7 @@ canvas.addEventListener("mousedown", (e) => {
   // left click
   if (e.button === 0) {
     if (currentTool === "none") {
-      if (!isPaused && clicked instanceof Circle) {
+      if (clicked instanceof Circle) {
         draggingCircle = clicked;
         dragStartX = draggingCircle.x;
         dragStartY = draggingCircle.y;
@@ -893,15 +893,7 @@ canvas.addEventListener("mousemove", (e) => {
 
   // Dragging a circle with the none tool
   if (currentTool === "none" && draggingCircle && !isPaused) {
-    console.log("Mouse screen:", e.offsetX, e.offsetY);
-    console.log("Mouse world:", worldX, worldY);
-    console.log("Drag delta:", worldX - dragStartX, worldY - dragStartY);
-    console.log("Circle new position:", draggingCircle?.x, draggingCircle?.y);
-
-    const dx = worldX - dragStartX;
-    const dy = worldY - dragStartY;
-    draggingCircle.x += dx;
-    draggingCircle.y += dy;
+    // update drag target, no position change
     dragStartX = worldX;
     dragStartY = worldY;
   }
@@ -1367,7 +1359,7 @@ document.addEventListener("keydown", (e) => {
     }
   }
 
-  if (e.key === "a" && draggingCircle && !isPaused) {
+  if (e.key === "a" && draggingCircle) {
     draggingCircle.anchored = !draggingCircle.anchored;
     console.log("Anchor toggled:", draggingCircle.anchored);
   }
@@ -1377,31 +1369,21 @@ document.addEventListener("keydown", (e) => {
     deleteSelected();
   }
 
-  if (e.key === "c") { // press 'c' to create a new circle at mouse position
-    new Circle(mouseX, mouseY, 20);
-  }
-});
-
-
-canvas.addEventListener("mouseup", (e) => {
-  if (e.button === 2 && isRightDragging && springStartCircle && isPaused) {
-    const x = e.offsetX;
-    const y = e.offsetY;
-    for (let circle of circles) {
-      const dx = x - circle.x;
-      const dy = y - circle.y;
-      if (dx * dx + dy * dy < circle.radius * circle.radius && circle !== springStartCircle) {
-        const dist = Math.hypot(circle.x - springStartCircle.x, circle.y - springStartCircle.y);
-        springs.push(new Spring(springStartCircle, circle, dist, 200, 5.0, true, false));
-        break;
-      }
-    }
+  // ctrl C and ctrl V
+  if (e.ctrlKey && e.key === "c") {
+    e.preventDefault(); // prevent browser copy
+    copySelected();
   }
 
-  springStartCircle = null;
-  springEndCircle = null;
-  draggingCircle = null;
-  isRightDragging = false;
+  if (e.ctrlKey && e.key === "v") {
+    e.preventDefault(); // prevent browser paste
+    setTool("paste");
+  }
+
+  // press 's' to set tool to spring
+  if (e.key === "s") {
+    setTool("spring");
+  }
 });
 
 
