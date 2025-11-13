@@ -78,7 +78,7 @@
 		display: none;
 		position: fixed;
 		top: 5px;
-		left: 150px;
+		left: 180px;
 		font-size: 100px;
 		font-weight: bolder;
 		color: rgba(255, 255, 255, 0.7);
@@ -115,7 +115,7 @@
 		font-size: 16px;
 		cursor: pointer;
 	}
-	#toolSidebar button:hover {
+	#toolSidebar button:hover  {
 		background: #666;
 	}
 	#toolSidebar button:active {
@@ -189,6 +189,19 @@
 		<button onclick="setTool('paste')">📋 Paste</button>
 		<button onclick="deleteSelected()">🗑️ Delete</button>
 		<button onclick="showProperties()">⚙️ Properties</button>
+
+		<input type="file" onchange="loadGameState(this.files[0])" style="
+		width: calc(100% - 10px);
+		min-height: 40px;
+		background: #444;
+		color: white;
+		border: none;
+		border-radius: 5px;
+		padding: 6px;
+		margin: 5px;
+		font-size: 16px;
+		cursor: pointer;">
+		<button onclick="saveGameState()">💾 Save</button>
 	</div>
 
   	<div id="creation">

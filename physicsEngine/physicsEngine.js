@@ -1643,9 +1643,115 @@ function createRope(start, end, segmentCount, slack = 0) {
   }
 }
 
+function saveGameState() {
+  // Filter out ghost or unintended circles if needed
+  const savedCircles = circles.filter(c => !c.ghost);
 
-// semi-soft square
+  // Create a stable ID map
+  const circleIdMap = new Map();
+  savedCircles.forEach((c, i) => circleIdMap.set(c, i));
 
+  const data = {
+    circles: savedCircles.map(c => ({
+      x: c.x,
+      y: c.y,
+      radius: c.radius,
+      anchored: c.anchored,
+      restitution: c.restitution,
+      mass: c.mass,
+      visible: c.visible,
+      ghost: false
+    })),
+    springs: springs
+      .filter(s => circleIdMap.has(s.a) && circleIdMap.has(s.b)) // only save springs with valid endpoints
+      .map(s => ({
+        aIndex: circleIdMap.get(s.a),
+        bIndex: circleIdMap.get(s.b),
+        restLength: s.restLength,
+        stiffness: s.stiffness,
+        damping: s.damping,
+        rigid: s.rigid,
+        collides: s.collides,
+        restitution: s.restitution,
+        elasticLimit: s.elasticLimit,
+        visible: s.visible,
+        ghost: false
+      })),
+    rectangles: rectangles.map(r => ({
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+      angle: r.angle,
+      anchored: r.anchored ?? true,
+      restitution: r.restitution
+    })),
+    settings: { panX, panY, currentTool }
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "sandbox-save.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadGameState(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    circles = [];
+    springs = [];
+    rectangles = [];
+
+    const data = JSON.parse(reader.result);
+
+    // Rebuild circles first
+    circles = data.circles.map(c => new Circle(
+      c.x, c.y, c.radius,
+      c.anchored, c.restitution,
+      c.mass, c.visible,
+      c.ghost
+    ));
+
+    // Rebuild springs using valid indices
+    springs = data.springs.map(s => {
+      const a = circles[s.aIndex];
+      const b = circles[s.bIndex];
+      if (!a || !b) {
+        console.warn("Invalid spring endpoints:", s.aIndex, s.bIndex);
+        return null;
+      }
+      return new Spring(
+        a, b,
+        s.restLength,
+        s.stiffness,
+        s.damping,
+        s.rigid,
+        s.collides,
+        s.restitution,
+        s.elasticLimit,
+        s.visible,
+        s.ghost
+      );
+    }).filter(s => s !== null);
+
+    // Rebuild rectangles
+    rectangles = data.rectangles.map(r => new Rectangle(
+      r.x, r.y, r.width, r.height,
+      r.angle, r.anchored, r.restitution
+    ));
+
+    panX = data.settings.panX;
+    panY = data.settings.panY;
+    currentTool = data.settings.currentTool;
+  };
+  reader.readAsText(file);
+}
+
+
+// semi-elastic square
 let circle1 = new Circle(400, 200, 35);
 let circle2 = new Circle(500, 500, 35);
 let circle3 = new Circle(700, 250, 35);
