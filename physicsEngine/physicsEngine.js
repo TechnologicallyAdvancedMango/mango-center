@@ -50,6 +50,16 @@ let pasteOffsetY = 0;
 
 let clipboard = null;
 
+let circlePreview = null;
+
+let softbodyPreview = null;
+let softbodyConfig = {
+  rows: 10,
+  cols: 10,
+  spacing: 40,
+  radius: 8
+};
+
 let springPreviewStart = null;
 let springPreviewEnd = null;
 
@@ -708,7 +718,7 @@ function setTool(toolName) {
   }
 
   if (toolName !== "paste") pastePreview = [];
-  if (toolName === "select" || toolName === "none") clearSelection();
+  if (toolName === "select" || toolName === "none" || toolName === "spring" || toolName === "circle") clearSelection();
 }
 
 function selectObject(obj) {
@@ -776,11 +786,7 @@ canvas.addEventListener("mousedown", (e) => {
   // left click
   if (e.button === 0) {
     if (currentTool === "none") {
-      if (!isPaused && clicked instanceof Circle && !clicked.anchored) {
-        console.log("Drag start screen:", e.offsetX, e.offsetY);
-        console.log("Drag start world:", e.offsetX - panX, e.offsetY - panY);
-        console.log("Circle position:", draggingCircle?.x, draggingCircle?.y);
-
+      if (!isPaused && clicked instanceof Circle) {
         draggingCircle = clicked;
         dragStartX = draggingCircle.x;
         dragStartY = draggingCircle.y;
@@ -800,6 +806,29 @@ canvas.addEventListener("mousedown", (e) => {
       panStartX = e.clientX;
       panStartY = e.clientY;
       return;
+    }
+
+    if (currentTool === "circle") {
+      const worldX = e.offsetX - panX;
+      const worldY = e.offsetY - panY;
+      circles.push(new Circle(worldX, worldY, 20, false, 1, null, true, false));
+    }
+
+    if (currentTool === "softbody") {
+      const worldX = e.offsetX - panX;
+      const worldY = e.offsetY - panY;
+
+      createSoftbodyGrid(
+        softbodyConfig.rows,
+        softbodyConfig.cols,
+        softbodyConfig.spacing,
+        worldX,
+        worldY,
+        {
+          radius: softbodyConfig.radius,
+          springConfig: { stiffness: 2500, damping: 20.0, restitution: 1, visible: true, collides: true, elasticLimit: 9999, rigidFrame: true }
+        }
+      );
     }
 
 
@@ -835,6 +864,7 @@ canvas.addEventListener("mousedown", (e) => {
         break;
 
       case "spring":
+        clearSelection();
         springStart = findObjectAt(x, y);
         break;
     }
@@ -905,6 +935,29 @@ canvas.addEventListener("mousemove", (e) => {
   if (currentTool === "spring" && springStart) {
     springPreviewEnd = { x: worldX, y: worldY };
   }
+
+  // Circle preview
+  if (currentTool === "circle") {
+    const worldX = e.offsetX - panX;
+    const worldY = e.offsetY - panY;
+    circlePreview = { x: worldX, y: worldY, radius: 20 };
+  }
+
+  // Softbody preview:
+  if (currentTool === "softbody") {
+    const worldX = e.offsetX - panX;
+    const worldY = e.offsetY - panY;
+    softbodyPreview = [];
+
+    for (let row = 0; row < softbodyConfig.rows; row++) {
+      for (let col = 0; col < softbodyConfig.cols; col++) {
+        const x = worldX + col * softbodyConfig.spacing;
+        const y = worldY + row * softbodyConfig.spacing;
+        softbodyPreview.push({ x, y });
+      }
+    }
+  }
+
 
   // Dragging selected objects
   if (isDraggingSelection) {
@@ -1484,6 +1537,34 @@ function renderPastePreview() {
   }
 }
 
+function renderCirclePreview() {
+  if (currentTool === "circle" && circlePreview) {
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    ctx.arc(circlePreview.x, circlePreview.y, circlePreview.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "cyan";
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function renderSoftbodyPreview() {
+  if (currentTool === "softbody" && softbodyPreview) {
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = "cyan";
+    for (const node of softbodyPreview) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, softbodyConfig.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function render() {
   ctx.save();
   ctx.translate(panX, panY);
@@ -1491,7 +1572,7 @@ function render() {
   drawSprings();
   drawRectangles();
   drawCircles();
-  renderSelection()
+  renderSelection();
 
   // Dragging lines
   if (draggingCircle) {
@@ -1511,12 +1592,14 @@ function render() {
     ctx.stroke();
   }
 
-  renderPastePreview()
-  renderBoxSelect()
+  renderSoftbodyPreview();
+  renderCirclePreview();
+  renderPastePreview();
+  renderBoxSelect();
 
   ctx.restore();
   // out of world UI
-  renderToolOverlay()
+  renderToolOverlay();
 }
 
 function clearScreen() {

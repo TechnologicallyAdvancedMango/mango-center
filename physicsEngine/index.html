@@ -9,6 +9,8 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
+
+		font-family: Arial, sans-serif;
 	}
 
 	#canvas {
@@ -44,7 +46,6 @@
 		height: 30px;
 		background-color: #20202060;
 		color: white;
-		font-family: Arial, sans-serif;
 		font-size: 20px;
 		text-align: center;
 		line-height: 30px;
@@ -67,8 +68,10 @@
 		white-space: pre-wrap;
   		content: attr(data-tooltip);
   		border: 1px solid black;
-  		background: #20202090;
+		border-radius: 5px;
+  		background: #202020b0;
   		padding: 10px;
+		margin: 10px;
 	}
 
 	#pauseIcon {
@@ -91,17 +94,17 @@
 		width: 120px;
 		height: 100vh;
 		display: flex;
-		flex-direction: column;
-		align-items: center;
+		flex-flow: column nowrap;
+		align-items: stretch;
 		justify-content: flex-start;
-		background: #333;
+		background: #111111;
 		color: white;
 		padding: 10px;
 		z-index: 2000;
 	}
 	#toolSidebar button {
-		width: 100%;
-		height: 40px;
+		width: calc(100% - 10px);
+		min-height: 40px;
 		background: #444;
 		color: white;
 		border: none;
@@ -117,42 +120,111 @@
 	#toolSidebar button:active {
 		background: #3b3b3b;
 	}
+
+	#experimental {
+		width: calc(100% - 15px);
+		margin-top: auto;
+		padding: 5px;
+		margin-bottom: 15px;
+
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		
+		border: 2px solid rgb(112, 68, 68);
+		border-radius: 5px;
+		background: rgb(99, 39, 39);
+	}
+	#utility {
+		width: calc(100% - 15px);
+		padding: 5px;
+		margin-bottom: 15px;
+
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		
+		border: 2px solid rgb(58, 58, 58);
+		border-radius: 5px;
+		background: rgb(39, 39, 39);
+	}
+	#creation {
+		width: calc(100% - 15px);
+		padding: 5px;
+		margin-bottom: 15px;
+
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		
+		border: 2px solid rgb(50, 67, 50);
+		border-radius: 5px;
+		background: rgb(34, 48, 34);
+	}
+	#creation button {
+		background: rgb(67, 95, 67);
+	}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 <div id="toolSidebar">
-	<button onclick="setTool('none')">None</button>
-	<button onclick="setTool('pan')">🎦 Pan</button>
-  	<button onclick="setTool('select')">🖱️ Select</button>
-	<label for="selectFilter">Filter:</label>
-	<select id="selectFilter">
-		<option value="any">Any</option>
-		<option value="circle">Circle</option>
-		<option value="spring">Spring</option>
-	</select>
-  	<button onclick="setTool('move')">🔀 Move</button>
-	<button onclick="panX = 0; panY = 0; draw();">Reset View</button>
-  	<button onclick="copySelected()">📄 Copy</button>
-  	<button onclick="setTool('paste')">📋 Paste</button>
-  	<button onclick="deleteSelected()">🗑️ Delete</button>
-  	<button onclick="showProperties()">⚙️ Properties</button>
-	<button onclick="setTool('spring')">-- Spring</button>
+	<div id="utility">
+		<p>Utility</p>
+		<button onclick="setTool('none')">✋ None</button>
+		<button onclick="setTool('select')">🖱️ Select
+			<label for="selectFilter">Filter:</label>
+			<select id="selectFilter">
+				<option value="any">Any</option>
+				<option value="circle">Circle</option>
+				<option value="spring">Spring</option>
+			</select>
+		</button>
+		<button onclick="setTool('move')">🔀 Move</button>
+		<button onclick="copySelected()">📄 Copy</button>
+		<button onclick="setTool('paste')">📋 Paste</button>
+		<button onclick="deleteSelected()">🗑️ Delete</button>
+		<button onclick="showProperties()">⚙️ Properties</button>
+	</div>
+
+  	<div id="creation">
+		<p>Creation</p>
+		<button onclick="setTool('spring')">— Spring</button>
+		<button onclick="setTool('circle')">● Circle</button>
+		<button onclick="setTool('softbody')">▦ Softbody</button>
+	</div>
+
+	<div id="experimental">
+		<p>Experimental</p>
+		<button onclick="setTool('pan')">🎦 Pan</button>
+		<button onclick="panX = 0; panY = 0; draw();">Reset View</button>
+	</div>
 </div>
 <div id="propertyMenu"></div>
 <div id="pauseIcon">| |</div>
 <div id="help" data-tooltip=
 "Controls:
 
-C: Create Circle
-Escape: Pause/Unpause
-While Unpaused:
-	Left Click: Drag Circle
-	A while dragging: Anchor Circle
-	Backpace/Delete while dragging: Remove Circle
-While Paused:
-	Left Click: Edit Properties of Circle or Spring
-	Right Click and Drag: Create Spring between two Circles
+Tools:
+	None: Drag circles around with left click
+	Select: Select one or more parts
+		Filter: Filters what type of parts you can select
+	Move: Drag to move the selected parts around
+	Paste: Paste parts from the clipboard as many times as you want
+	Spring: Drag between two circles to create a spring between those circles
+Buttons:
+	Copy: Copies the selected parts to the clipboard
+	Delete: Deletes the selected parts
+	Properties: Opens a properties menu for the selected part(s)
+		You can only edit the properties of the same type of part at the same time.
+		Click the X in the top right or press enter in a text field to apply properties.
+		Leave a field empty when selecting multiple parts to leave that property unchanged.
+Experimental/Broken:
+	Pan: Pan the camera
+	Reset View: Resets the camera's position
 ">?</div>
 <script src="physicsEngine.js"></script>
 </body>
