@@ -21,7 +21,7 @@
 		top: 0;
 		right: 0;
 		
-		width: calc(100vw - 120px);
+		width: calc(100vw - 150px);
 		height: 100vh;
 		
 		margin: 0;
@@ -69,7 +69,7 @@
   		content: attr(data-tooltip);
   		border: 1px solid black;
 		border-radius: 5px;
-  		background: #202020b0;
+  		background: #202020f0;
   		padding: 10px;
 		margin: 10px;
 	}
@@ -91,7 +91,7 @@
 		position: fixed;
 		left: 0;
 		top: 0;
-		width: 120px;
+		width: 150px;
 		height: 100vh;
 		display: flex;
 		flex-flow: column nowrap;
@@ -101,6 +101,7 @@
 		color: white;
 		padding: 10px;
 		z-index: 2000;
+		overflow: auto;
 	}
 	#toolSidebar button {
 		width: calc(100% - 10px);
@@ -215,6 +216,8 @@ Tools:
 	Move: Drag to move the selected parts around
 	Paste: Paste parts from the clipboard as many times as you want
 	Spring: Drag between two circles to create a spring between those circles
+	Circle: Creates a circle where you click
+	Softbody: Creates a 10x10 grid of interconnected springs and circles
 Buttons:
 	Copy: Copies the selected parts to the clipboard
 	Delete: Deletes the selected parts

@@ -1,11 +1,11 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth - 120; // leave space for sidebar
+canvas.width = window.innerWidth - 150; // leave space for sidebar
 canvas.height = window.innerHeight;
 
 window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth - 120; // leave space for sidebar;
+  canvas.width = window.innerWidth - 150; // leave space for sidebar
   canvas.height = window.innerHeight;
 });
 
