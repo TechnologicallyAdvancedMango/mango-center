@@ -1918,14 +1918,14 @@ function mainLoop() {
   fps = 1 / deltaTime;
 
   if (fps > targetFPS) {
-    // Running faster than target -> add one physics step
-    frameMultiplier++;
+    // Running faster than target -> add physics steps
+    frameMultiplier += Math.round(Math.abs(targetFPS - fps));
   } else if (fps < targetFPS) {
-    // Running slower than target -> remove one physics step
-    frameMultiplier--;
+    // Running slower than target -> remove physics steps
+    frameMultiplier -= Math.round(Math.abs(targetFPS - fps));
   }
 
-  frameMultiplier = Math.max(frameMultiplier, 5); // Minimum of 5 steps per frame
+  frameMultiplier = Math.min(Math.max(frameMultiplier, 5), 100); // Max of 50, min of 5
 
 
   // Simulation deltaTime is scaled by speed
