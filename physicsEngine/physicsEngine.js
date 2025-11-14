@@ -630,12 +630,6 @@ function resolveCircleRectangle(circle, rect) {
   const worldNX = nx * cos + ny * sin;
   const worldNY = -nx * sin + ny * cos;
 
-  // Position correction
-  if (!circle.anchored) {
-    circle.x += worldNX * overlap;
-    circle.y += worldNY * overlap;
-  }
-
   // Velocity reflection
   const dot = circle.vx * worldNX + circle.vy * worldNY;
   if (dot > 0) return;
@@ -643,6 +637,12 @@ function resolveCircleRectangle(circle, rect) {
   const restitution = Math.min(circle.restitution, rect.restitution);
   circle.vx -= (1 + restitution) * dot * worldNX;
   circle.vy -= (1 + restitution) * dot * worldNY;
+
+  // Position correction
+  if (!circle.anchored) {
+    circle.x += worldNX * overlap;
+    circle.y += worldNY * overlap;
+  }
 }
 
 function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
@@ -782,11 +782,21 @@ function findObjectAt(x, y) {
 // Select box
 let dragSelectStart = null;
 let dragSelectEnd = null;
- 
-canvas.addEventListener("mousedown", (e) => {
+
+function handlePointerDown(e) {
   const x = e.offsetX;
   const y = e.offsetY;
   const clicked = findObjectAt(x, y);
+
+  if (justOpenedMenu) {
+    justOpenedMenu = false;
+    return; // skip the click that opened the menu
+  }
+
+  const menu = document.getElementById("propertyMenu");
+  if (propertyMenuOpen && !menu.contains(e.target)) {
+    applyChangesAndClose();
+  }
 
   // left click
   if (e.button === 0) {
@@ -887,9 +897,8 @@ canvas.addEventListener("mousedown", (e) => {
       }
     }
   }
-});
-
-canvas.addEventListener("mousemove", (e) => {
+}
+function handlePointerMove(e) {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
 
@@ -969,10 +978,8 @@ canvas.addEventListener("mousemove", (e) => {
     dragStartX = worldX;
     dragStartY = worldY;
   }
-});
-
-
-canvas.addEventListener("mouseup", (e) => {
+}
+function handlePointerUp(e) {
   const mouseX = e.offsetX;
   const mouseY = e.offsetY;
 
@@ -1062,7 +1069,7 @@ canvas.addEventListener("mouseup", (e) => {
     dragSelectEnd = null;
     isDraggingSelection = false;
   }
-});
+}
 
 
 function deleteSelected() {
@@ -1334,17 +1341,6 @@ function applyChangesAndClose() {
   propertyMenuOpen = false;
 }
 
-document.addEventListener("mousedown", (e) => {
-  if (justOpenedMenu) {
-    justOpenedMenu = false;
-    return; // skip the click that opened the menu
-  }
-
-  const menu = document.getElementById("propertyMenu");
-  if (propertyMenuOpen && !menu.contains(e.target)) {
-    applyChangesAndClose();
-  }
-});
 
 // Actions
 document.addEventListener("keydown", (e) => {
@@ -1806,6 +1802,23 @@ for(let i = 0; i < 10; i++) {
   );
 }
 */
+
+canvas.addEventListener("mousedown", handlePointerDown);
+canvas.addEventListener("mousemove", handlePointerMove);
+canvas.addEventListener("mouseup", handlePointerUp);
+
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  handlePointerDown(e);
+});
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  handlePointerMove(e);
+});
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  handlePointerUp(e);
+});
 
 function mainLoop() {
   const maxFrameTime = 0.1; // 10 FPS floor
