@@ -604,12 +604,55 @@ function resolveCircleRectangle(circle, rect) {
   const dx = circle.x - rect.x;
   const dy = circle.y - rect.y;
 
-  // Transform to rectangle's local space
+  // Transform circle center into rectangle's local space
   const localX = dx * cos - dy * sin;
   const localY = dx * sin + dy * cos;
 
   const halfW = rect.width / 2;
   const halfH = rect.height / 2;
+
+  // --- Containment check: circle center inside rectangle ---
+  const inside =
+    localX > -halfW && localX < halfW &&
+    localY > -halfH && localY < halfH;
+
+  if (inside) {
+    // Distances to each side
+    const distLeft   = localX + halfW;
+    const distRight  = halfW - localX;
+    const distTop    = localY + halfH;
+    const distBottom = halfH - localY;
+
+    // Find nearest side
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+    let nx = 0, ny = 0;
+    if (minDist === distLeft)   { nx = -1; ny = 0; }
+    else if (minDist === distRight) { nx = 1; ny = 0; }
+    else if (minDist === distTop)   { nx = 0; ny = -1; }
+    else if (minDist === distBottom){ nx = 0; ny = 1; }
+
+    // Transform normal back to world space
+    const worldNX = nx * cos + ny * sin;
+    const worldNY = -nx * sin + ny * cos;
+
+    // Push circle out by radius
+    if (!circle.anchored) {
+      circle.x += worldNX * circle.radius;
+      circle.y += worldNY * circle.radius;
+    }
+
+    // Reflect velocity
+    const dot = circle.vx * worldNX + circle.vy * worldNY;
+    if (dot < 0) {
+      const restitution = Math.min(circle.restitution, rect.restitution);
+      circle.vx -= (1 + restitution) * dot * worldNX;
+      circle.vy -= (1 + restitution) * dot * worldNY;
+    }
+
+    return; // containment handled
+  }
+
+  // --- Closest point test (standard circle vs rectangle edge) ---
   const closestX = Math.max(-halfW, Math.min(localX, halfW));
   const closestY = Math.max(-halfH, Math.min(localY, halfH));
 
@@ -620,9 +663,8 @@ function resolveCircleRectangle(circle, rect) {
 
   const dist = Math.sqrt(distSq);
   const overlap = circle.radius - dist;
-
   if (overlap <= 0) return;
-  
+
   const nx = distX / dist;
   const ny = distY / dist;
 
@@ -630,7 +672,7 @@ function resolveCircleRectangle(circle, rect) {
   const worldNX = nx * cos + ny * sin;
   const worldNY = -nx * sin + ny * cos;
 
-  // Velocity reflection
+  // Reflect velocity
   const dot = circle.vx * worldNX + circle.vy * worldNY;
   if (dot > 0) return;
 
@@ -644,6 +686,7 @@ function resolveCircleRectangle(circle, rect) {
     circle.y += worldNY * overlap;
   }
 }
+
 
 function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
   const {
