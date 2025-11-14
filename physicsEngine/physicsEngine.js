@@ -1791,14 +1791,16 @@ function openEnvSettings() {
   // Get references to inputs
   const fpsInput = document.getElementById("targetFPSInput");
   const gravityInput = document.getElementById("gravityInput");
-  const speedInput = document.getElementById("airInput");
+  const speedInput = document.getElementById("speedInput");
   const airInput = document.getElementById("airInput");
+  const frameMultiplierCheckbox = document.getElementById("frameMultiplierCheckbox");
 
   // Populate with current engine values
   fpsInput.value = targetFPS;
   gravityInput.value = gravity;
   speedInput.value = speed;
   airInput.value = drag;
+  frameMultiplierCheckbox.value = adaptiveFrameMultiplier; // ? "yes" : "no";
 
   // Show the menu
   document.getElementById("envSettings").style.display = "block";
@@ -1814,6 +1816,7 @@ function applyEnvSettings() {
   gravity = parseFloat(document.getElementById("gravityInput").value);
   speed = parseFloat(document.getElementById("speedInput").value);
   drag = parseFloat(document.getElementById("airInput").value);
+  adaptiveFrameMultiplier = parseFloat(document.getElementById("frameMultiplierCheckbox").value);
 
   closeEnvSettings();
 }
