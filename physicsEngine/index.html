@@ -66,13 +66,15 @@
 		right: 2px;
 		width: max-content;
 		max-width: 100vw;
+		max-height: calc(100vh - 80px);
 		white-space: pre-wrap;
   		content: attr(data-tooltip);
   		border: 1px solid black;
 		border-radius: 5px;
   		background: #202020f0;
   		padding: 10px;
-		margin: 10px;
+		margin: 0px;
+		overflow: auto;
 	}
 
 	#pauseIcon {
@@ -233,7 +235,11 @@
 <div id="propertyMenu"></div>
 <div id="envSettings">
 	<h3>Environment Settings</h3>
-  
+
+	<label>Adaptive frameMultiplier:
+    	<input type="checkbox" id="frameMultiplierCheckbox" value="yes">
+  	</label><br><br>
+
 	<label>Target FPS:
 		<input type="number" id="targetFPSInput" value="60" min="1" max="240">
   	</label><br><br>
@@ -248,10 +254,6 @@
   
   	<label>Air Resistance:
     	<input type="number" id="airInput" value="0.01" step="0.001">
-  	</label><br><br>
-
-  	<label>Adaptive frameMultiplier:
-    	<input type="checkbox" id="frameMultiplierCheckbox" value="yes">
   	</label><br><br>
   
   <button onclick="applyEnvSettings()">Apply</button>
@@ -270,6 +272,7 @@ Tools:
 	Spring: Drag between two circles to create a spring between those circles
 	Circle: Creates a circle where you click
 	Softbody: Creates a 10x10 grid of interconnected springs and circles
+
 Buttons:
 	Copy: Copies the selected parts to the clipboard
 	Delete: Deletes the selected parts
@@ -277,6 +280,21 @@ Buttons:
 		You can only edit the properties of the same type of part at the same time.
 		Click the X in the top right or press enter in a text field to apply properties.
 		Leave a field empty when selecting multiple parts to leave that property unchanged.
+
+Environment Settings:
+	Adaptive frameMultiplier: Adjust physics calculations to minimize lag
+		Default: On
+		Reduces collision accuracy when laggy to keep rendering smooth.
+	Target FPS: The target FPS for the Adaptive frameMultiplier
+		Default: 60
+		Springs freak out when this is adjusted while running.
+	Gravity: Changes the gravity value of the simulation
+		Default: 1000
+	Simulation Speed: Changes the speed of the simulation
+		Default: 1
+	Air Resistance: Changes the effect of air resistance (drag) on objects in the simulation
+		Defualt: 0.01
+
 Experimental/Broken:
 	Pan: Pan the camera
 	Reset View: Resets the camera's position

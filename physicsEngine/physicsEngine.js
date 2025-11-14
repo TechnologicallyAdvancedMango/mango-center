@@ -7,11 +7,14 @@ canvas.height = window.innerHeight;
 window.addEventListener("resize", () => {
   canvas.width = window.innerWidth - 150; // leave space for sidebar
   canvas.height = window.innerHeight;
+
+  lastTime = performance.now();
 });
 
 let frameMultiplier = 20; // is changed automatically if adaptiveFrameMultiplier is true
-let adaptiveFrameMultiplier = false;
+let adaptiveFrameMultiplier = true;
 let targetFPS = 60;
+let fps = 0;
 
 let speed = 1.0;
 
@@ -90,6 +93,14 @@ let springWidth = "3";
 
 // Width used for collision detection
 let springPhysicalWidth = "5";
+
+// Get environment settings from localStorage
+targetFPS = localStorage.getItem("targetFPS") ?? 60;
+gravity = localStorage.getItem("gravity") ?? 1000;
+speed = localStorage.getItem("speed") ?? 1.0;
+drag = localStorage.getItem("drag") ?? 0.01;
+adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") ?? true;
+
 
 let circles = [];
 let rectangles = [];
@@ -186,7 +197,7 @@ class Spring {
 
     const dampingForce = this.damping * relativeVel;
 
-    const totalForce = springForce + dampingForce;
+    const totalForce = (springForce + dampingForce) * dt;
 
     const fx = nx * totalForce;
     const fy = ny * totalForce;
@@ -201,19 +212,19 @@ class Spring {
     const fbRatio = ma / totalMass;
 
     if (!this.a.anchored) {
-      this.a.vx += fx * faRatio * dt / ma;
-      this.a.vy += fy * faRatio * dt / ma;
+      this.a.vx += fx * faRatio / ma;
+      this.a.vy += fy * faRatio / ma;
     }
     if (!this.b.anchored) {
-      this.b.vx -= fx * fbRatio * dt / mb;
-      this.b.vy -= fy * fbRatio * dt / mb;
+      this.b.vx -= fx * fbRatio / mb;
+      this.b.vy -= fy * fbRatio / mb;
     }
 
     // Rigid constraint remains unchanged
     if (this.rigid) {
       const correction = this.restLength - dist;
       if (Math.abs(correction) > 0.01) {
-        const maxCorrection = 20; // limit max correction
+        const maxCorrection = 20 * (dt / (1 / targetFPS)); // limit max correction relative to time
         const clamped = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
 
         if (!this.a.anchored && !this.b.anchored) {
@@ -639,10 +650,10 @@ function resolveCircleRectangle(circle, rect) {
     const worldNX = nx * cos + ny * sin;
     const worldNY = -nx * sin + ny * cos;
 
-    // Push circle out by radius
+    // Push circle out by the amount of overlap
     if (!circle.anchored) {
-      circle.x += worldNX * circle.radius;
-      circle.y += worldNY * circle.radius;
+      circle.x += worldNX * minDist;
+      circle.y += worldNY * minDist;
     }
 
     // Reflect velocity
@@ -1818,6 +1829,13 @@ function applyEnvSettings() {
   drag = parseFloat(document.getElementById("airInput").value);
   adaptiveFrameMultiplier = document.getElementById("frameMultiplierCheckbox").checked;
 
+  // Save values to localStorage
+  localStorage.setItem("targetFPS", targetFPS);
+  localStorage.setItem("gravity", gravity);
+  localStorage.setItem("speed", speed);
+  localStorage.setItem("drag", drag);
+  localStorage.setItem("adaptiveFrameMultiplier", adaptiveFrameMultiplier);
+
   closeEnvSettings();
 }
 
@@ -1909,17 +1927,20 @@ canvas.addEventListener("touchend", (e) => {
   handlePointerUp(e);
 });
 
-let fps = 0;
+
 
 function mainLoop() {
-  const maxFrameTime = 0.1; // 10 FPS floor
+  const maxFrameTime = 0.05; // 20 FPS floor
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
+  deltaTime = Math.max(0.0001, Math.min(deltaTime, maxFrameTime)); // to prevent division by 0
   lastTime = now;
   deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
 
-  fps = 1 / deltaTime;
+  const alpha = 0.1; // fps smoothing factor
+  fps = fps * (1 - alpha) + (1 / deltaTime) * alpha;
+
 
   if(adaptiveFrameMultiplier) {
     if (fps > targetFPS) {
@@ -1929,7 +1950,7 @@ function mainLoop() {
       // Running slower than target -> remove physics steps
       frameMultiplier -= Math.round(Math.abs(targetFPS - fps));
     }
-    frameMultiplier = Math.min(Math.max(frameMultiplier, 5), 100); // Max of 100, min of 5
+    frameMultiplier = Math.min(Math.max(frameMultiplier, 1), 100); // Max of 100, min of 1
   }
 
   // Simulation deltaTime is scaled by speed
