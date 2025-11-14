@@ -267,9 +267,9 @@ class Spring {
     const dx = this.b.x - this.a.x;
     const dy = this.b.y - this.a.y;
     const lengthSq = dx * dx + dy * dy;
-    const length = Math.sqrt(lengthSq);
-    if (length === 0) return;
+    if (lengthSq < 0.0001) return;
 
+    const length = Math.sqrt(lengthSq);
     const nx = dx / length;
     const ny = dy / length;
 
@@ -277,6 +277,7 @@ class Spring {
     for (let circle of circles) {
       if (circle === this.a || circle === this.b) continue;
 
+      // Project circle center onto spring segment
       const t = ((circle.x - this.a.x) * dx + (circle.y - this.a.y) * dy) / lengthSq;
       if (t < 0 || t > 1) continue;
 
@@ -291,19 +292,19 @@ class Spring {
       if (distSq < minDist * minDist) {
         const dist = Math.sqrt(distSq) || 0.001;
         const overlap = minDist - dist;
-        const pushX = distX / dist * overlap;
-        const pushY = distY / dist * overlap;
+        const nxC = distX / dist;
+        const nyC = distY / dist;
 
-        if(!circle.anchored) {
-          circle.x += pushX;
-          circle.y += pushY;
+        // Position correction
+        if (!circle.anchored) {
+          circle.x += nxC * overlap;
+          circle.y += nyC * overlap;
         }
 
-        const relVel = circle.vx * (distX / dist) + circle.vy * (distY / dist);
+        // Velocity impulse
+        const relVel = circle.vx * nxC + circle.vy * nyC;
         if (relVel < 0) {
           const restitution = this.restitution;
-          const nx = distX / dist;
-          const ny = distY / dist;
 
           const ma = this.a.mass ?? 1;
           const mb = this.b.mass ?? 1;
@@ -313,13 +314,13 @@ class Spring {
           const invMb = this.b.anchored ? 0 : 1 / mb;
           const invMc = circle.anchored ? 0 : 1 / mc;
 
-          const totalInvMass = invMa * (1 - t) ** 2 + invMb * t ** 2 + invMc;
-          if (totalInvMass === 0) return;
+          // Linear weights for endpoints
+          const totalInvMass = invMa * (1 - t) + invMb * t + invMc;
+          if (totalInvMass === 0) continue;
 
           const impulseMag = -(1 + restitution) * relVel / totalInvMass;
-
-          const impulseX = impulseMag * nx;
-          const impulseY = impulseMag * ny;
+          const impulseX = impulseMag * nxC;
+          const impulseY = impulseMag * nyC;
 
           if (!circle.anchored) {
             circle.vx += impulseX * invMc;
@@ -342,15 +343,15 @@ class Spring {
       const halfW = rect.width / 2;
       const halfH = rect.height / 2;
 
-      // Clamp spring projection to rectangle bounds
-      const closestX = Math.max(rect.x - halfW, Math.min(this.a.x, rect.x + halfW));
-      const closestY = Math.max(rect.y - halfH, Math.min(this.a.y, rect.y + halfH));
+      // Find closest point on spring segment to rectangle center
+      const t = ((rect.x - this.a.x) * dx + (rect.y - this.a.y) * dy) / lengthSq;
+      const clampedT = Math.max(0, Math.min(1, t));
+      const springX = this.a.x + clampedT * dx;
+      const springY = this.a.y + clampedT * dy;
 
-      const t = ((closestX - this.a.x) * dx + (closestY - this.a.y) * dy) / lengthSq;
-      if (t < 0 || t > 1) continue;
-
-      const springX = this.a.x + t * dx;
-      const springY = this.a.y + t * dy;
+      // Clamp that point to rectangle bounds
+      const closestX = Math.max(rect.x - halfW, Math.min(springX, rect.x + halfW));
+      const closestY = Math.max(rect.y - halfH, Math.min(springY, rect.y + halfH));
 
       const distX = closestX - springX;
       const distY = closestY - springY;
@@ -360,27 +361,38 @@ class Spring {
       if (distSq < minDist * minDist) {
         const dist = Math.sqrt(distSq) || 0.001;
         const overlap = minDist - dist;
-        const nx = distX / dist;
-        const ny = distY / dist;
+        const nxR = distX / dist;
+        const nyR = distY / dist;
 
+        // Position correction distributed
         if (!rect.anchored) {
-          rect.x += nx * overlap;
-          rect.y += ny * overlap;
+          rect.x += nxR * overlap * 0.5;
+          rect.y += nyR * overlap * 0.5;
+        }
+        if (!this.a.anchored) {
+          this.a.x -= nxR * overlap * (1 - clampedT) * 0.5;
+          this.a.y -= nyR * overlap * (1 - clampedT) * 0.5;
+        }
+        if (!this.b.anchored) {
+          this.b.x -= nxR * overlap * clampedT * 0.5;
+          this.b.y -= nyR * overlap * clampedT * 0.5;
+        }
 
-          const relVel = rect.vx * nx + rect.vy * ny;
-          if (relVel < 0) {
-            const bounce = -relVel * this.restitution;
-            rect.vx += nx * bounce;
-            rect.vy += ny * bounce;
-
-            if (!this.a.anchored) {
-              this.a.vx -= nx * bounce * (1 - t);
-              this.a.vy -= ny * bounce * (1 - t);
-            }
-            if (!this.b.anchored) {
-              this.b.vx -= nx * bounce * t;
-              this.b.vy -= ny * bounce * t;
-            }
+        // Velocity impulse
+        const relVel = rect.vx * nxR + rect.vy * nyR;
+        if (relVel < 0) {
+          const bounce = -relVel * this.restitution;
+          if (!rect.anchored) {
+            rect.vx += nxR * bounce;
+            rect.vy += nyR * bounce;
+          }
+          if (!this.a.anchored) {
+            this.a.vx -= nxR * bounce * (1 - clampedT);
+            this.a.vy -= nyR * bounce * (1 - clampedT);
+          }
+          if (!this.b.anchored) {
+            this.b.vx -= nxR * bounce * clampedT;
+            this.b.vy -= nyR * bounce * clampedT;
           }
         }
       }
@@ -1938,7 +1950,7 @@ function mainLoop() {
   lastTime = now;
   deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
 
-  const alpha = 0.1; // fps smoothing factor
+  const alpha = 0.2; // fps smoothing factor
   fps = fps * (1 - alpha) + (1 / deltaTime) * alpha;
 
 
