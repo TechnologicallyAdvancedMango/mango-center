@@ -4,30 +4,39 @@
     <title>Mango Center</title>
     <link rel="icon" type="image/x-icon" href="/images/mango.png">
     <style>
+      h1 {
+        font-size: 40px;
+      }
       #description {
         font-size: medium;
       }
       #search {
-        width: 25%;
+        margin-top: 160px;
+        margin-left: 15px;
+        padding: 5px;
+        field-sizing: content;
+        min-width: 300px;
+        max-width: calc(100% - 40px);
         border: 3px solid black;
         border-radius: 5px;
-        font-size: 2vw;
+        font-size: 30px;
         background-color: white;
       }
       #span {
         color: black;
+        background-color: white;
         border-style: solid;
         border-color: black;
-        border-radius: 5px;
-        border-width: 3px;
+        border-radius: 25px;
+        border-width: 4px;
+        font-size: 25px;
+        padding: 10px;
       }
       #clock {
-        position: absolute;
-        top: 0;
-        left: 0;
-        padding: 3px;
-        margin: 3px;
-        font-size: 3vw;
+        justify-self: flex-start;
+        padding: 10px;
+        margin: 5px;
+        color: black;
       }
       #description {
         text-align: center;
@@ -40,7 +49,7 @@
         margin: 10px;
         border: solid;
         border-color: black;
-        border-width: 5px;
+        border-width: 4px;
         border-radius: 25px;
         background-color: rgb(82, 196, 248);
         color: black;
@@ -58,27 +67,31 @@
         color:black;
         text-align: center;
       }
-      li::marker {
-        font-size: 3em;
-      }
-      li:not(:last-child) {
-        margin-bottom: 30px;
-      }
-      .gameLi {
+      #games {
+        display: flex;
+        flex-flow: row wrap;
+        justify-content: center;
+        align-items: flex-start;
         background-color: white;
-        padding: 5px
-        font-size: 3vw;
+        padding: 5px;
+        font-size: 50px;
       }
-      .gameh3 {
+      #games a {
+        padding: 10px;
+        margin: 10px;
+        border: solid;
+        border-color: black;
+        border-width: 4px;
+        border-radius: 25px;
+        background-color: rgb(82, 196, 248);
         color: black;
-      }
-      #listDiv {
-        margin: 150px 5px 5px 20%;
+        text-decoration: none;
+        font-size: 50px;
       }
       #headerDiv {
         background-color: rgb(82, 196, 248);
         width: 100%;
-        height: 100px;
+        height: 130px;
         top: 0;
         left: 0;
         position: fixed;
@@ -86,90 +99,85 @@
         padding: 5px;
         border-bottom: 5px solid black;
       }
+      #headerLinks {
+        display: flex;
+        flex-flow: row nowrap;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        padding: 5px 20px;
+        box-sizing: border-box;
+        position: absolute;
+        top: 5px;
+        left: 0;
+      }
+      #headerLinks a {
+        float: right;
+        padding: 10px;
+        margin: 5px;
+        margin-right: 20px;
+        border: solid;
+        border-color: black;
+        border-width: 4px;
+        border-radius: 25px;
+        background-color: rgb(255, 255, 255);
+        color: black;
+        text-decoration: none;
+        font-size: 25px;
+      }
     </style>
   </head>
-  <body>
-    <div id="headerDiv">
+<body>
+  <div id="headerDiv">
+    <h1 id="title">Mango Center</h1>
+    <h2 id="description">A collection of stuff I have made</h2>
+
+    <div id="headerLinks">
       <div id="clock">
         <span id="span"></span>
       </div>
-      <h1 id="title">Mango Center</h1>
-      <h2 id="description">A collection of stuff I have made</h2>
+      <div id="navLinks">
+        <a href="https://github.com/TechnologicallyAdvancedMango/mango-center/">Github Repo</a>
+        <a href="/credits.html">Credits</a>
+      </div>
     </div>
-    <div id="listDiv">
-    <input type="text" id="search" onkeyup="searchGames()" placeholder="Search..." title="Search">
-    <br>
-    <ul id="gameList">
-      <li id="gameLi">
-        <a href="https://www.themango.click/dodge?tutorial=true" class="play">Dodge</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/physicsEngine/" class="play">Physics Engine</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/gameOfLife" class="play">Game of Life</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/bouncingRectangle" class="play">Bouncing Rectangle</a>
-      </li>
-      <li  id="gameLi">
-        <a href="https://www.themango.click/snake" class="play">Snake</a>
-      </li>
-      <li  id="gameLi">
-        <a href="https://www.themango.click/jsConsole.html" class="play">JS Console</a>
-      </li>
-      <li  id="gameLi">
-        <a href="https://www.themango.click/globalClicker" class="play">Global Clicker</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4" class="play">Maneuver</a>
-      </li>
-      <li  id="gameLi">
-        <a href="https://www.themango.click/clock" class="play">Clock</a>
-      </li>
-      <li  id="gameLi">
-        <a href="https://www.themango.click/bad-apple" class="play">Bad Apple</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/mangoclicker" class="play">Mango Clicker</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/magic8ball" class="play">Magic 8 Ball</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://freemcserver.net/server/1777905" class="play">My Minecraft Server</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/credits" class="play">Credits</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://github.com/TechnologicallyAdvancedMango/mango-center/" class="play">Github Repo</a>
-      </li>
-      <!--
-      Broken/bad
-      <li id="gameLi">
-        <a href="https://www.themango.click/mangojumper" class="play">Mango Jumper</a>
-      </li>
-      <li id="gameLi">
-        <a href="https://www.themango.click/pong/index.html" class="play">Pong</a>
-      </li>
-      -->
-    </ul>
-    </div>
-    <script>
+  </div>
+  <input type="text" id="search" onkeyup="searchGames()" placeholder="Search..." title="Search">
+  <br>
+  <div id="games">
+    <a href="/dodge.html?tutorial=true">Dodge</a>
+    <a href="/physicsEngine/">Physics Engine</a>
+    <a href="/gameOfLife.html">Game of Life</a>
+    <a href="/bouncingRectangle/">Bouncing Rectangle</a>
+    <a href="/snake.html">Snake</a>
+    <a href="/clock.html">Clock</a>
+    <a href="/jsConsole.html">JS Console</a>
+    <a href="/globalClicker.html">Global Clicker</a>
+    <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4">Maneuver</a>
+    <a href="/bad-apple/">HTML5 Bad Apple</a>
+    <a href="/mangoclicker.html">Mango Clicker</a>
+    <a href="/magic8ball.html">Magic 8 Ball</a>
+    <a href="https://freemcserver.net/server/1777905">My Minecraft Server</a>
+    <!--
+    Broken/bad
+      <a href="/mangojumper.html">Mango Jumper</a>
+      <a href="/pong/index.html">Pong</a>
+    -->
+  </div>
+<script>
 function searchGames() {
-  var input, filter, ul, li, a, i;
-  input = document.getElementById("search");
-  filter = input.value.toUpperCase();
-  ul = document.getElementById("gameList");
-  li = ul.getElementsByTagName("li");
-  
-  for (i = 0; i < li.length; i++) {
-    a = li[i].getElementsByTagName("a")[0];
-    if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
-      li[i].style.display = "";
+  var input = document.getElementById("search");
+  var filter = input.value.toUpperCase();
+  var container = document.getElementById("games");
+  var links = container.getElementsByTagName("a");
+
+  for (var i = 0; i < links.length; i++) {
+    var a = links[i];
+    if (a.textContent.toUpperCase().indexOf(filter) > -1) {
+      a.style.display = "";
     } else {
-      li[i].style.display = "none";
+      a.style.display = "none";
     }
   }
 }
@@ -185,10 +193,8 @@ function time() {
     ("0" + h).substr(-2) + ":" + ("0" + m).substr(-2) + ":" + ("0" + s).substr(-2);
 }
 setInterval(time, 1000);
-
-
-    </script>
-  </body>
+</script>
+</body>
 </html>
 
 
