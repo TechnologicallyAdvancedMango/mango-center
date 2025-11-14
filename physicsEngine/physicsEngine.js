@@ -9,7 +9,8 @@ window.addEventListener("resize", () => {
   canvas.height = window.innerHeight;
 });
 
-let frameMultiplier = 20; // is changed automatically
+let frameMultiplier = 20; // is changed automatically if adaptiveFrameMultiplier is true
+let adaptiveFrameMultiplier = false;
 let targetFPS = 60;
 
 let speed = 1.0;
@@ -1917,16 +1918,16 @@ function mainLoop() {
 
   fps = 1 / deltaTime;
 
-  if (fps > targetFPS) {
-    // Running faster than target -> add physics steps
-    frameMultiplier += Math.round(Math.abs(targetFPS - fps));
-  } else if (fps < targetFPS) {
-    // Running slower than target -> remove physics steps
-    frameMultiplier -= Math.round(Math.abs(targetFPS - fps));
+  if(adaptiveFrameMultiplier) {
+    if (fps > targetFPS) {
+      // Running faster than target -> add physics steps
+      frameMultiplier += Math.round(Math.abs(targetFPS - fps));
+    } else if (fps < targetFPS) {
+      // Running slower than target -> remove physics steps
+      frameMultiplier -= Math.round(Math.abs(targetFPS - fps));
+    }
+    frameMultiplier = Math.min(Math.max(frameMultiplier, 5), 100); // Max of 100, min of 5
   }
-
-  frameMultiplier = Math.min(Math.max(frameMultiplier, 5), 100); // Max of 50, min of 5
-
 
   // Simulation deltaTime is scaled by speed
   const simDelta = (deltaTime * speed) / frameMultiplier;
