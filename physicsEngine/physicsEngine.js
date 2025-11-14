@@ -1816,7 +1816,7 @@ function applyEnvSettings() {
   gravity = parseFloat(document.getElementById("gravityInput").value);
   speed = parseFloat(document.getElementById("speedInput").value);
   drag = parseFloat(document.getElementById("airInput").value);
-  adaptiveFrameMultiplier = parseFloat(document.getElementById("frameMultiplierCheckbox").checked);
+  adaptiveFrameMultiplier = document.getElementById("frameMultiplierCheckbox").checked;
 
   closeEnvSettings();
 }
