@@ -9,7 +9,10 @@ window.addEventListener("resize", () => {
   canvas.height = window.innerHeight;
 });
 
-let frameMultiplier = 20;
+let frameMultiplier = 20; // is changed automatically
+let targetFPS = 60;
+
+let speed = 1.0;
 
 let showStress = true; // or false to disable
 
@@ -1591,6 +1594,12 @@ function renderSoftbodyPreview() {
   }
 }
 
+function showFPS() {
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.fillText("FPS: " + Math.round(fps), 25, 25);
+}
+
 function render() {
   ctx.save();
   ctx.translate(panX, panY);
@@ -1626,6 +1635,7 @@ function render() {
   ctx.restore();
   // out of world UI
   renderToolOverlay();
+  showFPS();
 }
 
 function clearScreen() {
@@ -1776,6 +1786,38 @@ function loadGameState(file) {
   reader.readAsText(file);
 }
 
+function openEnvSettings() {
+  // Get references to inputs
+  const fpsInput = document.getElementById("targetFPSInput");
+  const gravityInput = document.getElementById("gravityInput");
+  const speedInput = document.getElementById("airInput");
+  const airInput = document.getElementById("airInput");
+
+  // Populate with current engine values
+  fpsInput.value = targetFPS;
+  gravityInput.value = gravity;
+  speedInput.value = speed;
+  airInput.value = drag;
+
+  // Show the menu
+  document.getElementById("envSettings").style.display = "block";
+}
+
+function closeEnvSettings() {
+  document.getElementById("envSettings").style.display = "none";
+}
+
+function applyEnvSettings() {
+  // Read values from inputs
+  targetFPS = parseInt(document.getElementById("targetFPSInput").value, 10);
+  gravity = parseFloat(document.getElementById("gravityInput").value);
+  speed = parseFloat(document.getElementById("speedInput").value);
+  drag = parseFloat(document.getElementById("airInput").value);
+
+  closeEnvSettings();
+}
+
+
 
 // semi-elastic square
 let circle1 = new Circle(100, 200, 35, false, 1);
@@ -1863,18 +1905,35 @@ canvas.addEventListener("touchend", (e) => {
   handlePointerUp(e);
 });
 
+let fps = 0;
+
 function mainLoop() {
   const maxFrameTime = 0.1; // 10 FPS floor
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
-  deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
-  const subDelta = deltaTime / frameMultiplier;
   lastTime = now;
+  deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
+
+  fps = 1 / deltaTime;
+
+  if (fps > targetFPS) {
+    // Running faster than target -> add one physics step
+    frameMultiplier++;
+  } else if (fps < targetFPS) {
+    // Running slower than target -> remove one physics step
+    frameMultiplier--;
+  }
+
+  frameMultiplier = Math.max(frameMultiplier, 5); // Minimum of 5 steps per frame
+
+
+  // Simulation deltaTime is scaled by speed
+  const simDelta = (deltaTime * speed) / frameMultiplier;
   
   if(!isPaused && windowFocused) {
     for (let i = 0; i < frameMultiplier; i++) {
-      simulate(subDelta);
+      simulate(simDelta);
     }
 
     if (draggingCircle && !draggingCircle.anchored) {
@@ -1894,5 +1953,4 @@ function mainLoop() {
 
   requestAnimationFrame(mainLoop);
 }
-
 requestAnimationFrame(mainLoop);

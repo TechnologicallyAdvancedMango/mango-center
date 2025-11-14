@@ -169,6 +169,17 @@
 	#creation button {
 		background: rgb(67, 95, 67);
 	}
+	#envSettings {
+		display:none;
+		position:absolute;
+		top:50px;
+		left:200px; 
+		background:#222;
+		color:#fff;
+		padding:15px;
+		border-radius:8px;
+		z-index:3000;
+	}
 </style>
 </head>
 <body>
@@ -203,6 +214,7 @@
 		font-size: 16px;
 		cursor: pointer;">
 		<button onclick="saveGameState()">💾 Save</button>
+		<button onclick="openEnvSettings()">Environment Settings</button>
 	</div>
 
   	<div id="creation">
@@ -219,6 +231,28 @@
 	</div>
 </div>
 <div id="propertyMenu"></div>
+<div id="envSettings">
+  <h3>Environment Settings</h3>
+  
+  <label>Target FPS:
+    <input type="number" id="targetFPSInput" value="60" min="1" max="240">
+  </label><br><br>
+  
+  <label>Gravity:
+    <input type="number" id="gravityInput" value="1000" step="10">
+  </label><br><br>
+
+  <label>Simulation Speed:
+    <input type="number" id="speedInput" value="1.0" step="0.01">
+  </label><br><br>
+  
+  <label>Air Resistance:
+    <input type="number" id="airInput" value="0.01" step="0.001">
+  </label><br><br>
+  
+  <button onclick="applyEnvSettings()">Apply</button>
+  <button onclick="closeEnvSettings()">Close</button>
+</div>
 <div id="pauseIcon">| |</div>
 <div id="help" data-tooltip=
 "Controls:
