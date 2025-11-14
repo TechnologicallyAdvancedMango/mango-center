@@ -1800,7 +1800,7 @@ function openEnvSettings() {
   gravityInput.value = gravity;
   speedInput.value = speed;
   airInput.value = drag;
-  frameMultiplierCheckbox.value = adaptiveFrameMultiplier; // ? "yes" : "no";
+  frameMultiplierCheckbox.checked = adaptiveFrameMultiplier;
 
   // Show the menu
   document.getElementById("envSettings").style.display = "block";
@@ -1816,7 +1816,7 @@ function applyEnvSettings() {
   gravity = parseFloat(document.getElementById("gravityInput").value);
   speed = parseFloat(document.getElementById("speedInput").value);
   drag = parseFloat(document.getElementById("airInput").value);
-  adaptiveFrameMultiplier = parseFloat(document.getElementById("frameMultiplierCheckbox").value);
+  adaptiveFrameMultiplier = parseFloat(document.getElementById("frameMultiplierCheckbox").checked);
 
   closeEnvSettings();
 }
