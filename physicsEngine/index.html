@@ -232,23 +232,27 @@
 </div>
 <div id="propertyMenu"></div>
 <div id="envSettings">
-  <h3>Environment Settings</h3>
+	<h3>Environment Settings</h3>
   
-  <label>Target FPS:
-    <input type="number" id="targetFPSInput" value="60" min="1" max="240">
-  </label><br><br>
+	<label>Target FPS:
+		<input type="number" id="targetFPSInput" value="60" min="1" max="240">
+  	</label><br><br>
   
-  <label>Gravity:
-    <input type="number" id="gravityInput" value="1000" step="10">
-  </label><br><br>
+  	<label>Gravity:
+    	<input type="number" id="gravityInput" value="1000" step="10">
+  	</label><br><br>
 
-  <label>Simulation Speed:
-    <input type="number" id="speedInput" value="1.0" step="0.01">
-  </label><br><br>
+  	<label>Simulation Speed:
+    	<input type="number" id="speedInput" value="1.0" step="0.01">
+  	</label><br><br>
   
-  <label>Air Resistance:
-    <input type="number" id="airInput" value="0.01" step="0.001">
-  </label><br><br>
+  	<label>Air Resistance:
+    	<input type="number" id="airInput" value="0.01" step="0.001">
+  	</label><br><br>
+
+  	<label>Adaptive frameMultiplier:
+    	<input type="checkbox" id="frameMultiplierCheckbox" value="yes">
+  	</label><br><br>
   
   <button onclick="applyEnvSettings()">Apply</button>
   <button onclick="closeEnvSettings()">Close</button>
