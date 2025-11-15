@@ -2004,7 +2004,7 @@ canvas.addEventListener("touchend", (e) => {
 
 
 function mainLoop() {
-  const maxFrameTime = 0.03; // 33 FPS floor for calculations
+  const maxFrameTime = 0.1; // 10 FPS floor for calculations
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
