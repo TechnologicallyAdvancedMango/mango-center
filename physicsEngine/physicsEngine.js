@@ -95,10 +95,10 @@ let springWidth = "3";
 let springPhysicalWidth = "5";
 
 // Get environment settings from localStorage
-targetFPS = localStorage.getItem("targetFPS") ?? 60;
-gravity = localStorage.getItem("gravity") ?? 2000;
-speed = localStorage.getItem("speed") ?? 1.0;
-drag = localStorage.getItem("drag") ?? 0.01;
+targetFPS = Number(localStorage.getItem("targetFPS") ?? 60);
+gravity = Number(localStorage.getItem("gravity") ?? 2000);
+speed = Number(localStorage.getItem("speed") ?? 1.0);
+drag = Number(localStorage.getItem("drag") ?? 0.01);
 adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") === "true";
 
 
@@ -1898,10 +1898,10 @@ function closeEnvSettings() {
 
 function applyEnvSettings() {
   // Read values from inputs
-  targetFPS = parseInt(document.getElementById("targetFPSInput").value, 10);
-  gravity = parseFloat(document.getElementById("gravityInput").value);
-  speed = parseFloat(document.getElementById("speedInput").value);
-  drag = parseFloat(document.getElementById("airInput").value);
+  targetFPS = Number(document.getElementById("targetFPSInput").value);
+  gravity = Number(document.getElementById("gravityInput").value);
+  speed = Number(document.getElementById("speedInput").value);
+  drag = Nuber(document.getElementById("airInput").value);
   adaptiveFrameMultiplier = document.getElementById("frameMultiplierCheckbox").checked;
 
   // Save values to localStorage
