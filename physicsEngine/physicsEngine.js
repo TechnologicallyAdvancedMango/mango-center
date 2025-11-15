@@ -1901,7 +1901,7 @@ function applyEnvSettings() {
   targetFPS = Number(document.getElementById("targetFPSInput").value);
   gravity = Number(document.getElementById("gravityInput").value);
   speed = Number(document.getElementById("speedInput").value);
-  drag = Nuber(document.getElementById("airInput").value);
+  drag = Number(document.getElementById("airInput").value);
   adaptiveFrameMultiplier = document.getElementById("frameMultiplierCheckbox").checked;
 
   // Save values to localStorage
