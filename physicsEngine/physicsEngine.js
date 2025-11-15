@@ -61,9 +61,9 @@ let circlePreview = null;
 
 let softbodyPreview = null;
 let softbodyConfig = {
-  rows: 10,
-  cols: 10,
-  spacing: 40,
+  rows: 8,
+  cols: 8,
+  spacing: 50,
   radius: 8
 };
 
@@ -960,7 +960,7 @@ function handlePointerDown(e) {
         worldY,
         {
           radius: softbodyConfig.radius,
-          springConfig: { stiffness: 2500, damping: 20.0, restitution: 1, visible: true, collides: true, elasticLimit: 9999, rigidFrame: true }
+          springConfig: { stiffness: 2000, damping: 10.0, restitution: 1, visible: true, collides: true, elasticLimit: 9999, rigidFrame: false }
         }
       );
     }
