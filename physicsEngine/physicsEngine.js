@@ -99,7 +99,7 @@ targetFPS = localStorage.getItem("targetFPS") ?? 60;
 gravity = localStorage.getItem("gravity") ?? 2000;
 speed = localStorage.getItem("speed") ?? 1.0;
 drag = localStorage.getItem("drag") ?? 0.01;
-adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") ?? true;
+adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") ?? false;
 
 
 let circles = [];
@@ -2004,7 +2004,7 @@ canvas.addEventListener("touchend", (e) => {
 
 
 function mainLoop() {
-  const maxFrameTime = 0.1; // 10 FPS floor for calculations
+  const maxFrameTime = 0.05; // 20 FPS floor for calculations
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
