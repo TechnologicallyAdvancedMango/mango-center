@@ -1143,7 +1143,7 @@ function handlePointerUp(e) {
         1,       // thickness
         10000,   // elasticLimit
         true,    // visible
-        false    // ghost = false
+        false    // ghost = false, pushes itself
       );
 
       newSpring.restLength = dist;
@@ -2025,7 +2025,7 @@ function mainLoop() {
       // Running slower than target -> remove physics steps
       frameMultiplier -= Math.round(Math.abs(targetFPS - fps));
     }
-    frameMultiplier = Math.min(Math.max(frameMultiplier, 1), 100); // Max of 100, min of 1
+    frameMultiplier = Math.min(Math.max(frameMultiplier, 1), 200); // Max of 200, min of 1
   }
 
   // Simulation deltaTime is scaled by speed
