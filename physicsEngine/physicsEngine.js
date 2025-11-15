@@ -11,10 +11,10 @@ window.addEventListener("resize", () => {
   lastTime = performance.now();
 });
 
-let frameMultiplier = 20; // is changed automatically if adaptiveFrameMultiplier is true
+let frameMultiplier = 30; // is changed automatically if adaptiveFrameMultiplier is true
 let adaptiveFrameMultiplier = true;
 let targetFPS = 60;
-let fps = 0;
+let fps = 60;
 
 let speed = 1.0;
 
