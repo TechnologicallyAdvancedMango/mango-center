@@ -1915,7 +1915,6 @@ function applyEnvSettings() {
 }
 
 
-
 // semi-elastic square
 let circle1 = new Circle(100, 200, 35, false, 1);
 let circle2 = new Circle(200, 500, 35, false, 1);
