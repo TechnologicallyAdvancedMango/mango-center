@@ -27,7 +27,7 @@ let windowFocused = true;
 
 let lastTime = performance.now();
 
-let gravity = 1000;
+let gravity = 2000;
 let drag = 0.01;
 
 let mouseX = 0;
@@ -197,7 +197,7 @@ class Spring {
 
     const dampingForce = this.damping * relativeVel;
 
-    const totalForce = (springForce + dampingForce) * dt;
+    const totalForce = springForce + dampingForce;
 
     const fx = nx * totalForce;
     const fy = ny * totalForce;
@@ -212,19 +212,19 @@ class Spring {
     const fbRatio = ma / totalMass;
 
     if (!this.a.anchored) {
-      this.a.vx += fx * faRatio / ma;
-      this.a.vy += fy * faRatio / ma;
+      this.a.vx += (fx * faRatio / ma) * dt;
+      this.a.vy += (fy * faRatio / ma) * dt;
     }
     if (!this.b.anchored) {
-      this.b.vx -= fx * fbRatio / mb;
-      this.b.vy -= fy * fbRatio / mb;
+      this.b.vx -= (fx * fbRatio / mb) * dt;
+      this.b.vy -= (fy * fbRatio / mb) * dt;
     }
 
     // Rigid constraint remains unchanged
     if (this.rigid) {
       const correction = this.restLength - dist;
       if (Math.abs(correction) > 0.01) {
-        const maxCorrection = 20 * (dt / (1 / targetFPS)); // limit max correction relative to time
+        const maxCorrection = this.restLength * 0.2; // at most 20% of rest length
         const clamped = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
 
         if (!this.a.anchored && !this.b.anchored) {
@@ -267,17 +267,17 @@ class Spring {
     const dx = this.b.x - this.a.x;
     const dy = this.b.y - this.a.y;
     const lengthSq = dx * dx + dy * dy;
-    if (lengthSq < 0.0001) return;
+    if (lengthSq < 1e-6) return;
 
     const length = Math.sqrt(lengthSq);
-    const nx = dx / length;
-    const ny = dy / length;
+    const nxSeg = dx / length;
+    const nySeg = dy / length;
 
     // --- Circle collisions ---
     for (let circle of circles) {
       if (circle === this.a || circle === this.b) continue;
 
-      // Project circle center onto spring segment
+      // Closest point t on segment
       const t = ((circle.x - this.a.x) * dx + (circle.y - this.a.y) * dy) / lengthSq;
       if (t < 0 || t > 1) continue;
 
@@ -287,117 +287,167 @@ class Spring {
       const distX = circle.x - closestX;
       const distY = circle.y - closestY;
       const distSq = distX * distX + distY * distY;
-      const minDist = circle.radius;
+      const minDist = circle.radius + (springPhysicalWidth || 0) * 0.5;
 
       if (distSq < minDist * minDist) {
-        const dist = Math.sqrt(distSq) || 0.001;
+        const dist = Math.max(Math.sqrt(distSq), 1e-6);
         const overlap = minDist - dist;
-        const nxC = distX / dist;
-        const nyC = distY / dist;
+        const nx = distX / dist;
+        const ny = distY / dist;
 
-        // Position correction
-        if (!circle.anchored) {
-          circle.x += nxC * overlap;
-          circle.y += nyC * overlap;
+        // Mass/invMass
+        const ma = this.a.mass ?? 1;
+        const mb = this.b.mass ?? 1;
+        const mc = circle.mass ?? 1;
+        const invMa = this.a.anchored ? 0 : 1 / ma;
+        const invMb = this.b.anchored ? 0 : 1 / mb;
+        const invMc = circle.anchored ? 0 : 1 / mc;
+
+        // Distribute position correction across circle and endpoints
+        const wA = invMa * (1 - t);
+        const wB = invMb * t;
+        const wC = invMc;
+        const wSum = wA + wB + wC;
+        if (wSum > 0) {
+          const factor = 0.5; // apply 50% per collide call to avoid popping
+          const corr = overlap * factor / wSum;
+
+          if (invMc > 0) {
+            circle.x += nx * corr * wC;
+            circle.y += ny * corr * wC;
+          }
+          if (invMa > 0) {
+            this.a.x -= nx * corr * wA;
+            this.a.y -= ny * corr * wA;
+          }
+          if (invMb > 0) {
+            this.b.x -= nx * corr * wB;
+            this.b.y -= ny * corr * wB;
+          }
         }
 
-        // Velocity impulse
-        const relVel = circle.vx * nxC + circle.vy * nyC;
-        if (relVel < 0) {
-          const restitution = this.restitution;
+        // Relative velocity: circle vs segment point
+        const segVx = (this.a.vx ?? 0) + t * ((this.b.vx ?? 0) - (this.a.vx ?? 0));
+        const segVy = (this.a.vy ?? 0) + t * ((this.b.vy ?? 0) - (this.a.vy ?? 0));
+        const relVx = (circle.vx ?? 0) - segVx;
+        const relVy = (circle.vy ?? 0) - segVy;
+        const relVelN = relVx * nx + relVy * ny;
 
-          const ma = this.a.mass ?? 1;
-          const mb = this.b.mass ?? 1;
-          const mc = circle.mass ?? 1;
+        if (relVelN < 0) {
+          const restitution = this.restitution ?? 0;
+          const totalInvMass = wA + wB + wC;
+          if (totalInvMass > 0) {
+            const impulseMag = -(1 + restitution) * relVelN / totalInvMass;
+            const impX = impulseMag * nx;
+            const impY = impulseMag * ny;
 
-          const invMa = this.a.anchored ? 0 : 1 / ma;
-          const invMb = this.b.anchored ? 0 : 1 / mb;
-          const invMc = circle.anchored ? 0 : 1 / mc;
-
-          // Linear weights for endpoints
-          const totalInvMass = invMa * (1 - t) + invMb * t + invMc;
-          if (totalInvMass === 0) continue;
-
-          const impulseMag = -(1 + restitution) * relVel / totalInvMass;
-          const impulseX = impulseMag * nxC;
-          const impulseY = impulseMag * nyC;
-
-          if (!circle.anchored) {
-            circle.vx += impulseX * invMc;
-            circle.vy += impulseY * invMc;
-          }
-          if (!this.a.anchored) {
-            this.a.vx -= impulseX * invMa * (1 - t);
-            this.a.vy -= impulseY * invMa * (1 - t);
-          }
-          if (!this.b.anchored) {
-            this.b.vx -= impulseX * invMb * t;
-            this.b.vy -= impulseY * invMb * t;
+            if (invMc > 0) {
+              circle.vx += impX * invMc;
+              circle.vy += impY * invMc;
+            }
+            if (invMa > 0) {
+              this.a.vx -= impX * invMa * (1 - t);
+              this.a.vy -= impY * invMa * (1 - t);
+            }
+            if (invMb > 0) {
+              this.b.vx -= impX * invMb * t;
+              this.b.vy -= impY * invMb * t;
+            }
           }
         }
       }
     }
 
-    // --- Rectangle collisions ---
+    // --- Rectangle collisions (axis-aligned) ---
     for (let rect of rectangles) {
       const halfW = rect.width / 2;
       const halfH = rect.height / 2;
 
-      // Find closest point on spring segment to rectangle center
+      // Closest point on segment to rect center
       const t = ((rect.x - this.a.x) * dx + (rect.y - this.a.y) * dy) / lengthSq;
       const clampedT = Math.max(0, Math.min(1, t));
       const springX = this.a.x + clampedT * dx;
       const springY = this.a.y + clampedT * dy;
 
-      // Clamp that point to rectangle bounds
+      // Closest point on AABB to spring point
       const closestX = Math.max(rect.x - halfW, Math.min(springX, rect.x + halfW));
       const closestY = Math.max(rect.y - halfH, Math.min(springY, rect.y + halfH));
 
       const distX = closestX - springX;
       const distY = closestY - springY;
       const distSq = distX * distX + distY * distY;
-      const minDist = springPhysicalWidth; // spring thickness
+      const minDist = springPhysicalWidth; // segment thickness
 
       if (distSq < minDist * minDist) {
-        const dist = Math.sqrt(distSq) || 0.001;
+        const dist = Math.max(Math.sqrt(distSq), 1e-6);
         const overlap = minDist - dist;
-        const nxR = distX / dist;
-        const nyR = distY / dist;
+        const nx = distX / dist;
+        const ny = distY / dist;
 
-        // Position correction distributed
-        if (!rect.anchored) {
-          rect.x += nxR * overlap * 0.5;
-          rect.y += nyR * overlap * 0.5;
-        }
-        if (!this.a.anchored) {
-          this.a.x -= nxR * overlap * (1 - clampedT) * 0.5;
-          this.a.y -= nyR * overlap * (1 - clampedT) * 0.5;
-        }
-        if (!this.b.anchored) {
-          this.b.x -= nxR * overlap * clampedT * 0.5;
-          this.b.y -= nyR * overlap * clampedT * 0.5;
+        // invMass weights
+        const ma = this.a.mass ?? 1;
+        const mb = this.b.mass ?? 1;
+        const mr = rect.mass ?? 1;
+        const invMa = this.a.anchored ? 0 : 1 / ma;
+        const invMb = this.b.anchored ? 0 : 1 / mb;
+        const invMr = rect.anchored ? 0 : 1 / mr;
+
+        const wA = invMa * (1 - clampedT);
+        const wB = invMb * clampedT;
+        const wR = invMr;
+        const wSum = wA + wB + wR;
+
+        if (wSum > 0) {
+          const factor = 0.5;
+          const corr = overlap * factor / wSum;
+
+          if (invMr > 0) {
+            rect.x += nx * corr * wR;
+            rect.y += ny * corr * wR;
+          }
+          if (invMa > 0) {
+            this.a.x -= nx * corr * wA;
+            this.a.y -= ny * corr * wA;
+          }
+          if (invMb > 0) {
+            this.b.x -= nx * corr * wB;
+            this.b.y -= ny * corr * wB;
+          }
         }
 
-        // Velocity impulse
-        const relVel = rect.vx * nxR + rect.vy * nyR;
-        if (relVel < 0) {
-          const bounce = -relVel * this.restitution;
-          if (!rect.anchored) {
-            rect.vx += nxR * bounce;
-            rect.vy += nyR * bounce;
-          }
-          if (!this.a.anchored) {
-            this.a.vx -= nxR * bounce * (1 - clampedT);
-            this.a.vy -= nyR * bounce * (1 - clampedT);
-          }
-          if (!this.b.anchored) {
-            this.b.vx -= nxR * bounce * clampedT;
-            this.b.vy -= nyR * bounce * clampedT;
+        // Relative velocity: rect vs segment point
+        const segVx = (this.a.vx ?? 0) + clampedT * ((this.b.vx ?? 0) - (this.a.vx ?? 0));
+        const segVy = (this.a.vy ?? 0) + clampedT * ((this.b.vy ?? 0) - (this.a.vy ?? 0));
+        const relVx = (rect.vx ?? 0) - segVx;
+        const relVy = (rect.vy ?? 0) - segVy;
+        const relVelN = relVx * nx + relVy * ny;
+
+        if (relVelN < 0) {
+          const restitution = this.restitution ?? 0;
+          const totalInvMass = wA + wB + wR;
+          if (totalInvMass > 0) {
+            const impulseMag = -(1 + restitution) * relVelN / totalInvMass;
+            const impX = impulseMag * nx;
+            const impY = impulseMag * ny;
+
+            if (invMr > 0) {
+              rect.vx += impX * invMr;
+              rect.vy += impY * invMr;
+            }
+            if (invMa > 0) {
+              this.a.vx -= impX * invMa * (1 - clampedT);
+              this.a.vy -= impY * invMa * (1 - clampedT);
+            }
+            if (invMb > 0) {
+              this.b.vx -= impX * invMb * clampedT;
+              this.b.vy -= impY * invMb * clampedT;
+            }
           }
         }
       }
     }
   }
+
 }
 
 function simulate(dt) {
@@ -743,7 +793,6 @@ function createSoftbodyGrid(rows, cols, spacing, startX, startY, options = {}) {
       const anchored = false; // force unanchored
 
       const circle = new Circle(x, y, radius, anchored);
-      circles.push(circle);
       nodeMatrix[row][col] = circle;
     }
   }
@@ -896,7 +945,7 @@ function handlePointerDown(e) {
     if (currentTool === "circle") {
       const worldX = e.offsetX - panX;
       const worldY = e.offsetY - panY;
-      circles.push(new Circle(worldX, worldY, 20, false, 1, null, true, false));
+      new Circle(worldX, worldY, 20, false, 1, null, true, false);
     }
 
     if (currentTool === "softbody") {
@@ -1094,12 +1143,11 @@ function handlePointerUp(e) {
         1,       // thickness
         10000,   // elasticLimit
         true,    // visible
-        false    // ghost
+        false    // ghost = false
       );
 
       newSpring.restLength = dist;
 
-      springs.push(newSpring);
       clearSelection();
       selectObject(newSpring);
 
@@ -1620,8 +1668,21 @@ function renderSoftbodyPreview() {
 
 function showFPS() {
   ctx.font = "20px Arial";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.fillStyle = "rgba(0, 255, 0, 0.5)";
   ctx.fillText("FPS: " + Math.round(fps), 25, 25);
+}
+
+function showCircleCount() {
+  const circleCount = circles.length;
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "rgba(0, 255, 0, 0.5)";
+  ctx.fillText("Circles: " + circleCount, 25, 45);
+}
+function showSpringCount() {
+  const springCount = springs.length;
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "rgba(0, 255, 0, 0.5)";
+  ctx.fillText("Springs: " + springCount, 25, 65);
 }
 
 function render() {
@@ -1660,6 +1721,8 @@ function render() {
   // out of world UI
   renderToolOverlay();
   showFPS();
+  showCircleCount();
+  showSpringCount();
 }
 
 function clearScreen() {
@@ -1869,10 +1932,10 @@ let diagonal2 = new Spring(circle2, circle4, 150 * Math.sqrt(2), 500, 5.0, false
 
 
 // soft square grid
-createSoftbodyGrid(8, 8, 50, canvas.width/2, 0, {
+createSoftbodyGrid(8, 8, 50, canvas.width/2, 15, {
   radius: 8,
   anchorEdges: false,
-  springConfig: { stiffness: 2000, damping: 30.0, restitution: 1, visible: true, collides: true, sidesCollides: true, elasticLimit: 5, rigidFrame: false }
+  springConfig: { stiffness: 2000, damping: 10.0, restitution: 1, visible: true, collides: true, sidesCollides: true, elasticLimit: 5, rigidFrame: false }
 });
 
 // rope
@@ -1940,19 +2003,19 @@ canvas.addEventListener("touchend", (e) => {
 });
 
 
-
 function mainLoop() {
-  const maxFrameTime = 0.05; // 20 FPS floor
+  const maxFrameTime = 0.03; // 33 FPS floor for calculations
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
-  deltaTime = Math.max(0.0001, Math.min(deltaTime, maxFrameTime)); // to prevent division by 0
   lastTime = now;
-  deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
 
-  const alpha = 0.2; // fps smoothing factor
+  const alpha = 0.1; // fps smoothing factor
   fps = fps * (1 - alpha) + (1 / deltaTime) * alpha;
+  fps = Math.min(fps, 240); // Limit fps to 240
 
+  deltaTime = Math.max(0.0001, Math.min(deltaTime, maxFrameTime)); // to prevent division by 0
+  deltaTime = Math.min(deltaTime, maxFrameTime); // clamp to avoid large jumps and when resuming from tab switch
 
   if(adaptiveFrameMultiplier) {
     if (fps > targetFPS) {
