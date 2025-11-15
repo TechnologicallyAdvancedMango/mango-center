@@ -96,7 +96,7 @@ let springPhysicalWidth = "5";
 
 // Get environment settings from localStorage
 targetFPS = localStorage.getItem("targetFPS") ?? 60;
-gravity = localStorage.getItem("gravity") ?? 1000;
+gravity = localStorage.getItem("gravity") ?? 2000;
 speed = localStorage.getItem("speed") ?? 1.0;
 drag = localStorage.getItem("drag") ?? 0.01;
 adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") ?? true;
