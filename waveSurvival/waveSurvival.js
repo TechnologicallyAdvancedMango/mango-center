@@ -21,6 +21,8 @@ window.addEventListener("resize", () => {
     canvas.height = window.innerHeight;
 });
 
+let dt = 0;
+
 const upgrades = [
     { name: "+25% Speed", apply: (player) => player.speed *= 1.25 },
     { name: "-25% Reload Time", apply: (player) => player.gun.cooldownTime *= 0.75 },
@@ -533,7 +535,6 @@ canvas.addEventListener("mousedown", e => {
     }
 });
 
-let dt = 0;
 
 function gameLoop() {
     const currentTime = performance.now();
