@@ -11,10 +11,10 @@ window.addEventListener("resize", () => {
   lastTime = performance.now();
 });
 
-let frameMultiplier = 20; // is changed automatically if adaptiveFrameMultiplier is true
-let adaptiveFrameMultiplier = true;
+let frameMultiplier = 30; // is changed automatically if adaptiveFrameMultiplier is true
+let adaptiveFrameMultiplier = false;
 let targetFPS = 60;
-let fps = 0;
+let fps = 60;
 
 let speed = 1.0;
 
@@ -95,11 +95,11 @@ let springWidth = "3";
 let springPhysicalWidth = "5";
 
 // Get environment settings from localStorage
-targetFPS = localStorage.getItem("targetFPS") ?? 60;
-gravity = localStorage.getItem("gravity") ?? 2000;
-speed = localStorage.getItem("speed") ?? 1.0;
-drag = localStorage.getItem("drag") ?? 0.01;
-adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") ?? true;
+targetFPS = Number(localStorage.getItem("targetFPS") ?? 60);
+gravity = Number(localStorage.getItem("gravity") ?? 2000);
+speed = Number(localStorage.getItem("speed") ?? 1.0);
+drag = Number(localStorage.getItem("drag") ?? 0.01);
+adaptiveFrameMultiplier = localStorage.getItem("adaptiveFrameMultiplier") === "true";
 
 
 let circles = [];
@@ -1898,10 +1898,10 @@ function closeEnvSettings() {
 
 function applyEnvSettings() {
   // Read values from inputs
-  targetFPS = parseInt(document.getElementById("targetFPSInput").value, 10);
-  gravity = parseFloat(document.getElementById("gravityInput").value);
-  speed = parseFloat(document.getElementById("speedInput").value);
-  drag = parseFloat(document.getElementById("airInput").value);
+  targetFPS = Number(document.getElementById("targetFPSInput").value);
+  gravity   = Number(document.getElementById("gravityInput").value);
+  speed     = Number(document.getElementById("speedInput").value);
+  drag      = Number(document.getElementById("airInput").value);
   adaptiveFrameMultiplier = document.getElementById("frameMultiplierCheckbox").checked;
 
   // Save values to localStorage
@@ -1913,7 +1913,6 @@ function applyEnvSettings() {
 
   closeEnvSettings();
 }
-
 
 
 // semi-elastic square
@@ -2004,7 +2003,7 @@ canvas.addEventListener("touchend", (e) => {
 
 
 function mainLoop() {
-  const maxFrameTime = 0.03; // 33 FPS floor for calculations
+  const maxFrameTime = 0.05; // 20 FPS floor for calculations
   
   const now = performance.now();
   let deltaTime = (now - lastTime) / 1000; // seconds
