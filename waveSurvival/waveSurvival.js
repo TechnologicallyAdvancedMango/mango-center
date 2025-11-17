@@ -14,7 +14,7 @@ Add sound effects
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let gameSpeed = 10;
+let gameSpeed = 100;
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
