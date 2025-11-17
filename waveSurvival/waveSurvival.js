@@ -14,6 +14,8 @@ Add sound effects
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+let gameSpeed = 10;
+
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
@@ -540,6 +542,7 @@ function gameLoop() {
     const currentTime = performance.now();
     let dt = (currentTime - lastFrameTime) / 1000; // Convert to seconds
     lastFrameTime = currentTime;
+    let simDt = dt * gameSpeed;
     
     if (choosingUpgrade) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -548,10 +551,10 @@ function gameLoop() {
         // only if alive
 
         player.applyInput(input);
-        player.update(dt);
+        player.update(simDt);
         if(player.health <= 0) player.die();
 
-        enemies.forEach(e => e.update(dt, player, enemies));
+        enemies.forEach(e => e.update(simDt, player, enemies));
 
         // check if wave needs to start
         if (!waveInProgress && enemiesRemaining <= 0) {
