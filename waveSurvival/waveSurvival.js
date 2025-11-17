@@ -82,14 +82,14 @@ class Player {
         setTimeout(() => {this.gun.onCooldown = false}, this.gun.cooldownTime);
     }
 
-    update(dt) {
+    update() {
         this.vx *= this.drag;
         this.vy *= this.drag;
         this.x += this.vx * dt;
         this.y += this.vy * dt;
 
         this.projectiles = this.projectiles.filter(p => !p.dead);
-        this.projectiles.forEach(p => p.update(dt));
+        this.projectiles.forEach(p => p.update());
 
         if (player.xp >= player.xpToNext) {
             player.levelUp();
@@ -160,7 +160,7 @@ class Projectile {
         this.dead = false;
     }
 
-    update(dt) {
+    update() {
         this.x += this.direction.dx * this.speed * dt;
         this.y += this.direction.dy * this.speed * dt;
     }
@@ -196,7 +196,7 @@ class Enemy {
         this.alive = true;
     }
 
-    update(dt, player, enemies) {
+    update(player, enemies) {
         if (!this.alive) return;
 
         // Movement toward player
@@ -533,9 +533,11 @@ canvas.addEventListener("mousedown", e => {
     }
 });
 
+let dt = 0;
+
 function gameLoop() {
     const currentTime = performance.now();
-    const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert to seconds
+    dt = (currentTime - lastFrameTime) / 1000; // Convert to seconds
     lastFrameTime = currentTime;
     
     if (choosingUpgrade) {
@@ -545,10 +547,10 @@ function gameLoop() {
         // only if alive
 
         player.applyInput(input);
-        player.update(deltaTime);
+        player.update();
         if(player.health <= 0) player.die();
 
-        enemies.forEach(e => e.update(deltaTime, player, enemies));
+        enemies.forEach(e => e.update(player, enemies));
 
         // check if wave needs to start
         if (!waveInProgress && enemiesRemaining <= 0) {
