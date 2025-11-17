@@ -1,6 +1,7 @@
 /*
 To do:
 
+Fix deltaTime
 Fix wave spawning
 Use player take damage cooldown instead of enemy inflict damage cooldown
 Add more weapons (shotgun, pulse cannon, flamethrower, sniper, grenade launcher)
