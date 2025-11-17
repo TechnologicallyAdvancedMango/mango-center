@@ -1,4 +1,6 @@
 const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
@@ -7,7 +9,7 @@ window.addEventListener("resize", () => {
     canvas.height = window.innerHeight;
 });
 
-const ctx = canvas.getContext("2d");
+
 
 class Player {
     constructor(x, y) {
@@ -129,7 +131,8 @@ class Enemy {
         this.health = 50;
 
         this.damage = 5;
-        this.damageCooldown = 0;
+        this.damageCooldown = 1000;
+        this.damageOnCooldown = false;
         this.alive = true;
     }
 
@@ -177,8 +180,13 @@ class Enemy {
         return dist < this.radius + player.radius;
     }
     resolvePlayerCollision(player) {
-        // subtract health
-        player.health -= this.damage;
+        // subtract health and set cooldown
+        if(!this.damageOnCooldown) {
+            player.health -= this.damage;
+
+            this.damageOnCooldown = true;
+            setTimeout(() => {this.damageOnCooldown = false}, this.damageCooldown);
+        }
 
         // push enemy and player apart
         let dx = player.x - this.x;
@@ -285,6 +293,36 @@ class Camera {
         this.offsetX = target.x - canvas.width / 2;
         this.offsetY = target.y - canvas.height / 2;
     }
+
+    drawBackground() {
+        const tileSize = 100;
+        const cols = Math.ceil(canvas.width / tileSize) + 2;
+        const rows = Math.ceil(canvas.height / tileSize) + 2;
+
+        // offset for smooth scrolling
+        const offsetX = -camera.offsetX % tileSize;
+        const offsetY = -camera.offsetY % tileSize;
+
+        const startCol = -1;
+        const startRow = -1;
+
+        for (let row = startRow; row < rows; row++) {
+            for (let col = startCol; col < cols; col++) {
+                const x = col * tileSize + offsetX;
+                const y = row * tileSize + offsetY;
+
+                // world tile indices: absolute grid position
+                const worldCol = Math.floor(camera.offsetX / tileSize) + col;
+                const worldRow = Math.floor(camera.offsetY / tileSize) + row;
+
+                // parity based only on world indices
+                const isDark = (worldCol + worldRow) % 2 === 0;
+
+                ctx.fillStyle = isDark ? "#222" : "#333";
+                ctx.fillRect(x, y, tileSize, tileSize);
+            }
+        }
+    }
 }
 
 let player = new Player(100, 100);
@@ -322,25 +360,38 @@ canvas.addEventListener("mousemove", e => {
 canvas.addEventListener("mousedown", e => {
     if(e.button === 0) {
         player.shoot();
-        console.log('shot!')
     }
 });
+
+
+let enemySpawnInterval = 5000;
+function enemySpawnLoop() {
+    // Spawn random enemy
+    enemies.push(new Enemy((Math.random() * canvas.width) + camera.offsetX, (Math.random() * canvas.height) + camera.offsetY));
+    
+    setTimeout(enemySpawnLoop, enemySpawnInterval);
+    enemySpawnInterval *= 0.95;
+    enemySpawnInterval = Math.max(enemySpawnInterval, 100000000) // Clamp to one per second
+}
 
 function gameLoop() {
     player.applyInput(input);
     player.update();
+
     enemies.forEach(e => e.update(player, enemies));
+    
     camera.follow(player);
 
     // Rendering
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    camera.drawBackground();
 
     player.projectiles.forEach(e => e.draw(camera));
     player.draw(camera);
     enemies.forEach(e => e.draw(camera));
-    
 
     requestAnimationFrame(gameLoop);
 }
 
+enemySpawnLoop();
 gameLoop();
