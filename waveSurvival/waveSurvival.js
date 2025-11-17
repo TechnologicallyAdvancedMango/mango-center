@@ -1,3 +1,15 @@
+/*
+To do:
+
+Fix wave spawning
+Use player take damage cooldown instead of enemy inflict damage cooldown
+Add more weapons (shotgun, pulse cannon, flamethrower, sniper, grenade launcher)
+Projectile despawning
+Add UI like health bar, XP bar
+Add shooting feedback
+Add sound effects
+
+*/
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -11,10 +23,10 @@ window.addEventListener("resize", () => {
 
 const upgrades = [
     { name: "+25% Speed", apply: (player) => player.speed *= 1.25 },
-    { name: "-10% Reload Time", apply: (player) => player.gun.cooldownTime *= 0.90 },
-    { name: "+10% Damage", apply: (player) => player.gun.damage *= 1.10 },
-    { name: "+10% Health Regen", apply: (player) => player.regenSpeed *= 1.10 }
-
+    { name: "-25% Reload Time", apply: (player) => player.gun.cooldownTime *= 0.75 },
+    { name: "+25% Damage", apply: (player) => player.gun.damage *= 1.25 },
+    { name: "+10% Health Regen", apply: (player) => player.regenSpeed *= 1.10 },
+    { name: "+10% Max Health", apply: (player) => player.maxHealth *= 1.10 }
     // add more upgrades
 ];
 
@@ -29,6 +41,8 @@ class Player {
 
         this.radius = 30;
         this.health = 100;
+        this.maxHealth = 100;
+
         this.regenSpeed = 1;
         this.alive = true;
 
@@ -81,13 +95,13 @@ class Player {
             player.levelUp();
         }
 
-        this.health = Math.min(this.health + this.regenSpeed/1000, 100);
+        this.health = Math.min(this.health + this.regenSpeed/1000, this.maxHealth);
     }
 
     levelUp() {
         this.level++;
         this.xp -= this.xpToNext;
-        this.xpToNext *= 1.5;
+        this.xpToNext *= 1.3;
         this.xpToNext = Math.round(this.xpToNext);
 
         // pick 3 random upgrades
@@ -174,6 +188,7 @@ class Enemy {
 
         this.radius = 30;
         this.health = 30;
+        this.maxHealth = this.health;
 
         this.damage = 10;
         this.damageCooldown = 1000;
@@ -305,8 +320,19 @@ class Enemy {
     takeDamage(amount, player) {
         this.health -= amount;
         if (this.health <= 0 && this.alive) {
-            this.alive = false;
-            player.xp += 20;
+            this.die();
+        }
+    }
+
+    die() {
+        this.alive = false;
+        player.xp += this.maxHealth; // Scale xp gain by max health
+
+        enemiesRemaining--;
+        if (enemiesRemaining <= 0) {
+            waveInProgress = false;
+            // delay before next wave
+            setTimeout(startWave, 3000);
         }
     }
 
@@ -437,6 +463,27 @@ function handleUpgradeSelection(index) {
     choosingUpgrade = false;
 }
 
+let waveNumber = 0;
+let enemiesRemaining = 0;
+let waveInProgress = false;
+
+function startWave() {
+    waveNumber++;
+    enemiesRemaining = 5 + waveNumber * 2; // scale difficulty
+    waveInProgress = true;
+
+    spawnEnemies(enemiesRemaining);
+}
+
+function spawnEnemies(count) {
+    for (let i = 0; i < count; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        enemies.push(new Enemy(x, y));
+    }
+}
+
+
 
 let player = new Player(100, 100);
 let enemies = [];
@@ -486,17 +533,6 @@ canvas.addEventListener("mousedown", e => {
     }
 });
 
-
-let enemySpawnInterval = 5000;
-function enemySpawnLoop() {
-    // Spawn random enemy
-    enemies.push(new Enemy((Math.random() * canvas.width) + camera.offsetX, (Math.random() * canvas.height) + camera.offsetY));
-    
-    setTimeout(enemySpawnLoop, enemySpawnInterval);
-    enemySpawnInterval *= 0.99;
-    enemySpawnInterval = Math.max(enemySpawnInterval, 500) // Two per second max
-}
-
 function gameLoop() {
     if (choosingUpgrade) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -509,6 +545,11 @@ function gameLoop() {
         if(player.health <= 0) player.die();
 
         enemies.forEach(e => e.update(player, enemies));
+
+        // check if wave needs to start
+        if (!waveInProgress && enemiesRemaining <= 0) {
+            startWave();
+        }
 
         camera.follow(player);
 
@@ -526,5 +567,4 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-enemySpawnLoop();
 gameLoop();
