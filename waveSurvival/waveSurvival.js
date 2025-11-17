@@ -9,7 +9,14 @@ window.addEventListener("resize", () => {
     canvas.height = window.innerHeight;
 });
 
+const upgrades = [
+    { name: "+25% Speed", apply: (player) => player.speed *= 1.25 },
+    { name: "-10% Reload Time", apply: (player) => player.gun.cooldownTime *= 0.90 },
+    { name: "+10% Damage", apply: (player) => player.gun.damage *= 1.10 },
+    { name: "+10% Health Regen", apply: (player) => player.regenSpeed *= 1.10 }
 
+    // add more upgrades
+];
 
 class Player {
     constructor(x, y) {
@@ -17,16 +24,17 @@ class Player {
         this.y = y;
         this.vx = 0;
         this.vy = 0;
-        this.accel = 0.1;
+        this.speed = 1.5;
         this.drag = 0.95;
 
-        this.radius = 15;
+        this.radius = 30;
         this.health = 100;
+        this.regenSpeed = 1;
         this.alive = true;
 
         this.gun = {
             damage: 10,
-            projectileSpeed: 1,
+            projectileSpeed: 2,
             cooldownTime: 400,
             onCooldown: false
         }
@@ -39,10 +47,10 @@ class Player {
     }
 
     applyInput(input) {
-        if (input.up) this.vy -= this.accel;
-        if (input.down) this.vy += this.accel;
-        if (input.left) this.vx -= this.accel;
-        if (input.right) this.vx += this.accel;
+        if (input.up) this.vy -= this.speed/10;
+        if (input.down) this.vy += this.speed/10;
+        if (input.left) this.vx -= this.speed/10;
+        if (input.right) this.vx += this.speed/10;
     }
 
     shoot() {
@@ -68,6 +76,30 @@ class Player {
 
         this.projectiles = this.projectiles.filter(p => !p.dead);
         this.projectiles.forEach(p => p.update());
+
+        if (player.xp >= player.xpToNext) {
+            player.levelUp();
+        }
+
+        this.health = Math.min(this.health + this.regenSpeed/1000, 100);
+    }
+
+    levelUp() {
+        this.level++;
+        this.xp -= this.xpToNext;
+        this.xpToNext *= 1.5;
+        this.xpToNext = Math.round(this.xpToNext);
+
+        // pick 3 random upgrades
+        const choices = [];
+        while (choices.length < 3) {
+            const candidate = upgrades[Math.floor(Math.random() * upgrades.length)];
+            if (!choices.includes(candidate)) choices.push(candidate);
+        }
+
+        // show upgrade screen
+        showUpgradeScreen(choices);
+        choosingUpgrade = true;
     }
 
     die() {
@@ -79,16 +111,19 @@ class Player {
         let canvasX = this.x - camera.offsetX;
         let canvasY = this.y - camera.offsetY;
 
-        ctx.fillStyle = "blue";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.arc(canvasX, canvasY, this.radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
 
         ctx.save();
         ctx.translate(canvasX, canvasY);
         ctx.rotate(this.angle);
-        ctx.fillStyle = "gray";
-        ctx.fillRect(this.radius, -4, 20, 8);
+        ctx.fillStyle = "#676767ff";
+        ctx.fillRect(this.radius + 8, -8, 50, 16);
         ctx.restore();
 
         this.projectiles.forEach(p => p.draw(camera));
@@ -119,8 +154,11 @@ class Projectile {
     draw(camera) {
         let canvasX = this.x - camera.offsetX;
         let canvasY = this.y - camera.offsetY;
+
         ctx.fillStyle = "yellow";
-        ctx.fillRect(canvasX, canvasY, 5, 5);
+        ctx.beginPath()
+        ctx.arc(canvasX, canvasY, 6, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 
@@ -134,8 +172,8 @@ class Enemy {
         this.speed = 0.8;
         this.drag = 0.97;
 
-        this.radius = 15;
-        this.health = 50;
+        this.radius = 30;
+        this.health = 30;
 
         this.damage = 10;
         this.damageCooldown = 1000;
@@ -269,12 +307,6 @@ class Enemy {
         if (this.health <= 0 && this.alive) {
             this.alive = false;
             player.xp += 20;
-            if (player.xp >= player.xpToNext) {
-                player.level++;
-                player.xp = 0;
-                player.xpToNext *= 1.2;
-                console.log("Level up!");
-            }
         }
     }
 
@@ -284,9 +316,12 @@ class Enemy {
         let canvasY = this.y - camera.offsetY;
 
         ctx.fillStyle = "green";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.arc(canvasX, canvasY, this.radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
     }
 }
 
@@ -302,7 +337,7 @@ class Camera {
     }
 
     drawBackground() {
-        const tileSize = 100;
+        const tileSize = 200;
         const cols = Math.ceil(canvas.width / tileSize) + 2;
         const rows = Math.ceil(canvas.height / tileSize) + 2;
 
@@ -351,9 +386,62 @@ function drawDeathScreen() {
     ctx.fillText("Press R to Restart", canvas.width / 2, canvas.height / 2 + 100);
 }
 
+let currentUpgradeChoices = null;
+let choosingUpgrade = false;
+
+function showUpgradeScreen(choices) {
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#FFF";
+    ctx.font = "bold 36px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Choose Your Upgrade", canvas.width / 2, 100);
+
+    // layout side by side
+    const boxWidth = 250;
+    const boxHeight = 80;
+    const spacing = 50; // space between boxes
+    const totalWidth = choices.length * boxWidth + (choices.length - 1) * spacing;
+    const startX = (canvas.width - totalWidth) / 2;
+    const y = 200;
+
+    choices.forEach((upgrade, i) => {
+        const x = startX + i * (boxWidth + spacing);
+
+        // draw box
+        ctx.fillStyle = "#CCC";
+        ctx.fillRect(x, y, boxWidth, boxHeight);
+
+        // draw upgrade name
+        ctx.fillStyle = "#000";
+        ctx.font = "24px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(upgrade.name, x + boxWidth / 2, y + boxHeight / 2);
+
+        // draw label number above box
+        ctx.fillStyle = "#FFF";
+        ctx.font = "bold 28px sans-serif";
+        ctx.fillText((i + 1).toString(), x + boxWidth / 2, y - 30);
+    });
+
+    // store choices for input handling
+    currentUpgradeChoices = choices;
+}
+
+function handleUpgradeSelection(index) {
+    const upgrade = currentUpgradeChoices[index];
+    upgrade.apply(player);
+    currentUpgradeChoices = null;
+    choosingUpgrade = false;
+}
+
+
 let player = new Player(100, 100);
 let enemies = [];
 let camera = new Camera();
+
 
 let input = {
     up: false,
@@ -367,7 +455,16 @@ document.addEventListener("keydown", e => {
     if (e.key === "s") input.down = true;
     if (e.key === "a") input.left = true;
     if (e.key === "d") input.right = true;
+
     if (e.key === " ") player.shoot();
+
+    if (e.key === "r" && !player.alive) window.location.reload();
+
+    if (choosingUpgrade) {
+        if (e.key === "1") handleUpgradeSelection(0);
+        if (e.key === "2") handleUpgradeSelection(1);
+        if (e.key === "3") handleUpgradeSelection(2);
+    }
 });
 
 document.addEventListener("keyup", e => {
@@ -396,12 +493,15 @@ function enemySpawnLoop() {
     enemies.push(new Enemy((Math.random() * canvas.width) + camera.offsetX, (Math.random() * canvas.height) + camera.offsetY));
     
     setTimeout(enemySpawnLoop, enemySpawnInterval);
-    enemySpawnInterval *= 0.95;
-    enemySpawnInterval = Math.max(enemySpawnInterval, 100000000) // Clamp to one per second
+    enemySpawnInterval *= 0.99;
+    enemySpawnInterval = Math.max(enemySpawnInterval, 500) // Two per second max
 }
 
 function gameLoop() {
-    if(player.alive) {
+    if (choosingUpgrade) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        showUpgradeScreen(currentUpgradeChoices);
+    } else if (player.alive) {
         // only if alive
 
         player.applyInput(input);
