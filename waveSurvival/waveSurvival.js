@@ -536,7 +536,7 @@ canvas.addEventListener("mousedown", e => {
 
 
 let dt = 0;
-let lastFrameTime;
+let lastFrameTime = performance.now();
 let currentTime;
 
 function gameLoop() {
