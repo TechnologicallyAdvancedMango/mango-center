@@ -22,11 +22,12 @@ class Player {
 
         this.radius = 15;
         this.health = 100;
+        this.alive = true;
 
         this.gun = {
             damage: 10,
             projectileSpeed: 1,
-            cooldownTime: 500,
+            cooldownTime: 400,
             onCooldown: false
         }
         this.projectiles = [];
@@ -69,6 +70,11 @@ class Player {
         this.projectiles.forEach(p => p.update());
     }
 
+    die() {
+        this.alive = false;
+        console.log("Died!");
+    }
+
     draw(camera) {
         let canvasX = this.x - camera.offsetX;
         let canvasY = this.y - camera.offsetY;
@@ -87,10 +93,11 @@ class Player {
 
         this.projectiles.forEach(p => p.draw(camera));
 
+        ctx.font = '30px Arial';
         ctx.fillStyle = "white";
-        ctx.fillText(`HP: ${Math.floor(this.health)}`, 20, 20);
+        ctx.fillText(`HP: ${Math.floor(this.health)}`, 20, canvas.height - 40);
         ctx.fillText(`XP: ${this.xp}/${this.xpToNext}`, 20, 40);
-        ctx.fillText(`Level: ${this.level}`, 20, 60);
+        ctx.fillText(`Level: ${this.level}`, 20, 70);
     }
 }
 
@@ -130,7 +137,7 @@ class Enemy {
         this.radius = 15;
         this.health = 50;
 
-        this.damage = 5;
+        this.damage = 10;
         this.damageCooldown = 1000;
         this.damageOnCooldown = false;
         this.alive = true;
@@ -265,7 +272,7 @@ class Enemy {
             if (player.xp >= player.xpToNext) {
                 player.level++;
                 player.xp = 0;
-                player.xpToNext *= 1.5;
+                player.xpToNext *= 1.2;
                 console.log("Level up!");
             }
         }
@@ -325,8 +332,27 @@ class Camera {
     }
 }
 
+function drawDeathScreen() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#FF3333";
+    ctx.font = "bold 72px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("YOU DIED", canvas.width / 2, canvas.height / 2);
+
+    ctx.fillStyle = "#ffff00ff";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Level: " + player.level, canvas.width / 2, canvas.height / 2 + 60);
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Press R to Restart", canvas.width / 2, canvas.height / 2 + 100);
+}
+
 let player = new Player(100, 100);
-let enemies = [new Enemy(300, 300)];
+let enemies = [];
 let camera = new Camera();
 
 let input = {
@@ -375,20 +401,27 @@ function enemySpawnLoop() {
 }
 
 function gameLoop() {
-    player.applyInput(input);
-    player.update();
+    if(player.alive) {
+        // only if alive
 
-    enemies.forEach(e => e.update(player, enemies));
-    
-    camera.follow(player);
+        player.applyInput(input);
+        player.update();
+        if(player.health <= 0) player.die();
 
-    // Rendering
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    camera.drawBackground();
+        enemies.forEach(e => e.update(player, enemies));
 
-    player.projectiles.forEach(e => e.draw(camera));
-    player.draw(camera);
-    enemies.forEach(e => e.draw(camera));
+        camera.follow(player);
+
+        // Rendering
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        camera.drawBackground();
+
+        player.projectiles.forEach(e => e.draw(camera));
+        player.draw(camera);
+        enemies.forEach(e => e.draw(camera));
+    } else {
+        drawDeathScreen();
+    }
 
     requestAnimationFrame(gameLoop);
 }
