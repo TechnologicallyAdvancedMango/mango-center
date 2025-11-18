@@ -9,7 +9,7 @@ Add more gamemodes/portals
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let gravity = 0.8;
+let gravity = 0.9;
 let speed = 5;
 let gameSpeed = 1;
 
