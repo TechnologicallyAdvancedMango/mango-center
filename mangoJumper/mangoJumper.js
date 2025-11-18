@@ -14,6 +14,8 @@ let gravity = 0.85;
 let speed = 5;
 let gameSpeed = 1;
 
+let frameMultilpier = 10;
+
 const unit = 30;
 
 let objectStrokeWidth = 1.5;
@@ -832,15 +834,17 @@ resizeCanvas();
 let lastFrameTime = performance.now();
 
 function gameLoop() {
+    const thisFrameTime = performance.now();
+    const deltaTime = (thisFrameTime - lastFrameTime) / 16;
+    lastFrameTime = performance.now();
+    const simDt = deltaTime * gameSpeed / frameMultiplier;
+
     if (player.alive) {
-        const thisFrameTime = performance.now();
-        const deltaTime = (thisFrameTime - lastFrameTime) / 16;
-        lastFrameTime = performance.now();
-        const simDt = deltaTime * gameSpeed;
-    
         if (isPressing && !cancelPress) player.jump();
-        player.collide();
-        player.update(simDt);
+        for(let i = 0; i < frameMultiplier; i++) {
+            player.collide();
+            player.update(simDt);
+        }
     }
 
     // Rendering
