@@ -2,8 +2,7 @@
 
 To do:
 
-Add bottom of block collision
-Add more gamemodes
+Add more gamemodes/portals
 
 */
 
@@ -38,7 +37,8 @@ const portalTypes = {
     normalSize: (player) => { player.mini = false },
 
     cube: (player) => { player.gameMode = "cube" },
-    ship: (player) => { player.gameMode = "ship" }
+    ship: (player) => { player.gameMode = "ship" },
+    ufo: (player) => { player.gameMode = "ufo"}
 }
 
 let blocks = [];
@@ -81,9 +81,9 @@ class Player {
         // Ship movement
         if (this.gameMode === "ship") {
             if(isPressing) {
-                this.vy -= 0.3 * dt;
+                this.vy -= gravity * dt
             } else {
-                this.vy += 0.3 * dt;
+                this.vy += gravity * dt;
             }
             
         }
@@ -97,9 +97,11 @@ class Player {
         let jumpingForce = 11;
         if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
 
-        if (this.gameMode === "cube" && this.onGround) {
+        if ((this.gameMode === "cube" && this.onGround) || this.gameMode === "ufo") {
             this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
             this.onGround = false;
+
+            if (this.gameMode === "ufo") cancelPress = true;
         }
     }
 
@@ -123,6 +125,7 @@ class Player {
             }
         }
 
+        // Block collisions
         for (let block of blocks) {
             if (this.x < block.x + block.width &&
                 this.x + this.width > block.x &&
@@ -130,9 +133,8 @@ class Player {
                 this.y + this.height > block.y) {
                 
                 if (gravity > 0) {
-                    // --- Normal gravity: land on top, die on underside ---
+                    // --- Normal gravity: land on top ---
                     if (this.vy > 0 && this.y + this.height <= block.y + 10) {
-                        // Land on top
                         this.y = block.y - this.height;
                         this.vy = 0;
                         this.onGround = true;
@@ -141,16 +143,21 @@ class Player {
                         this.rotation = Math.round(this.rotation / ninety) * ninety;
                     }
 
-                    // Die if head hits underside
+                    // Head hits underside
                     if (this.vy < 0 && this.y >= block.y + block.height - 10 &&
                         this.x + this.width > block.x &&
                         this.x < block.x + block.width) {
-                        this.die();
+                        if (this.gameMode === "cube") {
+                            this.die(); // cube dies
+                        } else {
+                            // ship/other: just push out
+                            this.y = block.y + block.height;
+                            this.vy = 0;
+                        }
                     }
                 } else {
-                    // --- Flipped gravity: land on bottom, die on top ---
+                    // --- Flipped gravity: land on bottom ---
                     if (this.vy < 0 && this.y >= block.y + block.height - 10) {
-                        // Land on bottom
                         this.y = block.y + block.height;
                         this.vy = 0;
                         this.onGround = true;
@@ -159,23 +166,30 @@ class Player {
                         this.rotation = Math.round(this.rotation / ninety) * ninety;
                     }
 
-                    // Die if feet hit top
+                    // Feet hit top
                     if (this.vy > 0 && this.y + this.height <= block.y + 10 &&
                         this.x + this.width > block.x &&
                         this.x < block.x + block.width) {
-                        this.die();
+                        if (this.gameMode === "cube") {
+                            this.die(); // cube dies
+                        } else {
+                            // ship/other: just push out
+                            this.y = block.y - this.height;
+                            this.vy = 0;
+                        }
                     }
                 }
 
-                // Side collision (same for both gravity directions)
+                // Side collision
                 if (this.x + this.width > block.x &&
                     this.x < block.x &&
                     this.y + this.height > block.y &&
                     this.y < block.y + block.height) {
-                    this.die();
+                    this.die(); // all die
                 }
             }
         }
+
 
 
         for (let spike of spikes) {
@@ -265,6 +279,26 @@ class Player {
             ctx.stroke();
 
             ctx.restore();
+        } else if (this.gameMode === "ufo") {
+            const screenX = camera.toScreenX(this.x);
+            const screenY = camera.toScreenY(this.y);
+            const screenW = camera.toScreenW(this.width);
+            const screenH = camera.toScreenH(this.height);
+
+            ctx.fillStyle = playerFill;
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = strokeWidth;
+
+            ctx.beginPath();
+            ctx.arc(
+                screenX + screenW / 2,   // center X
+                screenY + screenH / 2,   // center Y
+                screenH / 2,             // radius
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+            ctx.stroke();
         }
     }
 }
@@ -446,7 +480,7 @@ class Camera {
         this.xOffset = canvas.width / 3;
         this.yOffset = 0;
 
-        this.zoom = 3; // uniform zoom
+        this.zoom = 2.5; // uniform zoom
         this.smoothFactor = 0.05; // smaller = smoother/slower
     }
 
@@ -527,18 +561,69 @@ new Spike(toBlocks(48), -toBlocks(1));
 
 new Portal(toBlocks(55), -toBlocks(3), unit, toBlocks(3), "reverseGravity");
 
-new Block(toBlocks(55), -toBlocks(6))
-new Block(toBlocks(56), -toBlocks(6))
-new Block(toBlocks(57), -toBlocks(6))
-new Block(toBlocks(58), -toBlocks(6))
-new Block(toBlocks(60), -toBlocks(7))
-new Block(toBlocks(61), -toBlocks(7))
-new Block(toBlocks(62), -toBlocks(7))
-new Block(toBlocks(63), -toBlocks(7))
-new Block(toBlocks(64), -toBlocks(7))
+new Block(toBlocks(55), -toBlocks(6));
+new Block(toBlocks(56), -toBlocks(6));
+new Block(toBlocks(57), -toBlocks(6));
+
+new Block(toBlocks(60), -toBlocks(7));
+
+new Spike(toBlocks(62), -toBlocks(6), unit, unit, Math.PI);
+
+new Block(toBlocks(65), -toBlocks(7));
+new Block(toBlocks(67), -toBlocks(8));
+
+new Portal(toBlocks(71), -toBlocks(6), unit, toBlocks(3), "normalGravity");
+
+new Spike(toBlocks(75), -toBlocks(1));
+
+new Portal(toBlocks(77), -toBlocks(4), unit, toBlocks(3), "ship");
+
+// Straightfly
+for(let i = 0; i < 30; i++) {
+    new Block(toBlocks(77 + i), -toBlocks(7));
+    new Spike(toBlocks(77 + i), -toBlocks(6), unit, unit, Math.PI);
+
+    new Spike(toBlocks(77 + i), -toBlocks(1), unit, unit, 0);
+}
+
+new Portal(toBlocks(108), -toBlocks(4), unit, toBlocks(3), "ufo");
+
+// Roof
+for(let i = 0; i < 50; i++) {
+    new Block(toBlocks(108 + i), -toBlocks(10));
+}
+
+// Pillars with gaps
+for(let i = 0; i < 9; i++) {
+    if(i <= 4 && i >= 2) continue;
+    new Block(toBlocks(120), -toBlocks(1 + i));
+}
+
+for(let i = 0; i < 9; i++) {
+    if(i <= 8 && i >= 6) continue;
+    new Block(toBlocks(130), -toBlocks(1 + i));
+}
+
+for(let i = 0; i < 9; i++) {
+    if(i <= 5 && i >= 3) continue;
+    new Block(toBlocks(140), -toBlocks(1 + i));
+}
+
+for(let i = 0; i < 9; i++) {
+    if(i <= 7 && i >= 5) continue;
+    new Block(toBlocks(150), -toBlocks(1 + i));
+}
+
+for(let i = 0; i < 9; i++) {
+    if(i <= 6 && i >= 4) continue;
+    new Block(toBlocks(157), -toBlocks(1 + i));
+}
+
+new Portal(toBlocks(157), -toBlocks(7), unit, toBlocks(3), "cube");
 
 
 let isPressing = false;
+let cancelPress = false;
 
 document.addEventListener("mousedown", (e) => {
     if(e.button === 0) isPressing = true;
@@ -547,6 +632,8 @@ document.addEventListener("mousedown", (e) => {
 document.addEventListener("mouseup", (e) => {
     if(e.button === 0) isPressing = false;
     console.log(isPressing);
+
+    cancelPress = false;
 })
 
 document.addEventListener("keydown", (e) => {
@@ -589,7 +676,7 @@ function gameLoop() {
     lastFrameTime = performance.now();
     const simDt = deltaTime * gameSpeed;
 
-    if (isPressing) player.jump();
+    if (isPressing && !cancelPress) player.jump();
     player.update(simDt);
     player.collide();
 
