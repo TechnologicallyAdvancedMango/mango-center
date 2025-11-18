@@ -72,7 +72,7 @@ class Player {
     update(dt) {
         this.scroll(dt);
         this.y += this.vy * dt;
-        this.vy += (this.gameMode === "ship") ? 0: gravity; // No gravity as ship
+        this.vy += (this.gameMode === "ship") ? 0: gravity * dt; // No gravity as ship
 
         // Rotate clockwise while in the air if cube
         if (this.gameMode === "cube" && !this.onGround ) {
