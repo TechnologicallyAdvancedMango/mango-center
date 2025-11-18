@@ -30,8 +30,20 @@ let spikeFillTop = "rgba(0,0,0,1)";
 let spikeFillBottom = "rgba(0,0,0,0)";
 let spikeStroke = "white";
 
+const portalTypes = {
+    reverseGravity: (player) => { gravity = -Math.abs(gravity) },
+    normalGravity: (player) => { gravity = Math.abs(gravity) },
+
+    mini: (player) => { player.mini = true },
+    normalSize: (player) => { player.mini = false },
+
+    cube: (player) => { player.gameMode = "cube" },
+    ship: (player) => { player.gameMode = "ship" }
+}
+
 let blocks = [];
 let spikes = [];
+let portals = [];
 
 class Player {
     constructor(x, y) {
@@ -163,8 +175,17 @@ class Player {
             }
         }
 
-
+        for (let portal of portals) {
+            if (this.x < portal.x + portal.width &&
+                this.x + this.width > portal.x &&
+                this.y < portal.y + portal.height &&
+                this.y + this.height > portal.y) {
+                
+                portal.applyEffect(this);
+            }
+        }
     }
+
     die() {
         console.log("Game Over!");
         // Refresh
@@ -333,6 +354,39 @@ class Spike {
     }
 }
 
+class Portal {
+    constructor(x, y, width = unit, height = toBlocks(3), effect) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.effect = effect;
+        this.triggered = false;
+
+        portals.push(this);
+    }
+
+    applyEffect(player) {
+        if(this.triggered) return;
+        portalTypes[this.effect](player);
+
+        this.triggered = true
+    }
+
+    draw(camera) {
+        const screenX = camera.toScreenX(this.x);
+        const screenY = camera.toScreenY(this.y);
+        const screenW = camera.toScreenW(this.width);
+        const screenH = camera.toScreenH(this.height);
+
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        ctx.fillStyle = "rgba(0,255,0,0.3)";
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+    }
+}
+
 class Ground {
     constructor(y = 0, height = unit) {
         this.x = -50000;
@@ -451,6 +505,8 @@ new Spike(toBlocks(46), -toBlocks(1));
 new Spike(toBlocks(47), -toBlocks(1));
 new Spike(toBlocks(48), -toBlocks(1));
 
+new Portal(toBlocks(55), -toBlocks(3), unit, toBlocks(3), "ship");
+
 
 let isPressing = false;
 
@@ -517,6 +573,7 @@ function gameLoop() {
 
     ground.draw(camera);
     for (let spike of spikes) spike.draw(camera);
+    for (let portal of portals) portal.draw(camera);
     for (let block of blocks) block.draw(camera);
     player.draw(camera);
 
