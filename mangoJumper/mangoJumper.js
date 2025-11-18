@@ -170,7 +170,7 @@ class Player {
         const hb = this.getHitbox();
 
         // Ground collision
-        if (hb.y + hb.height <= ground.y) {  // allow equality 
+        if (hb.y + hb.height >= ground.y) {  // allow equality 
             // old:
             /*
         if (hb.x < ground.x + ground.width &&
