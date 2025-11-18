@@ -38,7 +38,8 @@ const portalTypes = {
 
     cube: (player) => { player.gameMode = "cube" },
     ship: (player) => { player.gameMode = "ship" },
-    ufo: (player) => { player.gameMode = "ufo"}
+    ufo: (player) => { player.gameMode = "ufo"},
+    wave: (player) => { player.gameMode = "wave"}
 }
 
 let blocks = [];
@@ -61,7 +62,11 @@ class Player {
 
         this.onGround = false;
 
-        
+
+        this.waveHitboxScale = 0.4;
+        // For wave trail
+        this.trail = []; // stores past positions
+        this.maxTrailLength = 200; // tweak for longer/shorter trail
     }
 
     update(dt) {
@@ -86,6 +91,29 @@ class Player {
                 this.vy += gravity * dt;
             }
             
+        } else if (this.gameMode === "wave") {
+            let slopeSpeed = this.mini ? speed * 2 : speed;
+            if(gravity < 0) slopeSpeed *= -1;
+
+            // Only apply slope movement if not grounded
+            if (!this.onGround) {
+                this.vy = isPressing ? -slopeSpeed : slopeSpeed;
+            } else {
+                this.vy = 0; // stay stable on ground
+            }
+
+            // Add current position to trail
+            this.trail.push({ x: this.x, y: this.y });
+
+            // Limit trail length
+            if (this.trail.length > this.maxTrailLength) {
+                this.trail.shift();
+            }
+
+            if(!this.onGround) {
+                this.rotation = (this.vy < 0) ? -Math.PI / 4 : Math.PI / 4;
+            }
+            
         }
     }
 
@@ -105,103 +133,169 @@ class Player {
         }
     }
 
+    getHitbox() {
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (this.gameMode === "wave") {
+            scale = this.waveHitboxScale; // e.g. 0.6
+            // fine‑tuning just for wave
+            offsetY = (this.width - this.width * scale) / 5;
+            offsetX = (this.height - this.height * scale) / 5;
+        } else if (this.mini) {
+            scale = 0.7;
+            offsetX = (this.width - this.width * scale) / 2;
+            offsetY = (this.height - this.height * scale) / 2;
+        } else {
+            // default centering
+            offsetX = (this.width - this.width * scale) / 2;
+            offsetY = (this.height - this.height * scale) / 2;
+        }
+
+        const w = this.width * scale;
+        const h = this.height * scale;
+
+        return {
+            x: this.x + offsetX,
+            y: this.y + offsetY,
+            width: w,
+            height: h
+        };
+    }
+
     collide() {
         this.onGround = false;
+        const hb = this.getHitbox();
 
         // Ground collision
-        if (this.x < ground.x + ground.width &&
-            this.x + this.width > ground.x &&
-            this.y < ground.y + ground.height &&
-            this.y + this.height > ground.y) {
+        if (hb.x < ground.x + ground.width &&
+            hb.x + hb.width > ground.x &&
+            hb.y < ground.y + ground.height &&
+            hb.y + hb.height >= ground.y - 1) {  // allow equality
 
-            if (this.vy > 0 && this.y + this.height <= ground.y + 10) {
-                this.y = ground.y - this.height;
-                this.vy = 0;
-                this.onGround = true;
 
-                // Snap rotation to nearest 90°
-                const ninety = Math.PI / 2;
-                this.rotation = Math.round(this.rotation / ninety) * ninety;
+            if (this.gameMode === "wave") {
+                // Wave: clamp to ground, keep sliding
+                if (this.vy > 0 && hb.y + hb.height >= ground.y) {
+                    this.y = ground.y - (hb.height + (hb.y - this.y)); // offset-aware snap
+                    this.vy = 0;
+                    this.onGround = true;
+
+                    // snap rotation to 90 degree increments
+                    const ninety = Math.PI / 2;
+                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                }
+            } else {
+                // Cube/ship/etc: land on ground
+                if (this.vy > 0 && hb.y + hb.height <= ground.y + 10) {
+                    this.y = ground.y - this.height;
+                    this.vy = 0;
+                    this.onGround = true;
+
+                    // snap rotation to 90° increments
+                    const ninety = Math.PI / 2;
+                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                }
             }
         }
 
-        // Block collisions
+
+        // --- Block collisions ---
         for (let block of blocks) {
-            if (this.x < block.x + block.width &&
-                this.x + this.width > block.x &&
-                this.y < block.y + block.height &&
-                this.y + this.height > block.y) {
-                
-                if (gravity > 0) {
-                    // --- Normal gravity: land on top ---
-                    if (this.vy > 0 && this.y + this.height <= block.y + 10) {
-                        this.y = block.y - this.height;
-                        this.vy = 0;
-                        this.onGround = true;
+        // recompute hb per block if needed (sprite y may change)
+        const hb = this.getHitbox();
 
-                        const ninety = Math.PI / 2;
-                        this.rotation = Math.round(this.rotation / ninety) * ninety;
-                    }
+        if (hb.x < block.x + block.width &&
+            hb.x + hb.width > block.x &&
+            hb.y < block.y + block.height &&
+            hb.y + hb.height > block.y) {
 
-                    // Head hits underside
-                    if (this.vy < 0 && this.y >= block.y + block.height - 10 &&
-                        this.x + this.width > block.x &&
-                        this.x < block.x + block.width) {
-                        if (this.gameMode === "cube") {
-                            this.die(); // cube dies
-                        } else {
-                            // ship/other: just push out
-                            this.y = block.y + block.height;
-                            this.vy = 0;
-                        }
-                    }
-                } else {
-                    // --- Flipped gravity: land on bottom ---
-                    if (this.vy < 0 && this.y >= block.y + block.height - 10) {
+            // Wave dies on any block hit
+            if (this.gameMode === "wave") {
+                this.die();
+                continue;
+            }
+
+            let ceilingBlocked = false;
+
+            if (gravity > 0) {
+                // --- Normal gravity: land on top ---
+                if (this.vy > 0 && hb.y + hb.height <= block.y + 10) {
+                    this.y = block.y - this.height;
+                    this.vy = 0;
+                    this.onGround = true;
+
+                    const ninety = Math.PI / 2;
+                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    continue; // don't check underside/side this frame
+                }
+
+                // Head hits underside
+                if (this.vy < 0 && hb.y >= block.y + block.height - 10 &&
+                    hb.x + hb.width > block.x &&
+                    hb.x < block.x + block.width) {
+                    
+                    if (this.gameMode === "cube") {
+                        this.die(); // cube dies
+                    } else {
+                        // UFO/ship/etc: clamp to underside and zero vy
                         this.y = block.y + block.height;
                         this.vy = 0;
-                        this.onGround = true;
-
-                        const ninety = Math.PI / 2;
-                        this.rotation = Math.round(this.rotation / ninety) * ninety;
+                        ceilingBlocked = true;
                     }
+                    // After underside resolution, skip side for this block
+                    continue;
+                }
+            } else {
+                // --- Flipped gravity: land on bottom ---
+                if (this.vy < 0 && hb.y >= block.y + block.height - 10) {
+                    this.y = block.y + block.height;
+                    this.vy = 0;
+                    this.onGround = true;
 
-                    // Feet hit top
-                    if (this.vy > 0 && this.y + this.height <= block.y + 10 &&
-                        this.x + this.width > block.x &&
-                        this.x < block.x + block.width) {
-                        if (this.gameMode === "cube") {
-                            this.die(); // cube dies
-                        } else {
-                            // ship/other: just push out
-                            this.y = block.y - this.height;
-                            this.vy = 0;
-                        }
-                    }
+                    const ninety = Math.PI / 2;
+                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    continue;
                 }
 
-                // Side collision
-                if (this.x + this.width > block.x &&
-                    this.x < block.x &&
-                    this.y + this.height > block.y &&
-                    this.y < block.y + block.height) {
-                    this.die(); // all die
+                // Feet hit top
+                if (this.vy > 0 && hb.y + hb.height <= block.y + 10 &&
+                    hb.x + hb.width > block.x &&
+                    hb.x < block.x + block.width) {
+                    if (this.gameMode === "cube") {
+                        this.die(); // cube dies
+                    } else {
+                        // ship/other: clamp to top and zero vy
+                        this.y = block.y - this.height;
+                        this.vy = 0;
+                        ceilingBlocked = true;
+                    }
+                    continue;
                 }
             }
+
+            // Side collision → fatal only if not grounded or ceiling-resolved
+            if (!this.onGround && !ceilingBlocked &&
+                hb.x + hb.width > block.x &&
+                hb.x < block.x &&
+                hb.y + hb.height > block.y &&
+                hb.y < block.y + block.height) {
+                this.die();
+                continue;
+            }
         }
+    }
 
-
-
+        // --- Spike collisions ---
         for (let spike of spikes) {
             const [a, b, c] = spike.getVertices();
-
             const corners = [
-                [this.x, this.y],
-                [this.x + this.width, this.y],
-                [this.x, this.y + this.height],
-                [this.x + this.width, this.y + this.height]
+                [hb.x, hb.y],
+                [hb.x + hb.width, hb.y],
+                [hb.x, hb.y + hb.height],
+                [hb.x + hb.width, hb.y + hb.height]
             ];
-
             for (let [px, py] of corners) {
                 if (pointInTriangle(px, py, a[0], a[1], b[0], b[1], c[0], c[1])) {
                     this.die();
@@ -209,16 +303,21 @@ class Player {
             }
         }
 
+        // --- Portal collisions ---
         for (let portal of portals) {
-            if (this.x < portal.x + portal.width &&
-                this.x + this.width > portal.x &&
-                this.y < portal.y + portal.height &&
-                this.y + this.height > portal.y) {
-                
+            if (hb.x < portal.x + portal.width &&
+                hb.x + hb.width > portal.x &&
+                hb.y < portal.y + portal.height &&
+                hb.y + hb.height > portal.y) {
                 portal.applyEffect(this);
             }
         }
+
+        if (Math.abs(this.y + this.height - ground.y) < 2 && this.vy > 0 && this.gameMode === "wave") {
+            this.onGround = true; this.vy = 0;
+        }
     }
+
 
     die() {
         console.log("Game Over!");
@@ -299,6 +398,60 @@ class Player {
             );
             ctx.fill();
             ctx.stroke();
+        } else if (this.gameMode === "wave") {
+            const scale = this.waveHitboxScale * 1.6; // scale drawing with hitbox scale plus some extra
+            const screenX = camera.toScreenX(this.x);
+            const screenY = camera.toScreenY(this.y);
+            const screenW = camera.toScreenW(this.width * scale);
+            const screenH = camera.toScreenH(this.height * scale);
+
+            // --- Trail ---
+            ctx.beginPath();
+            for (let i = 0; i < this.trail.length; i++) {
+                const t = this.trail[i];
+                const tx = camera.toScreenX(t.x) + screenW / 2;
+                const ty = camera.toScreenY(t.y) + screenH / 2;
+
+                if (i === 0) ctx.moveTo(tx, ty);
+                else ctx.lineTo(tx, ty);
+            }
+            ctx.lineWidth = 35 * scale;   // scale trail thickness
+            ctx.strokeStyle = "#2dabffff";
+            ctx.stroke();
+            ctx.lineWidth = 15 * scale;
+            ctx.strokeStyle = "#ffffffff";
+            ctx.stroke();
+
+            // --- Wave triangle ---
+            ctx.save();
+            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+            ctx.rotate(this.rotation);
+
+            ctx.fillStyle = playerFill;
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = strokeWidth * scale;
+
+            ctx.beginPath();
+            ctx.moveTo(-screenW / 2, screenH / 2);
+            ctx.lineTo(screenW / 2, 0);
+            ctx.lineTo(-screenW / 2, -screenH / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.restore();
+
+            /* hitbox
+            const hb = this.getHitbox();
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                camera.toScreenX(hb.x),
+                camera.toScreenY(hb.y),
+                camera.toScreenW(hb.width),
+                camera.toScreenH(hb.height)
+            );
+            */
         }
     }
 }
@@ -595,31 +748,33 @@ for(let i = 0; i < 50; i++) {
 
 // Pillars with gaps
 for(let i = 0; i < 9; i++) {
-    if(i <= 4 && i >= 2) continue;
+    if(i <= 4 && i >= 1) continue;
     new Block(toBlocks(120), -toBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
-    if(i <= 8 && i >= 6) continue;
+    if(i <= 8 && i >= 5) continue;
     new Block(toBlocks(130), -toBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
-    if(i <= 5 && i >= 3) continue;
+    if(i <= 5 && i >= 2) continue;
     new Block(toBlocks(140), -toBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
-    if(i <= 7 && i >= 5) continue;
+    if(i <= 7 && i >= 4) continue;
     new Block(toBlocks(150), -toBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
-    if(i <= 6 && i >= 4) continue;
+    if(i <= 6 && i >= 3) continue;
     new Block(toBlocks(157), -toBlocks(1 + i));
 }
 
 new Portal(toBlocks(157), -toBlocks(7), unit, toBlocks(3), "cube");
+
+new Portal(toBlocks(163), -toBlocks(3), unit, toBlocks(3), "wave");
 
 
 let isPressing = false;
@@ -677,12 +832,15 @@ function gameLoop() {
     const simDt = deltaTime * gameSpeed;
 
     if (isPressing && !cancelPress) player.jump();
-    player.update(simDt);
     player.collide();
-
+    player.update(simDt);
+    
+    
 
     // Rendering
     camera.follow(player);
+
+    player.maxTrailLength = 400 / camera.zoom;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
