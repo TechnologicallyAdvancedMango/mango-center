@@ -172,15 +172,10 @@ class Player {
         const hb = this.getHitbox();
 
         // Ground collision
-        if (hb.y + hb.height >= ground.y) {  // allow equality 
-            // old:
-            /*
         if (hb.x < ground.x + ground.width &&
             hb.x + hb.width > ground.x &&
             hb.y < ground.y + ground.height &&
-            hb.y + hb.height >= ground.y - 1) {
-            */
-
+            hb.y + hb.height >= ground.y - 1) {  // allow equality 
 
             if (this.gameMode === "wave") {
                 // Wave: clamp to ground, keep sliding
