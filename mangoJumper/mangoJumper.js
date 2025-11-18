@@ -39,24 +39,37 @@ class Player {
         this.y = y;
         this.vy = 0;
 
-        this.width = unit;
-        this.height = unit;
+        this.gameMode = "cube";
+        this.mini = false;
+
+        this.width = this.mini ? unit/2: unit;
+        this.height = this.mini ? unit/2: unit;
 
         this.rotation = 0;
 
         this.onGround = false;
 
-        this.gameMode = "cube";
+        
     }
 
     update(dt) {
         this.scroll(dt);
         this.y += this.vy * dt;
-        this.vy += gravity;
+        this.vy += (this.gameMode === "ship") ? 0: gravity; // No gravity as ship
 
-        // Rotate clockwise while in the air
+        // Rotate clockwise while in the air if cube
         if (this.gameMode === "cube" && !this.onGround ) {
             this.rotation += 0.1 * dt;
+        }
+
+        // Ship movement
+        if (this.gameMode === "ship") {
+            if(isPressing) {
+                this.vy -= 0.3 * dt;
+            } else {
+                this.vy += 0.3 * dt;
+            }
+            
         }
     }
 
@@ -66,7 +79,7 @@ class Player {
     
     jump() {
         if (this.gameMode === "cube" && this.onGround) {
-            this.vy = -11; // upward impulse
+            this.vy = this.mini ? -8: -11; // upward impulse
             this.onGround = false;
         }
     }
@@ -115,6 +128,21 @@ class Player {
                     this.y < block.y + block.height) {
                     this.die();
                 }
+
+                // Bottom collision (player's head hits underside of block)
+                if (this.vy < 0 && this.y >= block.y + block.height - 10 &&
+                    this.x + this.width > block.x &&
+                    this.x < block.x + block.width) {
+
+                    if (this.gameMode === "cube") {
+                        // Cube dies when hitting underside
+                        this.die();
+                    } else {
+                        // Other gamemodes: push player down out of the block
+                        this.y = block.y + block.height;
+                        this.vy = 0; // cancel upward velocity
+                    }
+                }
             }
         }
 
@@ -159,6 +187,42 @@ class Player {
             ctx.strokeStyle = playerStroke;
             ctx.lineWidth = strokeWidth;
             ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            ctx.restore();
+        } else if (this.gameMode === "ship") {
+            const screenX = camera.toScreenX(this.x);
+            const screenY = camera.toScreenY(this.y);
+            const screenW = camera.toScreenW(this.width);
+            const screenH = camera.toScreenH(this.height);
+
+            // Calculate angle of movement
+            const angle = Math.atan2(this.vy, speed);
+
+            ctx.save();
+            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+            ctx.rotate(angle);
+
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = strokeWidth;
+
+            // --- Draw cockpit square first (behind) ---
+            const cockpitSize = screenH / 2;
+            ctx.fillStyle = "gray";
+            ctx.fillRect(-cockpitSize / 2, -screenH / 2 - cockpitSize / 2 + 10,
+                        cockpitSize, cockpitSize);
+            ctx.strokeRect(-cockpitSize / 2, -screenH / 2 - cockpitSize / 2 + 10,
+                        cockpitSize, cockpitSize);
+
+            // --- Draw trapezoid body on top ---
+            ctx.fillStyle = playerFill;
+            ctx.beginPath();
+            ctx.moveTo(screenW / 2, -screenH / 4 + 10);              // nose top
+            ctx.lineTo(screenW / 2, screenH / 4 + 10);               // nose bottom
+            ctx.lineTo(-screenW / 2, screenH / 3 + 10);              // back bottom
+            ctx.lineTo(-screenW / 2, -screenH / 3 + 10);             // back top
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
             ctx.restore();
         }
     }
