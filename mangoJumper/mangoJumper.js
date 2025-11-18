@@ -832,11 +832,11 @@ function gameLoop() {
     lastFrameTime = performance.now();
     const simDt = deltaTime * gameSpeed;
 
-    if (isPressing && !cancelPress) player.jump();
-    player.collide();
-    player.update(simDt);
-    
-    
+    if (player.alive) {
+        if (isPressing && !cancelPress) player.jump();
+        player.collide();
+        player.update(simDt);
+    }
 
     // Rendering
     camera.follow(player);
