@@ -16,6 +16,9 @@ let gameSpeed = 1;
 
 const unit = 30;
 
+let objectStrokeWidth = 1.5;
+let strokeWidth;
+
 let playerFill = "white";
 let playerStroke = "black";
 
@@ -63,7 +66,7 @@ class Player {
     
     jump() {
         if (this.gameMode === "cube" && this.onGround) {
-            this.vy = -12; // upward impulse
+            this.vy = -11; // upward impulse
             this.onGround = false;
         }
     }
@@ -154,7 +157,7 @@ class Player {
             ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
             ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = 4;
+            ctx.lineWidth = strokeWidth;
             ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
             ctx.restore();
         }
@@ -191,7 +194,7 @@ class Block {
         ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
         ctx.strokeStyle = spikeStroke;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = strokeWidth;
         ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
         ctx.restore();
@@ -259,7 +262,7 @@ class Spike {
         ctx.fill();
 
         ctx.strokeStyle = blockStroke;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = strokeWidth;
         ctx.stroke();
 
         ctx.restore();
@@ -291,7 +294,7 @@ class Ground {
         ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
         ctx.strokeStyle = spikeStroke;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = strokeWidth;
         ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
         ctx.restore();
@@ -355,15 +358,16 @@ let player = new Player(0, -unit);
 let camera = new Camera(0, 0);
 let ground = new Ground(0, 200);
 
-//new Block(toBlocks(13), -unit);
 
+// Level
 new Spike(toBlocks(14), -toBlocks(1));
 new Spike(toBlocks(15.5), -toBlocks(4), unit, unit, Math.PI);
 new Block(toBlocks(15.5), -toBlocks(5))
 new Spike(toBlocks(17), -toBlocks(1));
 
-new Block(toBlocks(21), -toBlocks(1), unit, unit)
-new Block(toBlocks(25), -toBlocks(3), unit, unit)
+new Block(toBlocks(20), -toBlocks(1), unit, unit)
+new Block(toBlocks(24), -toBlocks(3), unit, unit)
+new Block(toBlocks(28), -toBlocks(5), unit, unit)
 new Block(toBlocks(29), -toBlocks(5), unit, unit)
 
 new Spike(toBlocks(29), -toBlocks(1));
@@ -380,6 +384,8 @@ new Spike(toBlocks(38), -toBlocks(1));
 new Spike(toBlocks(39), -toBlocks(1));
 
 new Spike(toBlocks(46), -toBlocks(1));
+new Spike(toBlocks(47), -toBlocks(1));
+new Spike(toBlocks(48), -toBlocks(1));
 
 
 let isPressing = false;
@@ -442,6 +448,8 @@ function gameLoop() {
     camera.follow(player);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    strokeWidth = objectStrokeWidth * camera.zoom; // Consistent look across zoom values
 
     ground.draw(camera);
     for (let spike of spikes) spike.draw(camera);
