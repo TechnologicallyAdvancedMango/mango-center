@@ -229,7 +229,7 @@ class Player {
             if (gravity > 0) {
                 // --- Normal gravity: land on top ---
                 if (this.vy > 0 && hb.y + hb.height <= block.y + 10) {
-                    this.y = block.y - hb.height; // testing ------------------------------------------------------------
+                    this.y = block.y - this.height;
                     this.vy = 0;
                     this.onGround = true;
 
