@@ -1,3 +1,12 @@
+/*
+
+To do:
+
+Add bottom of block collision
+Add more gamemodes
+
+*/
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -6,6 +15,17 @@ let speed = 5;
 let gameSpeed = 1;
 
 const unit = 30;
+
+let playerFill = "white";
+let playerStroke = "black";
+
+let blockFillTop = "rgba(0,0,0,1)";
+let blockFillBottom = "rgba(0,0,0,0)";
+let blockStroke = "white";
+
+let spikeFillTop = "rgba(0,0,0,1)";
+let spikeFillBottom = "rgba(0,0,0,0)";
+let spikeStroke = "white";
 
 let blocks = [];
 let spikes = [];
@@ -22,6 +42,8 @@ class Player {
         this.rotation = 0;
 
         this.onGround = false;
+
+        this.gameMode = "cube";
     }
 
     update(dt) {
@@ -30,8 +52,8 @@ class Player {
         this.vy += gravity;
 
         // Rotate clockwise while in the air
-        if (!this.onGround) {
-            this.rotation += 0.1 * dt; // adjust speed as needed
+        if (this.gameMode === "cube" && !this.onGround ) {
+            this.rotation += 0.1 * dt;
         }
     }
 
@@ -40,7 +62,7 @@ class Player {
     }
     
     jump() {
-        if (this.onGround) {
+        if (this.gameMode === "cube" && this.onGround) {
             this.vy = -12; // upward impulse
             this.onGround = false;
         }
@@ -48,6 +70,23 @@ class Player {
 
     collide() {
         this.onGround = false;
+
+        // Ground collision
+        if (this.x < ground.x + ground.width &&
+            this.x + this.width > ground.x &&
+            this.y < ground.y + ground.height &&
+            this.y + this.height > ground.y) {
+
+            if (this.vy > 0 && this.y + this.height <= ground.y + 10) {
+                this.y = ground.y - this.height;
+                this.vy = 0;
+                this.onGround = true;
+
+                // Snap rotation to nearest 90°
+                const ninety = Math.PI / 2;
+                this.rotation = Math.round(this.rotation / ninety) * ninety;
+            }
+        }
 
         for (let block of blocks) {
             if (this.x < block.x + block.width &&
@@ -102,17 +141,23 @@ class Player {
     }
 
     draw(camera) {
-        const screenX = camera.toScreenX(this.x);
-        const screenY = camera.toScreenY(this.y);
-        const screenW = camera.toScreenW(this.width);
-        const screenH = camera.toScreenH(this.height);
+        if(this.gameMode === "cube") {
+            const screenX = camera.toScreenX(this.x);
+            const screenY = camera.toScreenY(this.y);
+            const screenW = camera.toScreenW(this.width);
+            const screenH = camera.toScreenH(this.height);
 
-        ctx.save();
-        ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-        ctx.rotate(this.rotation);
-        ctx.fillStyle = "blue";
-        ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
-        ctx.restore();
+            ctx.save();
+            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+            ctx.rotate(this.rotation);
+            ctx.fillStyle = playerFill;
+            ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            ctx.restore();
+        }
     }
 }
 
@@ -128,13 +173,28 @@ class Block {
     }
 
     draw(camera) {
-        ctx.fillStyle = "gray";
-        ctx.fillRect(
-            camera.toScreenX(this.x),
-            camera.toScreenY(this.y),
-            camera.toScreenW(this.width),
-            camera.toScreenH(this.height)
-        );
+        const screenX = camera.toScreenX(this.x);
+        const screenY = camera.toScreenY(this.y);
+        const screenW = camera.toScreenW(this.width);
+        const screenH = camera.toScreenH(this.height);
+
+        ctx.save();
+        ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+        ctx.rotate(this.rotation || 0);
+
+        // Gradient from top (opaque) to bottom (transparent)
+        const grad = ctx.createLinearGradient(0, -screenH / 2, 0, screenH / 2);
+        grad.addColorStop(0, blockFillTop);   // top opaque
+        grad.addColorStop(1, blockFillBottom);   // bottom transparent
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+
+        ctx.strokeStyle = spikeStroke;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+
+        ctx.restore();
     }
 }
 
@@ -175,17 +235,68 @@ class Spike {
     }
 
     draw(camera) {
-        const [a, b, c] = this.getVertices();
-        ctx.fillStyle = "red";
+        const [a, b, c] = this.getVertices(camera); // rotated vertices
+
+        ctx.save();
+
+        // Compute gradient direction: tip → base
+        const tip = a;
+        const baseMid = [(b[0] + c[0]) / 2, (b[1] + c[1]) / 2];
+
+        const grad = ctx.createLinearGradient(
+            camera.toScreenX(tip[0]), camera.toScreenY(tip[1]),
+            camera.toScreenX(baseMid[0]), camera.toScreenY(baseMid[1])
+        );
+        grad.addColorStop(0, spikeFillTop); // opaque at tip
+        grad.addColorStop(1, spikeFillBottom); // transparent at base
+
+        ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.moveTo(camera.toScreenX(a[0]), camera.toScreenY(a[1]));
         ctx.lineTo(camera.toScreenX(b[0]), camera.toScreenY(b[1]));
         ctx.lineTo(camera.toScreenX(c[0]), camera.toScreenY(c[1]));
         ctx.closePath();
         ctx.fill();
+
+        ctx.strokeStyle = blockStroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
     }
 }
 
+class Ground {
+    constructor(y = 0, height = unit) {
+        this.x = -50000;
+        this.y = y;
+        this.width = 100000;
+        this.height = height;
+    }
+
+    draw(camera) {
+        const screenX = camera.toScreenX(this.x);
+        const screenY = camera.toScreenY(this.y);
+        const screenW = camera.toScreenW(this.width);
+        const screenH = camera.toScreenH(this.height);
+
+        ctx.save();
+        ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+
+        const grad = ctx.createLinearGradient(0, -screenH / 2, 0, screenH / 2);
+        grad.addColorStop(0, "#01073acc"); // top opaque
+        grad.addColorStop(1, "#01073a1a"); // bottom transparent
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+
+        ctx.strokeStyle = spikeStroke;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+
+        ctx.restore();
+    }
+}
 
 class Camera {
     constructor() {
@@ -242,7 +353,7 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
 
 let player = new Player(0, -unit);
 let camera = new Camera(0, 0);
-let ground = new Block(-5000, 0, 100000, 5000);
+let ground = new Ground(0, 200);
 
 //new Block(toBlocks(13), -unit);
 
@@ -332,8 +443,9 @@ function gameLoop() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    for (let block of blocks) block.draw(camera);
+    ground.draw(camera);
     for (let spike of spikes) spike.draw(camera);
+    for (let block of blocks) block.draw(camera);
     player.draw(camera);
 
     requestAnimationFrame(gameLoop);
