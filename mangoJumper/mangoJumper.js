@@ -2,6 +2,7 @@
 
 To do:
 
+Fix for chromebooks
 Add more gamemodes/portals
 
 */
