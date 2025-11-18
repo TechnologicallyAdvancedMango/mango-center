@@ -62,7 +62,7 @@ class Player {
         this.rotation = 0;
 
         this.onGround = false;
-
+        this.alive = true;
 
         this.waveHitboxScale = 0.4;
         // For wave trail
@@ -321,6 +321,7 @@ class Player {
 
 
     die() {
+        this.alive = false;
         console.log("Game Over!");
         // Refresh
         window.location.reload();
