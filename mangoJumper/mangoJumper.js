@@ -71,7 +71,11 @@ class Player {
 
         // Rotate clockwise while in the air if cube
         if (this.gameMode === "cube" && !this.onGround ) {
-            this.rotation += 0.1 * dt;
+            if(gravity >= 0) {
+                this.rotation += 0.1 * dt;
+            } else {
+                this.rotation -= 0.1 * dt; // Counterclockwise if upside down
+            } 
         }
 
         // Ship movement
@@ -90,8 +94,11 @@ class Player {
     }
     
     jump() {
+        let jumpingForce = 11;
+        if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
+
         if (this.gameMode === "cube" && this.onGround) {
-            this.vy = this.mini ? -8: -11; // upward impulse
+            this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
             this.onGround = false;
         }
     }
@@ -122,41 +129,54 @@ class Player {
                 this.y < block.y + block.height &&
                 this.y + this.height > block.y) {
                 
-                // Land on top of block
-                if (this.vy > 0 && this.y + this.height <= block.y + 10) {
-                    this.y = block.y - this.height;
-                    this.vy = 0;
-                    this.onGround = true;
+                if (gravity > 0) {
+                    // --- Normal gravity: land on top, die on underside ---
+                    if (this.vy > 0 && this.y + this.height <= block.y + 10) {
+                        // Land on top
+                        this.y = block.y - this.height;
+                        this.vy = 0;
+                        this.onGround = true;
 
-                    // Snap rotation to nearest 90°
-                    const ninety = Math.PI / 2;
-                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                        const ninety = Math.PI / 2;
+                        this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    }
+
+                    // Die if head hits underside
+                    if (this.vy < 0 && this.y >= block.y + block.height - 10 &&
+                        this.x + this.width > block.x &&
+                        this.x < block.x + block.width) {
+                        this.die();
+                    }
+                } else {
+                    // --- Flipped gravity: land on bottom, die on top ---
+                    if (this.vy < 0 && this.y >= block.y + block.height - 10) {
+                        // Land on bottom
+                        this.y = block.y + block.height;
+                        this.vy = 0;
+                        this.onGround = true;
+
+                        const ninety = Math.PI / 2;
+                        this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    }
+
+                    // Die if feet hit top
+                    if (this.vy > 0 && this.y + this.height <= block.y + 10 &&
+                        this.x + this.width > block.x &&
+                        this.x < block.x + block.width) {
+                        this.die();
+                    }
                 }
 
-                // Check collision with left side of block
-                if (this.x + this.width > block.x &&      // player’s right edge past block’s left edge
-                    this.x < block.x &&                   // player’s left edge still left of block
-                    this.y + this.height > block.y &&     // vertical overlap
+                // Side collision (same for both gravity directions)
+                if (this.x + this.width > block.x &&
+                    this.x < block.x &&
+                    this.y + this.height > block.y &&
                     this.y < block.y + block.height) {
                     this.die();
                 }
-
-                // Bottom collision (player's head hits underside of block)
-                if (this.vy < 0 && this.y >= block.y + block.height - 10 &&
-                    this.x + this.width > block.x &&
-                    this.x < block.x + block.width) {
-
-                    if (this.gameMode === "cube") {
-                        // Cube dies when hitting underside
-                        this.die();
-                    } else {
-                        // Other gamemodes: push player down out of the block
-                        this.y = block.y + block.height;
-                        this.vy = 0; // cancel upward velocity
-                    }
-                }
             }
         }
+
 
         for (let spike of spikes) {
             const [a, b, c] = spike.getVertices();
@@ -505,7 +525,17 @@ new Spike(toBlocks(46), -toBlocks(1));
 new Spike(toBlocks(47), -toBlocks(1));
 new Spike(toBlocks(48), -toBlocks(1));
 
-new Portal(toBlocks(55), -toBlocks(3), unit, toBlocks(3), "ship");
+new Portal(toBlocks(55), -toBlocks(3), unit, toBlocks(3), "reverseGravity");
+
+new Block(toBlocks(55), -toBlocks(6))
+new Block(toBlocks(56), -toBlocks(6))
+new Block(toBlocks(57), -toBlocks(6))
+new Block(toBlocks(58), -toBlocks(6))
+new Block(toBlocks(60), -toBlocks(7))
+new Block(toBlocks(61), -toBlocks(7))
+new Block(toBlocks(62), -toBlocks(7))
+new Block(toBlocks(63), -toBlocks(7))
+new Block(toBlocks(64), -toBlocks(7))
 
 
 let isPressing = false;
