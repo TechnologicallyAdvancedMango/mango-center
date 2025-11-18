@@ -14,7 +14,7 @@ let gravity = 0.85;
 let speed = 5;
 let gameSpeed = 1;
 
-let frameMultilpier = 10;
+let frameMultiplier = 10;
 
 const unit = 30;
 
