@@ -150,8 +150,8 @@ class Player {
             offsetY = (this.height - this.height * scale) / 2;
         } else {
             // default centering
-            offsetX = (this.width - this.width * scale) / 2;
-            offsetY = (this.height - this.height * scale) / 2;
+            offsetX = 0 //(this.width - this.width * scale) / 2;
+            offsetY = 0 //(this.height - this.height * scale) / 2;
         }
 
         const w = this.width * scale;
