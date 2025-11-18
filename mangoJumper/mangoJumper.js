@@ -828,12 +828,12 @@ resizeCanvas();
 let lastFrameTime = performance.now();
 
 function gameLoop() {
-    const thisFrameTime = performance.now();
-    const deltaTime = (thisFrameTime - lastFrameTime) / 16;
-    lastFrameTime = performance.now();
-    const simDt = deltaTime * gameSpeed;
-
     if (player.alive) {
+        const thisFrameTime = performance.now();
+        const deltaTime = (thisFrameTime - lastFrameTime) / 16;
+        lastFrameTime = performance.now();
+        const simDt = deltaTime * gameSpeed;
+    
         if (isPressing && !cancelPress) player.jump();
         player.collide();
         player.update(simDt);
