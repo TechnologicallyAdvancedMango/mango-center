@@ -451,7 +451,7 @@ class Player {
 
 
     die() {
-        if (this.god) return;
+        if (this.god || !this.alive) return;
         this.alive = false;
         console.log("Game Over!");
         // Refresh
