@@ -2,7 +2,6 @@
 
 To do:
 
-Fix block y = 0 blocks not killing you
 Add orbs and pads
 Add more gamemodes/portals
 
@@ -76,6 +75,8 @@ class Player {
 
         this.alive = true;
 
+        this.drawHitbox = false;
+
         this.waveHitboxScale = 0.4;
         // For wave trail
         this.trail = []; // stores past positions
@@ -148,7 +149,7 @@ class Player {
             }
         } else if (this.gameMode === "ball") {
             // gravity change is in jump()
-            this.vy += gravity * dt * 0.4; // Tweak for good feeling ball
+            this.vy += gravity * dt * 0.6; // Tweak for good feeling ball
 
             if(this.onGround && !cancelPress) { // Only change direction when landing
                 if(gravity >= 0) {
@@ -178,7 +179,7 @@ class Player {
 
             } else if (this.gameMode === "ball" && this.onGround) {
                 gravity *= -1; // Flip gravity
-                this.vy = gravity < 0 ? -1: 1; // 1 velocity away from surface to avoid collision detection killing
+                this.y += gravity < 0 ? -1: 1; // 1 pixel away from surface to avoid collision detection killing
 
                 cancelPress = true;
             }
@@ -316,7 +317,7 @@ class Player {
                             ceilingBlocked = true;
                         }
                         // After underside resolution, skip side for this block
-                        continue;
+                        // continue;
                     }
                 } else {
                     // --- Flipped gravity: land on bottom ---
@@ -347,7 +348,7 @@ class Player {
                 }
 
                 // Side collision → fatal only if not grounded or ceiling-resolved
-                if (!this.onGround && !ceilingBlocked &&
+                if (!ceilingBlocked &&
                     hb.x + hb.width > block.x &&
                     hb.x < block.x &&
                     hb.y + hb.height > block.y &&
@@ -581,18 +582,6 @@ class Player {
             ctx.stroke();
 
             ctx.restore();
-
-            /* hitbox
-            const hb = this.getHitbox();
-            ctx.strokeStyle = "red";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(
-                camera.toScreenX(hb.x),
-                camera.toScreenY(hb.y),
-                camera.toScreenW(hb.width),
-                camera.toScreenH(hb.height)
-            );
-            */
         } else if (this.gameMode === "ball") {
             const screenX = camera.toScreenX(this.x);
             const screenY = camera.toScreenY(this.y);
@@ -633,6 +622,19 @@ class Player {
 
             ctx.restore();
         }
+
+        // Draw hitbox:
+        if(this.drawHitbox) {
+            const hb = this.getHitbox();
+            ctx.strokeStyle = "#ff0000";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                camera.toScreenX(hb.x),
+                camera.toScreenY(hb.y),
+                camera.toScreenW(hb.width),
+                camera.toScreenH(hb.height)
+            );
+        }
     }
 }
 
@@ -643,6 +645,8 @@ class Block {
 
         this.width = width;
         this.height = height;
+
+        this.drawHitbox = false;
 
         blocks.push(this);
     }
@@ -669,6 +673,12 @@ class Block {
         ctx.lineWidth = strokeWidth;
         ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
+        if (this.drawHitbox) {
+            ctx.strokeStyle = "#0000ff";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+        }
+
         ctx.restore();
     }
 }
@@ -680,6 +690,9 @@ class Spike {
         this.width = width;   // full base width
         this.height = height; // full height
         this.rotation = rotation; // radians
+
+        this.drawHitbox = false;
+
         spikes.push(this);
     }
 
@@ -769,6 +782,19 @@ class Spike {
         ctx.lineWidth = strokeWidth;
         ctx.stroke();
 
+        // Draw hitbox
+        if (this.drawHitbox) {
+            const [ha, hb, hc] = this.getCollisionVertices();
+            ctx.beginPath();
+            ctx.moveTo(camera.toScreenX(ha[0]), camera.toScreenY(ha[1]));
+            ctx.lineTo(camera.toScreenX(hb[0]), camera.toScreenY(hb[1]));
+            ctx.lineTo(camera.toScreenX(hc[0]), camera.toScreenY(hc[1]));
+            ctx.closePath();
+            ctx.strokeStyle = "#ff0000";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
         ctx.restore();
     }
 }
@@ -781,6 +807,8 @@ class Portal {
         this.height = height;
         this.effect = effect;
         this.triggered = false;
+
+        this.drawHitbox = false;
 
         portals.push(this);
     }
@@ -804,8 +832,18 @@ class Portal {
 
         ctx.save();
         ctx.translate(screenX, screenY);
+
+        // Draw portal
         ctx.fillStyle = "rgba(0,255,0,0.3)";
         ctx.fillRect(0, 0, screenW, screenH);
+
+        // Draw hitbox
+        if (this.drawHitbox) {
+            ctx.strokeStyle = "#00ff00";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, screenW, screenH);
+        }
+        
         ctx.restore();
     }
 }
@@ -930,6 +968,7 @@ new Spike(inBlocks(15.5), -inBlocks(4), unit, unit, Math.PI);
 new Block(inBlocks(15.5), -inBlocks(5))
 new Spike(inBlocks(17), -inBlocks(1));
 
+new Block(inBlocks(19), -inBlocks(1), unit, unit)
 new Block(inBlocks(20), -inBlocks(1), unit, unit)
 new Block(inBlocks(21), -inBlocks(1), unit, unit)
 
@@ -962,6 +1001,7 @@ new Block(inBlocks(57), -inBlocks(6));
 
 new Block(inBlocks(60), -inBlocks(7));
 
+new Block(inBlocks(62), -inBlocks(7));
 new Spike(inBlocks(62), -inBlocks(6), unit, unit, Math.PI);
 
 new Block(inBlocks(64), -inBlocks(7));
@@ -981,7 +1021,7 @@ for(let i = 0; i < 30; i++) {
     new Spike(inBlocks(77 + i), -inBlocks(1), unit, unit, 0);
 }
 
-new Portal(inBlocks(108), -inBlocks(4), unit, inBlocks(3), "ufo");
+new Portal(inBlocks(108), -inBlocks(4), unit, inBlocks(3), "wave");
 
 // Roof
 for(let i = 0; i < 50; i++) {
@@ -1091,10 +1131,14 @@ document.addEventListener("keydown", (e) => {
 
     if (e.key === "+") camera.zoom *= 1.1; // zoom in
     if (e.key === "-") camera.zoom *= 0.9; // zoom out
+
+    if (e.key === "h") toggleHitboxes();
 })
 document.addEventListener("keyup", (e) => {
     if(e.key === " " || e.key === "w"|| e.key === "ArrowUp") isPressing = false;
     console.log(isPressing);
+
+    cancelPress = false;
 })
 
 
@@ -1124,6 +1168,13 @@ function evalQuery() {
     const queryString = url.search; // Returns text after site.com/page
     const decodedString = decodeURIComponent(queryString.substring(1));
     eval(decodedString);
+}
+
+function toggleHitboxes() {
+    player.drawHitbox = !player.drawHitbox;
+    for (let spike of spikes) spike.drawHitbox = !spike.drawHitbox;
+    for (let portal of portals) portal.drawHitbox = !portal.drawHitbox;
+    for (let block of blocks) block.drawHitbox = !block.drawHitbox;
 }
 
 // Fixed step physics
