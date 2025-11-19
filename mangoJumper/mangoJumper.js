@@ -15,6 +15,7 @@ let speed = 5;
 let gameSpeed = 1;
 
 let frameMultiplier = 10;
+let simFrameCount = 0;
 
 const unit = 30;
 
@@ -57,6 +58,7 @@ class Player {
 
         this.gameMode = "cube";
         this.mini = false;
+        this.god = false;
 
         this.width = this.mini ? unit/2: unit;
         this.height = this.mini ? unit/2: unit;
@@ -64,6 +66,8 @@ class Player {
         this.rotation = 0;
 
         this.onGround = false;
+        this.coyoteTime = 0;
+        this.maxCoyoteTime = 10;
         this.alive = true;
 
         this.waveHitboxScale = 0.4;
@@ -75,7 +79,15 @@ class Player {
     update(dt) {
         this.scroll(dt);
         this.y += this.vy * dt;
-        this.vy += (this.gameMode === "ship") ? 0: gravity * dt; // No gravity as ship
+        this.vy += (this.gameMode === "ship" || this.gameMode === "ufo") ? 0: gravity * dt; // No gravity as ship or ufo, custom gravity
+
+        if(this.onGround) {
+            this.coyoteTime = 0;
+        } else {
+            this.coyoteTime += dt;
+        }
+
+        if (isPressing && !cancelPress) this.jump();
 
         // Rotate clockwise while in the air if cube
         if (this.gameMode === "cube" && !this.onGround ) {
@@ -89,9 +101,9 @@ class Player {
         // Ship movement
         if (this.gameMode === "ship") {
             if(isPressing) {
-                this.vy -= gravity * dt
+                this.vy -= gravity * dt * 0.5; // Tweak for good feeling ship
             } else {
-                this.vy += gravity * dt;
+                this.vy += gravity * dt * 0.5;
             }
             
         } else if (this.gameMode === "wave") {
@@ -109,14 +121,17 @@ class Player {
             this.trail.push({ x: this.x, y: this.y });
 
             // Limit trail length
-            if (this.trail.length > this.maxTrailLength) {
+            if (this.trail.length > this.maxTrailLength * dt && simFrameCount % 10 === 0) {
                 this.trail.shift();
             }
 
             if(!this.onGround) {
                 this.rotation = (this.vy < 0) ? -Math.PI / 4 : Math.PI / 4;
             }
-            
+        } else if (this.gameMode === "ufo") {
+            if (!this.onGround) {
+                this.vy += gravity * dt * 0.5; // Tweak for good feeling ufo
+            }
         }
     }
 
@@ -126,7 +141,11 @@ class Player {
     
     jump() {
         let jumpingForce = 11;
+        if (this.gameMode === "ufo") jumpingForce = 8;
         if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
+
+        let canJump = false;
+        if(this.onGround || this.coyoteTime <= this.maxCoyoteTime);
 
         if ((this.gameMode === "cube" && this.onGround) || this.gameMode === "ufo") {
             this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
@@ -152,8 +171,8 @@ class Player {
             offsetY = (this.height - this.height * scale) / 2;
         } else {
             // default centering
-            offsetX = 0 //(this.width - this.width * scale) / 2;
-            offsetY = 0 //(this.height - this.height * scale) / 2;
+            offsetX = (this.width - this.width * scale) / 2;
+            offsetY = (this.height - this.height * scale) / 2;
         }
 
         const w = this.width * scale;
@@ -322,6 +341,7 @@ class Player {
 
 
     die() {
+        if (this.god) return;
         this.alive = false;
         console.log("Game Over!");
         // Refresh
@@ -578,6 +598,7 @@ class Portal {
 
     applyEffect(player) {
         if(this.triggered) return;
+        player.vy = 0;
         portalTypes[this.effect](player);
 
         this.triggered = true
@@ -694,7 +715,10 @@ new Block(toBlocks(15.5), -toBlocks(5))
 new Spike(toBlocks(17), -toBlocks(1));
 
 new Block(toBlocks(20), -toBlocks(1), unit, unit)
+new Block(toBlocks(21), -toBlocks(1), unit, unit)
+
 new Block(toBlocks(24), -toBlocks(3), unit, unit)
+new Block(toBlocks(25), -toBlocks(3), unit, unit)
 new Block(toBlocks(28), -toBlocks(5), unit, unit)
 new Block(toBlocks(29), -toBlocks(5), unit, unit)
 
@@ -709,7 +733,6 @@ new Block(toBlocks(35), -toBlocks(1), unit, unit)
 new Spike(toBlocks(36), -toBlocks(1));
 new Spike(toBlocks(37), -toBlocks(1));
 new Spike(toBlocks(38), -toBlocks(1));
-new Spike(toBlocks(39), -toBlocks(1));
 
 new Spike(toBlocks(46), -toBlocks(1));
 new Spike(toBlocks(47), -toBlocks(1));
@@ -725,12 +748,12 @@ new Block(toBlocks(60), -toBlocks(7));
 
 new Spike(toBlocks(62), -toBlocks(6), unit, unit, Math.PI);
 
-new Block(toBlocks(65), -toBlocks(7));
+new Block(toBlocks(64), -toBlocks(7));
+new Block(toBlocks(65), -toBlocks(8));
+new Block(toBlocks(66), -toBlocks(8));
 new Block(toBlocks(67), -toBlocks(8));
 
 new Portal(toBlocks(71), -toBlocks(6), unit, toBlocks(3), "normalGravity");
-
-new Spike(toBlocks(75), -toBlocks(1));
 
 new Portal(toBlocks(77), -toBlocks(4), unit, toBlocks(3), "ship");
 
@@ -775,7 +798,7 @@ for(let i = 0; i < 9; i++) {
     new Block(toBlocks(157), -toBlocks(1 + i));
 }
 
-new Portal(toBlocks(157), -toBlocks(7), unit, toBlocks(3), "cube");
+new Portal(toBlocks(157), -toBlocks(6.5), unit, toBlocks(3), "cube");
 
 new Portal(toBlocks(163), -toBlocks(3), unit, toBlocks(3), "wave");
 
@@ -810,6 +833,7 @@ document.addEventListener("keyup", (e) => {
     console.log(isPressing);
 })
 
+
 function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     // Read the CSS size (layout size in CSS pixels)
@@ -826,6 +850,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+
 let lastFrameTime = performance.now();
 
 function gameLoop() {
@@ -835,10 +860,12 @@ function gameLoop() {
     const simDt = deltaTime * gameSpeed / frameMultiplier;
 
     if (player.alive) {
-        if (isPressing && !cancelPress) player.jump();
+        
         for(let i = 0; i < frameMultiplier; i++) {
             player.collide();
             player.update(simDt);
+
+            simFrameCount++
         }
     }
 
