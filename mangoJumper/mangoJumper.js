@@ -43,9 +43,13 @@ const portalTypes = {
 
     cube: (player) => { player.gameMode = "cube" },
     ship: (player) => { player.gameMode = "ship" },
+    ball: (player) => { player.gameMode = "ball"},
     ufo: (player) => { player.gameMode = "ufo"},
     wave: (player) => { player.gameMode = "wave"},
-    ball: (player) => { player.gameMode = "ball"}
+    robot: (player) => { player.gameMode = "robot"},
+    spider: (player) => { player.gameMode = "spider"},
+    swing: (player) => { player.gameMode = "swing"}
+    
 }
 
 let blocks = [];
@@ -71,7 +75,10 @@ class Player {
 
         this.onGround = false;
         this.coyoteTime = 0;
-        this.maxCoyoteTime = 0; // isnt in gd
+        this.maxCoyoteTime = 0; // isnt in gd, also its broken
+
+        this.inOrb = null;
+        this.inPad = null;
 
         this.alive = true;
 
@@ -171,6 +178,8 @@ class Player {
         if (this.gameMode === "ufo") jumpingForce = 8;
         if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
 
+        
+
         let canJump = false;
         if(this.onGround || this.coyoteTime <= this.maxCoyoteTime) { // Have to be grounded:
             if (this.gameMode === "cube" && this.onGround) {
@@ -183,7 +192,7 @@ class Player {
 
                 cancelPress = true;
             }
-        } else if (this.gameMode === "ufo") { // Dont have to be grounded
+        } else if (this.gameMode === "ufo") { // Dont have to be grounded:
             this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
             this.onGround = false;
 
@@ -831,19 +840,63 @@ class Portal {
         const screenH = camera.toScreenH(this.height);
 
         ctx.save();
-        ctx.translate(screenX, screenY);
+        ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
 
-        // Draw portal
-        ctx.fillStyle = "rgba(0,255,0,0.3)";
-        ctx.fillRect(0, 0, screenW, screenH);
+        // Map portal effect → outline color
+        const portalColors = {
+            cube: "#3DFF51",
+            ship: "#FE9AFF",
+            ball: "#F98B71",
+            ufo: "#F7E040",
+            wave: "#71E7FF",
+            robot: "#FCFEFF",
+            spider: "#6E18FE",
+            swing: "#FFFE6A",
+            normalGravity: "#72ECFD",
+            reverseGravity: "#FFF648",
+            normalSize: "#0CF833",
+            mini: "#EC72FF"
+        };
 
-        // Draw hitbox
+        const outlineColor = portalColors[this.effect] || "gray";
+
+        // Gamemode portals get a black outline offset to the right
+        const isGamemodePortal = [
+            "cube","ship","ball","ufo","wave","robot","spider","swing"
+        ].includes(this.effect);
+
+        if (isGamemodePortal) {
+            // Black ellipse outline, shifted right so its left edge touches the colored ellipse
+            const offset = screenW * 0.30; // tweak depth
+            ctx.beginPath();
+            ctx.ellipse(
+                offset, 0,
+                screenW / 2, screenH / 2,
+                0, 0, Math.PI * 2
+            );
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 30;
+            ctx.stroke();
+        }
+
+        // Colored ellipse outline
+        ctx.beginPath();
+        ctx.ellipse(
+            0, 0,
+            screenW / 2, screenH / 2,
+            0, 0, Math.PI * 2
+        );
+        ctx.strokeStyle = outlineColor;
+        ctx.lineWidth = 15;
+        ctx.stroke();
+
+        // Debug hitbox
         if (this.drawHitbox) {
             ctx.strokeStyle = "#00ff00";
             ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, screenW, screenH);
+            ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
         }
-        
+
         ctx.restore();
     }
 }
