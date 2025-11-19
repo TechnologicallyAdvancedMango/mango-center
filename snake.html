@@ -140,6 +140,8 @@ const rainbowStrokeLightness = 10; // Lightness for rainbow stroke color
 const rainbowBaseHueStep = 12; // base hue step per segment
 const rainbowAcceleration = 1; // accelerates step per segment; set to 1 for linear step
 
+let doDrawGrid = localStorage.getItem("doDrawGrid") === "true" ?? false;
+
 let snakeFill = "#007000";
 let snakeStroke = "#005000";
 
@@ -162,6 +164,21 @@ for (let i = 0; i < gamemodes[gamemode].startingLength; i++) {
 function clearCanvas() {
 	ctx.fillStyle = "white";
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawGrid() {
+	ctx.strokeStyle = "grey";
+	ctx.lineWidth = 2;
+	for(let x = 0; x <= 50; x++) { // 50 tiles, line from top to bottom
+		ctx.beginPath();
+		ctx.moveTo(x * tileSize, 0);
+		ctx.lineTo(x * tileSize, canvas.height);
+	}
+	for(let y = 0; y <= 50; y++) { // 50 tiles, line from left to right
+		ctx.beginPath();
+		ctx.moveTo(0, y * tileSize);
+		ctx.lineTo(canvas.width, y * tileSize);
+	}
 }
 
 function randomBetween(min, max, roundTo) {
@@ -478,6 +495,10 @@ document.addEventListener("keydown", (event) => {
 	if (event.key === "r") {
 		rainbowMode = !rainbowMode;
 		localStorage.setItem("rainbowMode", rainbowMode.toString());
+	}
+	if (event.key === "g") {
+		doDrawGrid = !doDrawGrid;
+		localStorage.setItem("doDrawGrid", doDrawGrid.toString());
 	}
 });
 
