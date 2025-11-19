@@ -12,7 +12,7 @@ const ctx = canvas.getContext("2d");
 
 let gravity = 0.85;
 let speed = 5;
-let gameSpeed = 60;
+let gameSpeed = 1;
 
 let simFrameCount = 0;
 
@@ -66,17 +66,18 @@ class Player {
         this.height = this.mini ? unit/2: unit;
 
         this.rotation = 0;
+        this.drawRotation = this.rotation;
         this.currentBallRotationSpeed = 0;
 
         this.onGround = false;
         this.coyoteTime = 0;
-        this.maxCoyoteTime = 10;
+        this.maxCoyoteTime = 0; // isnt in gd
+
         this.alive = true;
 
         this.waveHitboxScale = 0.4;
         // For wave trail
         this.trail = []; // stores past positions
-        this.maxTrailLength = 200; // tweak for longer/shorter trail
     }
 
     update(dt) {
@@ -88,6 +89,8 @@ class Player {
             this.rotation = 0;
         }
 
+        if (!this.gameMode === "wave") this.trail = [];
+
         if(this.onGround) {
             this.coyoteTime = 0;
         } else {
@@ -96,22 +99,24 @@ class Player {
 
         if (isPressing && !cancelPress) this.jump();
 
+        // Gamemode movements (some are in jump())
+
         // Rotate clockwise while in the air if cube
         if (this.gameMode === "cube" && !this.onGround ) {
             if(gravity >= 0) {
-                this.rotation += 0.1 * dt;
+                this.rotation += 0.12 * dt;
             } else {
-                this.rotation -= 0.1 * dt; // Counterclockwise if upside down
+                this.rotation -= 0.12 * dt; // Counterclockwise if upside down
             } 
-        }
-
-        // Gamemode movements (some are in jump())
-        if (this.gameMode === "ship") {
+        } else if (this.gameMode === "ship") {
             if(isPressing) {
                 this.vy -= gravity * dt * 0.5; // Tweak for good feeling ship
             } else {
                 this.vy += gravity * dt * 0.5;
             }
+            // Calculate angle of movement
+            const angle = Math.atan2(this.vy, speed);
+            this.rotation = angle;
             
         } else if (this.gameMode === "wave") {
             let slopeSpeed = this.mini ? speed * 2 : speed;
@@ -124,13 +129,14 @@ class Player {
                 this.vy = 0; // stay stable on ground
             }
 
-            // Add current position to trail
-            this.trail.push({ x: this.x, y: this.y });
-
-            // Limit trail length
-            if (this.trail.length > this.maxTrailLength * dt && simFrameCount % 10 === 0) {
-                this.trail.shift();
+            // Add current position to trail every 10 frames
+            if (simFrameCount % 10 === 0) {
+                this.trail.push({ x: this.x, y: this.y });
             }
+            // Remove points of the trail that are off the left edge of the camera view
+            const leftEdge = camera.toWorldX(0); // world coordinate of screen's left edge
+            this.trail = this.trail.filter(p => p.x >= leftEdge - 10); // Extra room to the left
+
 
             if(!this.onGround) {
                 this.rotation = (this.vy < 0) ? -Math.PI / 4 : Math.PI / 4;
@@ -164,23 +170,22 @@ class Player {
         if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
 
         let canJump = false;
-        if(this.onGround || this.coyoteTime <= this.maxCoyoteTime);
+        if(this.onGround || this.coyoteTime <= this.maxCoyoteTime) { // Have to be grounded:
+            if (this.gameMode === "cube" && this.onGround) {
+                this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
+                this.onGround = false;
 
-        if (this.gameMode === "cube" && this.onGround) {
-            this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
-            this.onGround = false;
+            } else if (this.gameMode === "ball" && this.onGround) {
+                gravity *= -1; // Flip gravity
+                this.vy = gravity < 0 ? -1: 1; // 1 velocity away from surface to avoid collision detection killing
 
-        } else if (this.gameMode === "ufo") {
+                cancelPress = true;
+            }
+        } else if (this.gameMode === "ufo") { // Dont have to be grounded
             this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
             this.onGround = false;
 
             cancelPress = true; // Cancel this press to not keep going up
-
-        } else if (this.gameMode === "ball" && this.onGround) {
-            gravity *= -1; // Flip gravity
-            this.vy = gravity < 0 ? -1: 1; // 1 velocity away from surface to avoid collision detection killing
-
-            cancelPress = true;
         }
     }
 
@@ -218,8 +223,8 @@ class Player {
         const hb = this.getHitbox();
 
         // how far ahead/behind to check
-        const forwardRange = toBlocks(6);  // pixels ahead
-        const backwardRange = toBlocks(3); // pixels behind
+        const forwardRange = inBlocks(6);  // pixels ahead
+        const backwardRange = inBlocks(3); // pixels behind
 
         const minX = hb.x - backwardRange;
         const maxX = hb.x + hb.width + forwardRange;
@@ -453,6 +458,9 @@ class Player {
     }
 
     draw(camera) {
+        const smoothFactor = 0.15; // smaller = slower smoothing
+        this.drawRotation += (this.rotation - this.drawRotation) * smoothFactor;
+
         if(this.gameMode === "cube") {
             const screenX = camera.toScreenX(this.x);
             const screenY = camera.toScreenY(this.y);
@@ -461,7 +469,7 @@ class Player {
 
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-            ctx.rotate(this.rotation);
+            ctx.rotate(this.rotation); // Use real rotation for cube
             ctx.fillStyle = playerFill;
             ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
 
@@ -475,12 +483,9 @@ class Player {
             const screenW = camera.toScreenW(this.width);
             const screenH = camera.toScreenH(this.height);
 
-            // Calculate angle of movement
-            const angle = Math.atan2(this.vy, speed);
-
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-            ctx.rotate(angle);
+            ctx.rotate(this.drawRotation);
 
             ctx.strokeStyle = playerStroke;
             ctx.lineWidth = strokeWidth;
@@ -513,7 +518,7 @@ class Player {
 
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-            ctx.rotate(this.rotation);
+            ctx.rotate(this.drawRotation);
 
             ctx.fillStyle = playerFill;
             ctx.strokeStyle = playerStroke;
@@ -550,21 +555,21 @@ class Player {
                 if (i === 0) ctx.moveTo(tx, ty);
                 else ctx.lineTo(tx, ty);
             }
-            ctx.lineWidth = 35 * scale;   // scale trail thickness
+            ctx.lineWidth = 30 * (strokeWidth / 4); // scale trail thickness like other strokes
             ctx.strokeStyle = "#2dabffff";
             ctx.stroke();
-            ctx.lineWidth = 15 * scale;
+            ctx.lineWidth = 10 * (strokeWidth / 4);
             ctx.strokeStyle = "#ffffffff";
             ctx.stroke();
 
             // --- Wave triangle ---
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-            ctx.rotate(this.rotation);
+            ctx.rotate(this.drawRotation);
 
             ctx.fillStyle = playerFill;
             ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth * scale;
+            ctx.lineWidth = strokeWidth;
 
             ctx.beginPath();
             ctx.moveTo(-screenW / 2, screenH / 2);
@@ -599,7 +604,7 @@ class Player {
 
             ctx.save();
             ctx.translate(cx, cy);
-            ctx.rotate(this.rotation);
+            ctx.rotate(this.drawRotation);
 
             // --- Outer circle ---
             ctx.fillStyle = playerFill;
@@ -768,7 +773,7 @@ class Spike {
 }
 
 class Portal {
-    constructor(x, y, width = unit, height = toBlocks(3), effect) {
+    constructor(x, y, width = unit, height = inBlocks(3), effect) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -782,9 +787,12 @@ class Portal {
     applyEffect(player) {
         if(this.triggered) return;
         player.vy = 0;
+        player.rotation = 0;
+        player.drawRotation = 0;
+
         portalTypes[this.effect](player);
 
-        this.triggered = true
+        this.triggered = true;
     }
 
     draw(camera) {
@@ -849,7 +857,7 @@ class Camera {
         this.x = (player.x + player.width / 2) + this.xOffset;
 
         // Target Y center
-        const targetY = (player.y + player.height / 2) + this.yOffset;
+        const targetY = Math.min((player.y + player.height / 2) + this.yOffset, -100);
 
         // Smoothly interpolate current Y toward target
         this.y += (targetY - this.y) * this.smoothFactor;
@@ -872,10 +880,35 @@ class Camera {
     toScreenH(worldH) {
         return worldH * this.zoom;
     }
+
+    toWorldX(screenX) {
+    return (screenX - canvas.width / 2) / this.zoom + this.x;
 }
 
-function toBlocks(num) {
-    return num * unit;
+    toWorldY(screenY) {
+        return (screenY - canvas.height / 2) / this.zoom + this.y;
+    }
+}
+
+function inBlocks(blocks) {
+    return blocks * unit;
+}
+
+function toBlocks(blocks) {
+    return blocks / unit
+}
+
+function fillBlocks(x1, y1, x2, y2) {
+    const startX = Math.min(toBlocks(x1), toBlocks(x2));
+    const endX   = Math.max(toBlocks(x1), toBlocks(x2));
+    const startY = Math.min(toBlocks(y1), toBlocks(y2));
+    const endY   = Math.max(toBlocks(y1), toBlocks(y2));
+
+    for (let bx = startX; bx <= endX; bx++) {
+        for (let by = startY; by <= endY; by++) {
+            new Block(inBlocks(bx), inBlocks(by));
+        }
+    }
 }
 
 function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
@@ -886,109 +919,151 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
 }
 
 
-let player = new Player(0, -unit);
-let camera = new Camera(0, 0);
+let player = new Player(inBlocks(0), -unit);
+let camera = new Camera(player.x, player.y);
 let ground = new Ground(0, 200);
 
-
 // Level
-new Spike(toBlocks(14), -toBlocks(1));
-new Spike(toBlocks(15.5), -toBlocks(4), unit, unit, Math.PI);
-new Block(toBlocks(15.5), -toBlocks(5))
-new Spike(toBlocks(17), -toBlocks(1));
+new Spike(inBlocks(14), -inBlocks(1));
+new Spike(inBlocks(15.5), -inBlocks(4), unit, unit, Math.PI);
+new Block(inBlocks(15.5), -inBlocks(5))
+new Spike(inBlocks(17), -inBlocks(1));
 
-new Block(toBlocks(20), -toBlocks(1), unit, unit)
-new Block(toBlocks(21), -toBlocks(1), unit, unit)
+new Block(inBlocks(20), -inBlocks(1), unit, unit)
+new Block(inBlocks(21), -inBlocks(1), unit, unit)
 
-new Block(toBlocks(24), -toBlocks(3), unit, unit)
-new Block(toBlocks(25), -toBlocks(3), unit, unit)
-new Block(toBlocks(28), -toBlocks(5), unit, unit)
-new Block(toBlocks(29), -toBlocks(5), unit, unit)
+new Block(inBlocks(24), -inBlocks(3), unit, unit)
+new Block(inBlocks(25), -inBlocks(3), unit, unit)
+new Block(inBlocks(28), -inBlocks(5), unit, unit)
+new Block(inBlocks(29), -inBlocks(5), unit, unit)
 
-new Spike(toBlocks(29), -toBlocks(1));
+new Spike(inBlocks(29), -inBlocks(1));
 
-new Block(toBlocks(32), -toBlocks(3), unit, unit)
+new Block(inBlocks(32), -inBlocks(3), unit, unit)
 
-new Block(toBlocks(33), -toBlocks(7), unit, unit)
-new Spike(toBlocks(33), -toBlocks(8));
+new Block(inBlocks(33), -inBlocks(7), unit, unit)
+new Spike(inBlocks(33), -inBlocks(8));
 
-new Block(toBlocks(35), -toBlocks(1), unit, unit)
-new Spike(toBlocks(36), -toBlocks(1));
-new Spike(toBlocks(37), -toBlocks(1));
-new Spike(toBlocks(38), -toBlocks(1));
+new Block(inBlocks(35), -inBlocks(1), unit, unit)
+new Spike(inBlocks(36), -inBlocks(1));
+new Spike(inBlocks(37), -inBlocks(1));
+new Spike(inBlocks(38), -inBlocks(1));
 
-new Spike(toBlocks(46), -toBlocks(1));
-new Spike(toBlocks(47), -toBlocks(1));
-new Spike(toBlocks(48), -toBlocks(1));
+new Spike(inBlocks(46), -inBlocks(1));
+new Spike(inBlocks(47), -inBlocks(1));
+new Spike(inBlocks(48), -inBlocks(1));
 
-new Portal(toBlocks(55), -toBlocks(3), unit, toBlocks(3), "reverseGravity");
+new Portal(inBlocks(55), -inBlocks(3), unit, inBlocks(3), "reverseGravity");
 
-new Block(toBlocks(55), -toBlocks(6));
-new Block(toBlocks(56), -toBlocks(6));
-new Block(toBlocks(57), -toBlocks(6));
+new Block(inBlocks(55), -inBlocks(6));
+new Block(inBlocks(56), -inBlocks(6));
+new Block(inBlocks(57), -inBlocks(6));
 
-new Block(toBlocks(60), -toBlocks(7));
+new Block(inBlocks(60), -inBlocks(7));
 
-new Spike(toBlocks(62), -toBlocks(6), unit, unit, Math.PI);
+new Spike(inBlocks(62), -inBlocks(6), unit, unit, Math.PI);
 
-new Block(toBlocks(64), -toBlocks(7));
-new Block(toBlocks(65), -toBlocks(8));
-new Block(toBlocks(66), -toBlocks(8));
-new Block(toBlocks(67), -toBlocks(8));
+new Block(inBlocks(64), -inBlocks(7));
+new Block(inBlocks(65), -inBlocks(8));
+new Block(inBlocks(66), -inBlocks(8));
+new Block(inBlocks(67), -inBlocks(8));
 
-new Portal(toBlocks(71), -toBlocks(6), unit, toBlocks(3), "normalGravity");
+new Portal(inBlocks(71), -inBlocks(6), unit, inBlocks(3), "normalGravity");
 
-new Portal(toBlocks(77), -toBlocks(4), unit, toBlocks(3), "ship");
+new Portal(inBlocks(77), -inBlocks(4), unit, inBlocks(3), "ship");
 
 // Straightfly
 for(let i = 0; i < 30; i++) {
-    new Block(toBlocks(77 + i), -toBlocks(7));
-    new Spike(toBlocks(77 + i), -toBlocks(6), unit, unit, Math.PI);
+    new Block(inBlocks(77 + i), -inBlocks(7));
+    new Spike(inBlocks(77 + i), -inBlocks(6), unit, unit, Math.PI);
 
-    new Spike(toBlocks(77 + i), -toBlocks(1), unit, unit, 0);
+    new Spike(inBlocks(77 + i), -inBlocks(1), unit, unit, 0);
 }
 
-new Portal(toBlocks(108), -toBlocks(4), unit, toBlocks(3), "ufo");
+new Portal(inBlocks(108), -inBlocks(4), unit, inBlocks(3), "ufo");
 
 // Roof
 for(let i = 0; i < 50; i++) {
-    new Block(toBlocks(108 + i), -toBlocks(10));
+    new Block(inBlocks(108 + i), -inBlocks(10));
 }
 
 // Pillars with gaps
 for(let i = 0; i < 9; i++) {
     if(i <= 4 && i >= 1) continue;
-    new Block(toBlocks(120), -toBlocks(1 + i));
+    new Block(inBlocks(120), -inBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
     if(i <= 8 && i >= 5) continue;
-    new Block(toBlocks(130), -toBlocks(1 + i));
+    new Block(inBlocks(130), -inBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
     if(i <= 5 && i >= 2) continue;
-    new Block(toBlocks(140), -toBlocks(1 + i));
+    new Block(inBlocks(140), -inBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
     if(i <= 7 && i >= 4) continue;
-    new Block(toBlocks(150), -toBlocks(1 + i));
+    new Block(inBlocks(150), -inBlocks(1 + i));
 }
 
 for(let i = 0; i < 9; i++) {
     if(i <= 6 && i >= 3) continue;
-    new Block(toBlocks(157), -toBlocks(1 + i));
+    new Block(inBlocks(157), -inBlocks(1 + i));
 }
 
-new Portal(toBlocks(157), -toBlocks(6.5), unit, toBlocks(3), "cube");
+new Portal(inBlocks(157), -inBlocks(6.5), unit, inBlocks(3), "cube");
 
-new Portal(toBlocks(163), -toBlocks(3), unit, toBlocks(3), "ball");
+new Portal(inBlocks(163), -inBlocks(3), unit, inBlocks(3), "ball");
 
 // Roof
 for(let i = 0; i < 50; i++) {
-    new Block(toBlocks(165 + i), -toBlocks(8));
+    new Block(inBlocks(165 + i), -inBlocks(8));
 }
+
+// Walls with gaps
+for(let i = 0; i < 7; i++) {
+    if(i > 5) continue;
+    new Block(inBlocks(175), -inBlocks(1 + i));
+}
+
+for(let i = 0; i < 7; i++) {
+    if(i < 1) continue;
+    new Block(inBlocks(185), -inBlocks(1 + i));
+}
+
+fillBlocks(inBlocks(192), -inBlocks(4), inBlocks(199), -inBlocks(4));
+
+new Spike(inBlocks(197), -inBlocks(3), unit, unit, Math.PI);
+new Spike(inBlocks(198), -inBlocks(3), unit, unit, Math.PI);
+new Spike(inBlocks(199), -inBlocks(3), unit, unit, Math.PI);
+new Spike(inBlocks(197), -inBlocks(1));
+new Spike(inBlocks(198), -inBlocks(1));
+new Spike(inBlocks(199), -inBlocks(1));
+
+new Spike(inBlocks(193), -inBlocks(5));
+new Spike(inBlocks(196), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(199), -inBlocks(5));
+
+new Portal(inBlocks(202), -inBlocks(6.5), unit, inBlocks(3), "wave");
+new Portal(inBlocks(202), -inBlocks(6.5), unit, inBlocks(3), "normalGravity");
+
+fillBlocks(inBlocks(202), -inBlocks(3), inBlocks(214), -inBlocks(3));
+
+new Spike(inBlocks(204), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(205), -inBlocks(4));
+new Spike(inBlocks(206), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(207), -inBlocks(4));
+new Spike(inBlocks(208), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(209), -inBlocks(4));
+new Spike(inBlocks(210), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(211), -inBlocks(4));
+new Spike(inBlocks(212), -inBlocks(7), unit, unit, Math.PI);
+new Spike(inBlocks(213), -inBlocks(4));
+new Spike(inBlocks(214), -inBlocks(7), unit, unit, Math.PI);
+
+new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "cube");
 
 
 let isPressing = false;
@@ -1057,7 +1132,7 @@ function gameLoop() {
     const now = performance.now();
     const frameTime = (now - lastFrameTime) / 1000; // seconds
     lastFrameTime = now;
-    accumulator += frameTime * gameSpeed;
+    accumulator += frameTime * (gameSpeed * 60);
 
     const fixedDt = 1 / 60; // 60Hz physics
     while (accumulator >= fixedDt) {
@@ -1070,7 +1145,6 @@ function gameLoop() {
     // Rendering
     clearCanvas();
     camera.follow(player);
-    player.maxTrailLength = 400 / camera.zoom;
 
     strokeWidth = objectStrokeWidth * camera.zoom; // Consistent look across zoom values
 
@@ -1083,5 +1157,4 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 gameLoop();
-
 evalQuery();
