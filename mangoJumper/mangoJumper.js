@@ -52,6 +52,140 @@ const portalTypes = {
     
 }
 
+// Global image store
+const images = {
+    player: {
+        cube: null,
+        ship: null,
+        ball: null,
+        ufo: null,
+        wave: null,
+        robot: null,
+        spider: null,
+        swing: null
+    },
+    block: null,
+    spike: null,
+    portals: {
+        reverseGravity: null,
+        normalGravity: null,
+        mini: null,
+        normalSize: null,
+        cube: null,
+        ship: null,
+        ball: null,
+        ufo: null,
+        wave: null,
+        robot: null,
+        spider: null,
+        swing: null
+    },
+    orbs: {
+        black: null,
+        cyan: null,
+        green: null,
+        greenDash: null,
+        magentaDash: null,
+        red: null,
+        magenta: null,
+        yellow: null,
+        spider: null
+        },
+    pads: {
+        cyan: null,
+        magenta: null,
+        red: null,
+        yellow: null,
+        spider: null,
+    }
+};
+
+// Loader function
+function loadImages(callback) {
+    const sources = {
+        player: {
+            cube: "textures/player/cube.png",
+            ship: "textures/player/ship.png",
+            ball: "textures/player/ball.png",
+            ufo: "textures/player/ufo.png",
+            wave: "textures/player/wave.png",
+            robot: "textures/player/robot.png",
+            spider: "textures/player/spider.png",
+            swing: "textures/player/swing.png"
+        },
+        block: "textures/block/block.png",
+        spike: "textures/spike/spike.png",
+        portals: {
+            reverseGravity: "textures/portals/reverseGravity.png",
+            normalGravity: "textures/portals/normalGravity.png",
+            mini: "textures/portals/mini.png",
+            normalSize: "textures/portals/normalSize.png",
+            cube: "textures/portals/cube.png",
+            ship: "textures/portals/ship.png",
+            ball: "textures/portals/ball.png",
+            ufo: "textures/portals/ufo.png",
+            wave: "textures/portals/wave.png",
+            robot: "textures/portals/robot.png",
+            spider: "textures/portals/spider.png",
+            swing: "textures/portals/swing.png"
+        },
+        orbs: {
+            black: "textures/orbs/black.png",
+            cyan: "textures/orbs/cyan.png",
+            green: "textures/orbs/green.png",
+            greenDash: "textures/orbs/greenDash.png",
+            magentaDash: "textures/orbs/magentaDash.png",
+            red: "textures/orbs/red.png",
+            magenta: "textures/orbs/magenta.png",
+            yellow: "textures/orbs/yellow.png",
+            spider: "textures/orbs/spider.png"
+        },
+        pads: {
+            cyan: "textures/pads/cyan.png",
+            magenta: "textures/pads/magenta.png",
+            red: "textures/pads/red.png",
+            yellow: "textures/pads/yellow.png",
+            spider: "textures/pads/spider.png",
+        }
+    };
+
+    let loaded = 0;
+    let total = 0;
+
+    // Count total images
+    function count(obj) {
+        for (const key in obj) {
+            if (typeof obj[key] === "string") {
+                total++;
+            } else {
+                count(obj[key]);
+            }
+        }
+    }
+    count(sources);
+
+    // Recursive loader
+    function assign(obj, srcObj) {
+        for (const key in srcObj) {
+            if (typeof srcObj[key] === "string") {
+                const img = new Image();
+                img.src = srcObj[key];
+                img.onload = () => {
+                    loaded++;
+                    if (loaded === total && callback) callback();
+                };
+                obj[key] = img;
+            } else {
+                obj[key] = {};
+                assign(obj[key], srcObj[key]);
+            }
+        }
+    }
+
+    assign(images, sources);
+}
+
+
 let blocks = [];
 let spikes = [];
 let portals = [];
@@ -875,7 +1009,7 @@ class Portal {
                 0, 0, Math.PI * 2
             );
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 30;
+            ctx.lineWidth = 30 * (strokeWidth/4); // Normalize to zoom with strokeWidth
             ctx.stroke();
         }
 
@@ -887,7 +1021,7 @@ class Portal {
             0, 0, Math.PI * 2
         );
         ctx.strokeStyle = outlineColor;
-        ctx.lineWidth = 15;
+        ctx.lineWidth = 15 * (strokeWidth/4); // Normalize to zoom with strokeWidth
         ctx.stroke();
 
         // Debug hitbox
@@ -1261,5 +1395,9 @@ function gameLoop() {
 
     requestAnimationFrame(gameLoop);
 }
-gameLoop();
+loadImages(() => {
+    console.log("All textures loaded!");
+    gameLoop();
+});
+
 evalQuery();
