@@ -113,12 +113,10 @@ let selectionActive = false;
 let selectionStart = null;
 let selectionEnd = null;
 let isDraggingSelection = false;
-let dragOffset = null;
+let dragOffset = { row: 0, col: 0 };
 let selectedCells = [];
 let selectionBounds = null;
 let selectionMenu = null;
-
-let dragOffset = { row: 0, col: 0 };
 
 let running = false;
 let intervalId = null;
