@@ -1063,7 +1063,7 @@ new Spike(inBlocks(212), -inBlocks(7), unit, unit, Math.PI);
 new Spike(inBlocks(213), -inBlocks(4));
 new Spike(inBlocks(214), -inBlocks(7), unit, unit, Math.PI);
 
-new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "cube");
+// new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "cube");
 
 
 let isPressing = false;
