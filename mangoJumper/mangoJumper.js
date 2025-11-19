@@ -14,7 +14,6 @@ let gravity = 0.85;
 let speed = 5;
 let gameSpeed = 60;
 
-let frameMultiplier = 10;
 let simFrameCount = 0;
 
 const unit = 30;
@@ -218,6 +217,14 @@ class Player {
         this.onGround = false;
         const hb = this.getHitbox();
 
+        // how far ahead/behind to check
+        const forwardRange = toBlocks(6);  // pixels ahead
+        const backwardRange = toBlocks(3); // pixels behind
+
+        const minX = hb.x - backwardRange;
+        const maxX = hb.x + hb.width + forwardRange;
+
+
         function snapTo90(player) {
             if (player.gameMode !== "ball") {
                 const ninety = Math.PI / 2;
@@ -257,87 +264,93 @@ class Player {
 
         // --- Block collisions ---
         for (let block of blocks) {
-        // recompute hb per block if needed (sprite y may change)
-        const hb = this.getHitbox();
+            // recompute hb per block if needed (sprite y may change)
+            const hb = this.getHitbox();
 
-        if (hb.x < block.x + block.width &&
-            hb.x + hb.width > block.x &&
-            hb.y < block.y + block.height &&
-            hb.y + hb.height > block.y) {
-
-            // Wave dies on any block hit
-            if (this.gameMode === "wave") {
-                this.die();
-                continue;
+            if (block.x + block.width < minX || block.x > maxX) {
+                continue; // too far left or right, skip
             }
 
-            let ceilingBlocked = false;
+            if (hb.x < block.x + block.width &&
+                hb.x + hb.width > block.x &&
+                hb.y < block.y + block.height &&
+                hb.y + hb.height > block.y) {
 
-            if (gravity > 0) {
-                // --- Normal gravity: land on top ---
-                if (this.vy > 0 && hb.y + hb.height <= block.y + 1) {
-                    this.y = block.y - this.height;
-                    this.vy = 0;
-                    this.onGround = true;
-
-                    snapTo90(this);
-                    continue; // don't check underside/side this frame
+                // Wave dies on any block hit
+                if (this.gameMode === "wave") {
+                    this.die();
+                    return;
                 }
 
-                // Head hits underside
-                if (this.vy < 0 && hb.y >= block.y + block.height - 10 &&
-                    hb.x + hb.width > block.x &&
-                    hb.x < block.x + block.width) {
-                    
-                    if (this.gameMode === "cube") {
-                        this.die(); // cube dies
-                    } else {
-                        // UFO/ship/etc: clamp to underside and zero vy
-                        this.y = block.y + block.height;
-                        this.vy = 0;
-                        ceilingBlocked = true;
-                    }
-                    // After underside resolution, skip side for this block
-                    continue;
-                }
-            } else {
-                // --- Flipped gravity: land on bottom ---
-                if (this.vy < 0 && hb.y >= block.y + block.height - 10) {
-                    this.y = block.y + block.height;
-                    this.vy = 0;
-                    this.onGround = true;
+                let ceilingBlocked = false;
 
-                    snapTo90(this);
-                    continue;
-                }
-
-                // Feet hit top
-                if (this.vy > 0 && hb.y + hb.height <= block.y + 10 &&
-                    hb.x + hb.width > block.x &&
-                    hb.x < block.x + block.width) {
-                    if (this.gameMode === "cube") {
-                        this.die(); // cube dies
-                    } else {
-                        // ship/other: clamp to top and zero vy
+                if (gravity > 0) {
+                    // --- Normal gravity: land on top ---
+                    if (this.vy > 0 && hb.y + hb.height <= block.y + 1) {
                         this.y = block.y - this.height;
                         this.vy = 0;
-                        ceilingBlocked = true;
+                        this.onGround = true;
+
+                        snapTo90(this);
+                        continue; // don't check underside/side this frame
                     }
-                    continue;
+
+                    // Head hits underside
+                    if (this.vy < 0 && hb.y >= block.y + block.height - 10 &&
+                        hb.x + hb.width > block.x &&
+                        hb.x < block.x + block.width) {
+                        
+                        if (this.gameMode === "cube") {
+                            this.die(); // cube dies
+                            return;
+                        } else {
+                            // UFO/ship/etc: clamp to underside and zero vy
+                            this.y = block.y + block.height;
+                            this.vy = 0;
+                            ceilingBlocked = true;
+                        }
+                        // After underside resolution, skip side for this block
+                        continue;
+                    }
+                } else {
+                    // --- Flipped gravity: land on bottom ---
+                    if (this.vy < 0 && hb.y >= block.y + block.height - 10) {
+                        this.y = block.y + block.height;
+                        this.vy = 0;
+                        this.onGround = true;
+
+                        snapTo90(this);
+                        continue;
+                    }
+
+                    // Feet hit top
+                    if (this.vy > 0 && hb.y + hb.height <= block.y + 10 &&
+                        hb.x + hb.width > block.x &&
+                        hb.x < block.x + block.width) {
+                        if (this.gameMode === "cube") {
+                            this.die(); // cube dies
+                            return;
+                        } else {
+                            // ship/other: clamp to top and zero vy
+                            this.y = block.y - this.height;
+                            this.vy = 0;
+                            ceilingBlocked = true;
+                        }
+                        continue;
+                    }
+                }
+
+                // Side collision → fatal only if not grounded or ceiling-resolved
+                if (!this.onGround && !ceilingBlocked &&
+                    hb.x + hb.width > block.x &&
+                    hb.x < block.x &&
+                    hb.y + hb.height > block.y &&
+                    hb.y < block.y + block.height) {
+                    this.die();
+                    return;
                 }
             }
-
-            // Side collision → fatal only if not grounded or ceiling-resolved
-            if (!this.onGround && !ceilingBlocked &&
-                hb.x + hb.width > block.x &&
-                hb.x < block.x &&
-                hb.y + hb.height > block.y &&
-                hb.y < block.y + block.height) {
-                this.die();
-                continue;
-            }
         }
-    }
 
         // --- Spike collisions ---
         const rectEdges = [
@@ -363,6 +376,10 @@ class Player {
         };
 
         for (let spike of spikes) {
+            if (spike.x + spike.width < minX || spike.x > maxX) {
+                continue; // skip spike outside window
+            }
+
             const [a, b, c] = spike.getCollisionVertices(); // already scaled/rotated around center
 
             // Player corners inside triangle
@@ -410,6 +427,9 @@ class Player {
 
         // --- Portal collisions ---
         for (let portal of portals) {
+            if (portal.x + portal.width < minX || portal.x > maxX) {
+                continue; // skip portal outside window
+            }
             if (hb.x < portal.x + portal.width &&
                 hb.x + hb.width > portal.x &&
                 hb.y < portal.y + portal.height &&
