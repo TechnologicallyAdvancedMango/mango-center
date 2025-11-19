@@ -2,7 +2,7 @@
 
 To do:
 
-Fix for chromebooks
+Add orbs and pads
 Add more gamemodes/portals
 
 */
