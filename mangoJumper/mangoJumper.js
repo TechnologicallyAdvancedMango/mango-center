@@ -1018,6 +1018,10 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+function clearCanvas() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
 
 let lastFrameTime = performance.now();
 
@@ -1043,7 +1047,7 @@ function gameLoop() {
 
     player.maxTrailLength = 400 / camera.zoom;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    clearCanvas();
 
     strokeWidth = objectStrokeWidth * camera.zoom; // Consistent look across zoom values
 
