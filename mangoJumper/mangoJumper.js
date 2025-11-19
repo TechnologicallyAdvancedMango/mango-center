@@ -19,6 +19,8 @@ let simFrameCount = 0;
 
 const unit = 30;
 
+const spikeHitboxSize = 0.4;
+
 let objectStrokeWidth = 1.5;
 let strokeWidth;
 
@@ -43,7 +45,8 @@ const portalTypes = {
     cube: (player) => { player.gameMode = "cube" },
     ship: (player) => { player.gameMode = "ship" },
     ufo: (player) => { player.gameMode = "ufo"},
-    wave: (player) => { player.gameMode = "wave"}
+    wave: (player) => { player.gameMode = "wave"},
+    ball: (player) => { player.gameMode = "ball"}
 }
 
 let blocks = [];
@@ -64,6 +67,7 @@ class Player {
         this.height = this.mini ? unit/2: unit;
 
         this.rotation = 0;
+        this.currentBallRotationSpeed = 0;
 
         this.onGround = false;
         this.coyoteTime = 0;
@@ -79,7 +83,11 @@ class Player {
     update(dt) {
         this.scroll(dt);
         this.y += this.vy * dt;
-        this.vy += (this.gameMode === "ship" || this.gameMode === "ufo") ? 0: gravity * dt; // No gravity as ship or ufo, custom gravity
+        this.vy += (this.gameMode === "ship" || this.gameMode === "ufo" || this.gameMode === "ball") ? 0: gravity * dt; // No gravity as ship, ufo, or ball, custom gravity
+
+        if(this.gameMode === "ufo") {
+            this.rotation = 0;
+        }
 
         if(this.onGround) {
             this.coyoteTime = 0;
@@ -98,7 +106,7 @@ class Player {
             } 
         }
 
-        // Ship movement
+        // Gamemode movements (some are in jump())
         if (this.gameMode === "ship") {
             if(isPressing) {
                 this.vy -= gravity * dt * 0.5; // Tweak for good feeling ship
@@ -132,6 +140,18 @@ class Player {
             if (!this.onGround) {
                 this.vy += gravity * dt * 0.5; // Tweak for good feeling ufo
             }
+        } else if (this.gameMode === "ball") {
+            // gravity change is in jump()
+            this.vy += gravity * dt * 0.4; // Tweak for good feeling ball
+
+            if(this.onGround && !cancelPress) { // Only change direction when landing
+                if(gravity >= 0) {
+                    this.currentBallRotationSpeed = 0.2;
+                } else {
+                    this.currentBallRotationSpeed = -0.2; // Counterclockwise if upside down
+                }
+            }
+            this.rotation += this.currentBallRotationSpeed * dt;
         }
     }
 
@@ -147,11 +167,21 @@ class Player {
         let canJump = false;
         if(this.onGround || this.coyoteTime <= this.maxCoyoteTime);
 
-        if ((this.gameMode === "cube" && this.onGround) || this.gameMode === "ufo") {
+        if (this.gameMode === "cube" && this.onGround) {
             this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
             this.onGround = false;
 
-            if (this.gameMode === "ufo") cancelPress = true;
+        } else if (this.gameMode === "ufo") {
+            this.vy = this.mini ? -jumpingForce * 0.7: -jumpingForce; // upward impulse, smaller for mini
+            this.onGround = false;
+
+            cancelPress = true; // Cancel this press to not keep going up
+
+        } else if (this.gameMode === "ball" && this.onGround) {
+            gravity *= -1; // Flip gravity
+            this.vy = gravity < 0 ? -1: 1; // 1 velocity away from surface to avoid collision detection killing
+
+            cancelPress = true;
         }
     }
 
@@ -162,14 +192,12 @@ class Player {
 
         if (this.gameMode === "wave") {
             scale = this.waveHitboxScale; // e.g. 0.6
+            if (this.mini) scale *= 0.7;
             // fine‑tuning just for wave
             offsetY = (this.width - this.width * scale) / 5;
             offsetX = (this.height - this.height * scale) / 5;
-        } else if (this.mini) {
-            scale = 0.7;
-            offsetX = (this.width - this.width * scale) / 2;
-            offsetY = (this.height - this.height * scale) / 2;
         } else {
+            if (this.mini) scale *= 0.7;
             // default centering
             offsetX = (this.width - this.width * scale) / 2;
             offsetY = (this.height - this.height * scale) / 2;
@@ -190,6 +218,13 @@ class Player {
         this.onGround = false;
         const hb = this.getHitbox();
 
+        function snapTo90(player) {
+            if (player.gameMode !== "ball") {
+                const ninety = Math.PI / 2;
+                player.rotation = Math.round(player.rotation / ninety) * ninety;
+            }
+        }
+
         // Ground collision
         if (hb.x < ground.x + ground.width &&
             hb.x + hb.width > ground.x &&
@@ -204,8 +239,7 @@ class Player {
                     this.onGround = true;
 
                     // snap rotation to 90 degree increments
-                    const ninety = Math.PI / 2;
-                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    snapTo90(this);
                 }
             } else {
                 // Cube/ship/etc: land on ground
@@ -214,9 +248,8 @@ class Player {
                     this.vy = 0;
                     this.onGround = true;
 
-                    // snap rotation to 90° increments
-                    const ninety = Math.PI / 2;
-                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    // snap rotation to 90 degree increments
+                    snapTo90(this);
                 }
             }
         }
@@ -247,8 +280,7 @@ class Player {
                     this.vy = 0;
                     this.onGround = true;
 
-                    const ninety = Math.PI / 2;
-                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    snapTo90(this);
                     continue; // don't check underside/side this frame
                 }
 
@@ -275,8 +307,7 @@ class Player {
                     this.vy = 0;
                     this.onGround = true;
 
-                    const ninety = Math.PI / 2;
-                    this.rotation = Math.round(this.rotation / ninety) * ninety;
+                    snapTo90(this);
                     continue;
                 }
 
@@ -309,8 +340,32 @@ class Player {
     }
 
         // --- Spike collisions ---
+        const rectEdges = [
+            // [x1, y1, x2, y2]
+            [hb.x, hb.y, hb.x + hb.width, hb.y],                    // top
+            [hb.x + hb.width, hb.y, hb.x + hb.width, hb.y + hb.height], // right
+            [hb.x + hb.width, hb.y + hb.height, hb.x, hb.y + hb.height], // bottom
+            [hb.x, hb.y + hb.height, hb.x, hb.y]                     // left
+        ];
+
+        const pointInRect = (px, py, r) =>
+        px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height;
+
+        const segmentsIntersect = (x1, y1, x2, y2, x3, y3, x4, y4) => {
+            const cross = (ax, ay, bx, by) => ax * by - ay * bx;
+            const d1x = x2 - x1, d1y = y2 - y1;
+            const d2x = x4 - x3, d2y = y4 - y3;
+            const denom = cross(d1x, d1y, d2x, d2y);
+            if (denom === 0) return false; // parallel
+            const t = cross(x3 - x1, y3 - y1, d2x, d2y) / denom;
+            const u = cross(x3 - x1, y3 - y1, d1x, d1y) / denom;
+            return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+        };
+
         for (let spike of spikes) {
-            const [a, b, c] = spike.getVertices();
+            const [a, b, c] = spike.getCollisionVertices(); // already scaled/rotated around center
+
+            // Player corners inside triangle
             const corners = [
                 [hb.x, hb.y],
                 [hb.x + hb.width, hb.y],
@@ -319,8 +374,37 @@ class Player {
             ];
             for (let [px, py] of corners) {
                 if (pointInTriangle(px, py, a[0], a[1], b[0], b[1], c[0], c[1])) {
-                    this.die();
+                this.die();
+                break;
                 }
+            }
+
+            // Triangle vertices inside player rect
+            if (pointInRect(a[0], a[1], hb) || pointInRect(b[0], b[1], hb) || pointInRect(c[0], c[1], hb)) {
+                this.die();
+                continue;
+            }
+
+            // Edge intersection: triangle edges vs rect edges
+            const triEdges = [
+                [a[0], a[1], b[0], b[1]],
+                [b[0], b[1], c[0], c[1]],
+                [c[0], c[1], a[0], a[1]]
+            ];
+
+            let hit = false;
+            for (const [tx1, ty1, tx2, ty2] of triEdges) {
+                for (const [rx1, ry1, rx2, ry2] of rectEdges) {
+                if (segmentsIntersect(tx1, ty1, tx2, ty2, rx1, ry1, rx2, ry2)) {
+                    hit = true;
+                    break;
+                }
+                }
+                if (hit) break;
+            }
+            if (hit) {
+                this.die();
+                continue;
             }
         }
 
@@ -407,22 +491,30 @@ class Player {
             const screenW = camera.toScreenW(this.width);
             const screenH = camera.toScreenH(this.height);
 
+            ctx.save();
+            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+            ctx.rotate(this.rotation);
+
             ctx.fillStyle = playerFill;
             ctx.strokeStyle = playerStroke;
             ctx.lineWidth = strokeWidth;
 
+            // --- Main oval body ---
             ctx.beginPath();
-            ctx.arc(
-                screenX + screenW / 2,   // center X
-                screenY + screenH / 2,   // center Y
-                screenH / 2,             // radius
-                0,
-                Math.PI * 2
-            );
+            ctx.ellipse(0, 0, screenW / 2, screenH / 3, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
+
+            // --- Dome on top ---
+            ctx.beginPath();
+            ctx.arc(0, -screenH / 4, screenW / 4, Math.PI * 2, 0, false);
+            ctx.fillStyle = "rgba(155, 155, 155, 1)"; // opaque dome
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.restore();
         } else if (this.gameMode === "wave") {
-            const scale = this.waveHitboxScale * 1.6; // scale drawing with hitbox scale plus some extra
+            const scale = this.waveHitboxScale * 1.6; // scale the drawing with hitbox scale plus some extra
             const screenX = camera.toScreenX(this.x);
             const screenY = camera.toScreenY(this.y);
             const screenW = camera.toScreenW(this.width * scale);
@@ -475,6 +567,45 @@ class Player {
                 camera.toScreenH(hb.height)
             );
             */
+        } else if (this.gameMode === "ball") {
+            const screenX = camera.toScreenX(this.x);
+            const screenY = camera.toScreenY(this.y);
+            const screenW = camera.toScreenW(this.width);
+            const screenH = camera.toScreenH(this.height);
+
+            const cx = screenX + screenW / 2;
+            const cy = screenY + screenH / 2;
+            const r = screenH / 2;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(this.rotation);
+
+            // --- Outer circle ---
+            ctx.fillStyle = playerFill;
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = strokeWidth;
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // --- Symmetrical design (simplified) ---
+            ctx.strokeStyle = playerStroke;
+            ctx.lineWidth = strokeWidth / 2;
+
+            // Single inner ring
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // One perpendicular line
+            ctx.beginPath();
+            ctx.moveTo(0, -r);
+            ctx.lineTo(0, r);
+            ctx.stroke();
+
+            ctx.restore();
         }
     }
 }
@@ -526,18 +657,44 @@ class Spike {
         spikes.push(this);
     }
 
-    // Get triangle vertices in world space
     getVertices() {
-        // Local vertices (centered at spike.x, spike.y)
-        const tip = [this.x + this.width/2, this.y];
+        const tip = [this.x + this.width / 2, this.y];
+        const leftBase = [this.x, this.y + this.height];
+        const rightBase = [this.x + this.width, this.y + this.height];
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+
+        const rotate = ([vx, vy]) => {
+            const dx = vx - cx, dy = vy - cy;
+            const cos = Math.cos(this.rotation), sin = Math.sin(this.rotation);
+            return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+        };
+
+        return [rotate(tip), rotate(rightBase), rotate(leftBase)];
+    }
+
+    getCollisionVertices() {
+        // Base triangle vertices (tip + base corners)
+        const tip = [this.x + this.width / 2, this.y];
         const leftBase = [this.x, this.y + this.height];
         const rightBase = [this.x + this.width, this.y + this.height];
 
-        // Center of triangle for rotation
-        const cx = this.x + this.width/2;
-        const cy = this.y + this.height/2;
+        // Use rectangle center as anchor
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
 
-        // Rotate each vertex around center
+        // Scale factor: 1 = full size, <1 shrinks inward, >1 grows outward
+        const scale = spikeHitboxSize ?? 1;
+
+        // Scale a vertex toward/away from rectangle center
+        const scaleVertex = ([vx, vy]) => {
+            return [
+                cx + (vx - cx) * scale,
+                cy + (vy - cy) * scale
+            ];
+        };
+
+        // Rotate a vertex around rectangle center
         const rotate = ([vx, vy]) => {
             const dx = vx - cx;
             const dy = vy - cy;
@@ -549,8 +706,14 @@ class Spike {
             ];
         };
 
-        return [rotate(tip), rotate(rightBase), rotate(leftBase)];
+        // Apply scaling then rotation
+        return [
+            rotate(scaleVertex(tip)),
+            rotate(scaleVertex(rightBase)),
+            rotate(scaleVertex(leftBase))
+        ];
     }
+    
 
     draw(camera) {
         const [a, b, c] = this.getVertices(camera); // rotated vertices
@@ -800,7 +963,12 @@ for(let i = 0; i < 9; i++) {
 
 new Portal(toBlocks(157), -toBlocks(6.5), unit, toBlocks(3), "cube");
 
-new Portal(toBlocks(163), -toBlocks(3), unit, toBlocks(3), "wave");
+new Portal(toBlocks(163), -toBlocks(3), unit, toBlocks(3), "ball");
+
+// Roof
+for(let i = 0; i < 50; i++) {
+    new Block(toBlocks(165 + i), -toBlocks(8));
+}
 
 
 let isPressing = false;
@@ -860,8 +1028,9 @@ function gameLoop() {
     const simDt = deltaTime * gameSpeed / frameMultiplier;
 
     if (player.alive) {
-        
         for(let i = 0; i < frameMultiplier; i++) {
+            if(!player.alive) break;
+
             player.collide();
             player.update(simDt);
 
