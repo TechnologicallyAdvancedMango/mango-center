@@ -2,6 +2,7 @@
 
 To do:
 
+Fix block y = 0 blocks not killing you
 Add orbs and pads
 Add more gamemodes/portals
 
