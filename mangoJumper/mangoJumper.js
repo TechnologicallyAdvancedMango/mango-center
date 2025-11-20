@@ -1121,20 +1121,25 @@ class Camera {
         this.y = 0;
         this.xOffset = canvas.width / 3;
         this.yOffset = 0;
+        this.maxOffset = 0;
 
         this.zoom = 2.5; // uniform zoom
         this.smoothFactor = 0.04; // smaller = smoother/slower
     }
 
     follow(player) {
-        // X snaps directly (or you could smooth this too if desired)
+        // X snaps directly
         this.x = (player.x + player.width / 2) + this.xOffset;
 
+        // max offset is less than off the screen
+        this.maxOffset = (canvas.height * camera.zoom / 2) - 120;
         // Target Y center
         const targetY = Math.min((player.y + player.height / 2) + this.yOffset, -100);
 
         // Smoothly interpolate current Y toward target
         this.y += (targetY - this.y) * this.smoothFactor;
+        // Clamp to maxOffset
+        this.y = Math.max(Math.min(targetY - this.y, this.maxOffset), -this.maxOffset);
     }
 
     toScreenX(worldX) {
