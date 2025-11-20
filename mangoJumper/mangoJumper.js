@@ -1121,7 +1121,6 @@ class Camera {
         this.y = 0;
         this.xOffset = canvas.width / 3;
         this.yOffset = 0;
-        this.maxOffset = 0;
 
         this.zoom = 2.5; // uniform zoom
         this.smoothFactor = 0.04; // smaller = smoother/slower
