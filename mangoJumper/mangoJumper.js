@@ -1131,23 +1131,21 @@ class Camera {
         // X snaps directly
         this.x = (player.x + player.width / 2) + this.xOffset;
     
-        // max offset is less than off the screen
-        this.maxOffset = (canvas.height * camera.zoom / 2) - 120;
-    
-        // Calculate Target Y center
+        // Calculate ideal, un-clamped camera target position based on the player
         let targetY = (player.y + player.height / 2) + this.yOffset;
-        
-        // Ensure targetY is within the world bounds (or other constraints, like your -100 minimum)
-        targetY = Math.min(targetY, -100); // Apply your original minimum constraint
-        
-        // Clamp the target Y to maxOffset range *before* interpolation
-        targetY = Math.max(Math.min(targetY, this.maxOffset), -this.maxOffset);
     
-        // Smoothly interpolate current Y toward the now-clamped target
+        // Smoothly interpolate current Y toward the target
         this.y += (targetY - this.y) * this.smoothFactor;
         
-        // Note: The subsequent clamping is now redundant but safe to leave.
-        this.y = Math.max(Math.min(this.y, this.maxOffset), -this.maxOffset); 
+        // Define the camera bounds. `this.maxOffset` should represent the boundary
+        // relative to the center of the camera's movement area.
+        // Use `canvas.height` and `camera.zoom` to determine the viewport size.
+        let verticalHalfView = (canvas.height * camera.zoom) / 2;
+        let maxOffset = worldBounds.height - verticalHalfView;
+        let minOffset = verticalHalfView;
+    
+        // Clamp the camera's own position to keep the player on screen.
+        this.y = Math.max(Math.min(this.y, maxOffset), minOffset);
     }
 
     toScreenX(worldX) {
