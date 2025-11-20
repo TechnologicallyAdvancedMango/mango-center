@@ -1138,8 +1138,8 @@ class Camera {
 
         // Smoothly interpolate current Y toward target
         this.y += (targetY - this.y) * this.smoothFactor;
-        // Clamp to maxOffset
-        this.y = Math.max(Math.min(targetY - this.y, this.maxOffset), -this.maxOffset);
+        // Clamp this.y to maxOffset range
+        this.y = Math.max(Math.min(this.y, this.maxOffset), -this.maxOffset);
     }
 
     toScreenX(worldX) {
