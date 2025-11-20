@@ -23,8 +23,10 @@ const spikeHitboxSize = 0.4;
 let objectStrokeWidth = 1.5;
 let strokeWidth;
 
+// Irrelevant with images
 let playerFill = "white";
 let playerStroke = "black";
+//
 
 let blockFillTop = "rgba(0,0,0,1)";
 let blockFillBottom = "rgba(0,0,0,0)";
@@ -185,6 +187,118 @@ function loadImages(callback) {
     assign(images, sources);
 }
 
+function recolorImage(img, fromColor, toColor, tolerance = 0) {
+    // Create an offscreen canvas
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    // Draw the original image
+    ctx.drawImage(img, 0, 0);
+
+    // Get pixel data
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // Loop through pixels
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+
+        // Check if pixel matches fromColor (with tolerance)
+        if (Math.abs(r - fromColor.r) <= tolerance &&
+            Math.abs(g - fromColor.g) <= tolerance &&
+            Math.abs(b - fromColor.b) <= tolerance) {
+            data[i]     = toColor.r;
+            data[i + 1] = toColor.g;
+            data[i + 2] = toColor.b;
+            // keep alpha unchanged
+        }
+    }
+
+    // Put modified data back
+    ctx.putImageData(imageData, 0, 0);
+
+    return canvas; // you can draw this canvas wherever you need
+}
+
+// Accepts {r,g,b} and returns a CSS color string
+function colorToString(color, format = "rgb") {
+    const { r, g, b, a } = color;
+
+    if (format === "rgb") {
+        if (typeof a === "number") {
+            return `rgba(${r}, ${g}, ${b}, ${a})`;
+        }
+        return `rgb(${r}, ${g}, ${b})`;
+    } else if (format === "hex") {
+        const toHex = (n) => n.toString(16).padStart(2, "0");
+        let hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        if (typeof a === "number") {
+            // convert alpha [0–1] to 0–255
+            const alphaByte = Math.round(a * 255);
+            hex += toHex(alphaByte);
+        }
+        return hex;
+    } else {
+        throw new Error("Unsupported format. Use 'rgb' or 'hex'.");
+    }
+}
+
+function recolorPlayer(primaryHex, secondaryHex) {
+    const primaryColor = hexToRgb(primaryHex);
+    const secondaryColor = hexToRgb(secondaryHex);
+
+    const originalPrimary = hexToRgb("#AFAFAF"); // gray in the original images
+    const originalSecondary = hexToRgb("#FFFFFF"); // white in the original images
+
+    for (const key in images.player) {
+        const baseImg = images.player[key];
+        if (!baseImg) continue;
+
+        // First recolor primary
+        let canvas = recolorImage(baseImg, originalPrimary, primaryColor, 10);
+
+        // Then recolor secondary
+        canvas = recolorImage(canvas, originalSecondary, secondaryColor, 10);
+
+        // Replace the original image with the recolored canvas
+        images.player[key] = canvas;
+    }
+}
+
+function hexToRgb(hex) {
+    hex = hex.replace(/^#/, "");
+
+    // Handle shorthand (#FFF or #FFFF)
+    if (hex.length === 3) {
+        hex = hex.split("").map(c => c + c).join("");
+    } else if (hex.length === 4) {
+        hex = hex.split("").map(c => c + c).join("");
+    }
+
+    let r, g, b, a;
+
+    if (hex.length === 6) {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+    } else if (hex.length === 8) {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+        a = parseInt(hex.slice(6, 8), 16) / 255; // normalize to 0–1
+    } else {
+        throw new Error("Invalid hex color format");
+    }
+
+    return { r, g, b, ...(a !== undefined ? { a } : {}) };
+}
+
 
 let blocks = [];
 let spikes = [];
@@ -217,6 +331,9 @@ class Player {
         this.alive = true;
 
         this.drawHitbox = false;
+
+        this.primaryColor = { r: 0, g: 255, b: 0 };
+        this.secondaryColor = { r: 0, g: 255, b: 255 };
 
         this.waveHitboxScale = 0.4;
         // For wave trail
@@ -343,8 +460,8 @@ class Player {
             scale = this.waveHitboxScale; // e.g. 0.6
             if (this.mini) scale *= 0.7;
             // fine‑tuning just for wave
-            offsetY = (this.width - this.width * scale) / 5;
-            offsetX = (this.height - this.height * scale) / 5;
+            offsetX = (this.width - this.width * scale) / 2;
+            offsetY = (this.height - this.height * scale) / 2;
         } else {
             if (this.mini) scale *= 0.7;
             // default centering
@@ -364,6 +481,8 @@ class Player {
     }
 
     collide() {
+        if (!this.alive) return;
+
         this.onGround = false;
         const hb = this.getHitbox();
 
@@ -429,12 +548,11 @@ class Player {
                 // Wave dies on any block hit
                 if (this.gameMode === "wave") {
                     this.die();
-                    return;
                 }
 
                 let ceilingBlocked = false;
 
-                if (gravity > 0) {
+                if (gravity >= 0) {
                     // --- Normal gravity: land on top ---
                     if (this.vy > 0 && hb.y + hb.height <= block.y + 1) {
                         this.y = block.y - this.height;
@@ -452,9 +570,8 @@ class Player {
                         
                         if (this.gameMode === "cube") {
                             this.die(); // cube dies
-                            return;
                         } else {
-                            // UFO/ship/etc: clamp to underside and zero vy
+                            // other: clamp to underside and zero vy
                             this.y = block.y + block.height;
                             this.vy = 0;
                             ceilingBlocked = true;
@@ -479,7 +596,6 @@ class Player {
                         hb.x < block.x + block.width) {
                         if (this.gameMode === "cube") {
                             this.die(); // cube dies
-                            return;
                         } else {
                             // ship/other: clamp to top and zero vy
                             this.y = block.y - this.height;
@@ -497,7 +613,6 @@ class Player {
                     hb.y + hb.height > block.y &&
                     hb.y < block.y + block.height) {
                     this.die();
-                    return;
                 }
             }
         }
@@ -606,89 +721,67 @@ class Player {
         const smoothFactor = 0.15; // smaller = slower smoothing
         this.drawRotation += (this.rotation - this.drawRotation) * smoothFactor;
 
-        if(this.gameMode === "cube") {
-            const screenX = camera.toScreenX(this.x);
-            const screenY = camera.toScreenY(this.y);
-            const screenW = camera.toScreenW(this.width);
-            const screenH = camera.toScreenH(this.height);
-
+        function drawCube(x, y, width, height, rotation = 0) {
             ctx.save();
-            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
-            ctx.rotate(this.rotation); // Use real rotation for cube
-            ctx.fillStyle = playerFill;
-            ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            ctx.translate(x + width / 2, y + height / 2);
+            ctx.rotate(rotation);
 
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth;
-            ctx.strokeRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            const cubeImg = images.player.cube;
+            if (cubeImg) {
+                ctx.drawImage(cubeImg, -width / 2, -height / 2, width, height);
+            } else {
+                ctx.fillStyle = playerFill;
+                ctx.fillRect(-width / 2, -height / 2, width, height);
+            }
+
             ctx.restore();
+        }
+
+        const screenX = camera.toScreenX(this.x);
+        const screenY = camera.toScreenY(this.y);
+        const screenW = camera.toScreenW(this.width);
+        const screenH = camera.toScreenH(this.height);
+
+        if (this.gameMode === "cube") {
+            drawCube(screenX, screenY, screenW, screenH, this.rotation);
+
         } else if (this.gameMode === "ship") {
-            const screenX = camera.toScreenX(this.x);
-            const screenY = camera.toScreenY(this.y);
-            const screenW = camera.toScreenW(this.width);
-            const screenH = camera.toScreenH(this.height);
-
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
             ctx.rotate(this.drawRotation);
 
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth;
+            const shipImg = images.player.ship;
+            if (shipImg) {
+                drawCube(-screenW / 4, -screenH / 1.67, screenW / 1.5, screenH / 1.5, 0);
 
-            // --- Draw cockpit square first (behind) ---
-            const cockpitSize = screenH / 2;
-            ctx.fillStyle = "gray";
-            ctx.fillRect(-cockpitSize / 2, -screenH / 2 - cockpitSize / 2 + 10,
-                        cockpitSize, cockpitSize);
-            ctx.strokeRect(-cockpitSize / 2, -screenH / 2 - cockpitSize / 2 + 10,
-                        cockpitSize, cockpitSize);
-
-            // --- Draw trapezoid body on top ---
-            ctx.fillStyle = playerFill;
-            ctx.beginPath();
-            ctx.moveTo(screenW / 2, -screenH / 4 + 10);              // nose top
-            ctx.lineTo(screenW / 2, screenH / 4 + 10);               // nose bottom
-            ctx.lineTo(-screenW / 2, screenH / 3 + 10);              // back bottom
-            ctx.lineTo(-screenW / 2, -screenH / 3 + 10);             // back top
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+                ctx.drawImage(shipImg, -screenW / 1.5, -screenH / 3, screenW * 1.5, screenH / 1);
+            } else {
+                // fallback drawing
+                ctx.fillStyle = playerFill;
+                ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            }
 
             ctx.restore();
+
         } else if (this.gameMode === "ufo") {
-            const screenX = camera.toScreenX(this.x);
-            const screenY = camera.toScreenY(this.y);
-            const screenW = camera.toScreenW(this.width);
-            const screenH = camera.toScreenH(this.height);
-
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
             ctx.rotate(this.drawRotation);
 
-            ctx.fillStyle = playerFill;
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth;
-
-            // --- Main oval body ---
-            ctx.beginPath();
-            ctx.ellipse(0, 0, screenW / 2, screenH / 3, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            // --- Dome on top ---
-            ctx.beginPath();
-            ctx.arc(0, -screenH / 4, screenW / 4, Math.PI * 2, 0, false);
-            ctx.fillStyle = "rgba(155, 155, 155, 1)"; // opaque dome
-            ctx.fill();
-            ctx.stroke();
+            const ufoImg = images.player.ufo;
+            if (ufoImg) {
+                drawCube(-screenW / 4, -screenH / 2.25, screenW / 2, screenH / 2, 0);
+                
+                ctx.drawImage(ufoImg, -screenW / 2, -screenH / 10, screenW, screenH / 2);
+            } else {
+                ctx.fillStyle = playerFill;
+                ctx.fillRect(-screenW / 2, -screenH / 2, screenW, screenH);
+            }
 
             ctx.restore();
+
         } else if (this.gameMode === "wave") {
-            const scale = this.waveHitboxScale * 1.6; // scale the drawing with hitbox scale plus some extra
-            const screenX = camera.toScreenX(this.x);
-            const screenY = camera.toScreenY(this.y);
-            const screenW = camera.toScreenW(this.width * scale);
-            const screenH = camera.toScreenH(this.height * scale);
+            const scale = this.waveHitboxScale * 1.6;
 
             // --- Trail ---
             ctx.beginPath();
@@ -696,72 +789,63 @@ class Player {
                 const t = this.trail[i];
                 const tx = camera.toScreenX(t.x) + screenW / 2;
                 const ty = camera.toScreenY(t.y) + screenH / 2;
-
                 if (i === 0) ctx.moveTo(tx, ty);
                 else ctx.lineTo(tx, ty);
             }
-            ctx.lineWidth = 30 * (strokeWidth / 4); // scale trail thickness like other strokes
-            ctx.strokeStyle = "#2dabffff";
+            ctx.lineWidth = 30 * (strokeWidth / 4);
+            ctx.strokeStyle = colorToString({ 
+                                r: this.primaryColor.r, 
+                                g: this.primaryColor.g,
+                                b: this.primaryColor.b,
+                                a: 0.7 }, "hex"); // Semi transparent
             ctx.stroke();
             ctx.lineWidth = 10 * (strokeWidth / 4);
-            ctx.strokeStyle = "#ffffffff";
+            ctx.strokeStyle = colorToString({ 
+                                r: 255,
+                                g: 255,
+                                b: 255,
+                                a: 0.9 }, "hex");
             ctx.stroke();
 
-            // --- Wave triangle ---
+            // --- Wave icon ---
+            ctx.save();
+            ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
+            ctx.rotate(this.drawRotation + Math.PI / 2); // Rotate an extra 90 degrees to account for img rotation
+
+            const waveImg = images.player.wave;
+
+            const scaledW = screenW * scale;
+            const scaledH = screenH * scale;
+            // Calculate new centered offsets
+            const scaledOffsetX = -scaledW / 2;
+            const scaledOffsetY = -scaledH / 2;
+
+            
+            if (waveImg) {
+                // Use scaled dimensions and offsets
+                ctx.drawImage(waveImg, scaledOffsetX, scaledOffsetY, scaledW, scaledH);
+            } else {
+                ctx.fillStyle = playerFill;
+                // Use scaled dimensions and offsets
+                ctx.fillRect(scaledOffsetX, scaledOffsetY, scaledW, scaledH);
+            }
+
+            ctx.restore();
+
+        } else if (this.gameMode === "ball") {
             ctx.save();
             ctx.translate(screenX + screenW / 2, screenY + screenH / 2);
             ctx.rotate(this.drawRotation);
 
-            ctx.fillStyle = playerFill;
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth;
-
-            ctx.beginPath();
-            ctx.moveTo(-screenW / 2, screenH / 2);
-            ctx.lineTo(screenW / 2, 0);
-            ctx.lineTo(-screenW / 2, -screenH / 2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.restore();
-        } else if (this.gameMode === "ball") {
-            const screenX = camera.toScreenX(this.x);
-            const screenY = camera.toScreenY(this.y);
-            const screenW = camera.toScreenW(this.width);
-            const screenH = camera.toScreenH(this.height);
-
-            const cx = screenX + screenW / 2;
-            const cy = screenY + screenH / 2;
-            const r = screenH / 2;
-
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(this.drawRotation);
-
-            // --- Outer circle ---
-            ctx.fillStyle = playerFill;
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth;
-            ctx.beginPath();
-            ctx.arc(0, 0, r, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            // --- Symmetrical design (simplified) ---
-            ctx.strokeStyle = playerStroke;
-            ctx.lineWidth = strokeWidth / 2;
-
-            // Single inner ring
-            ctx.beginPath();
-            ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // One perpendicular line
-            ctx.beginPath();
-            ctx.moveTo(0, -r);
-            ctx.lineTo(0, r);
-            ctx.stroke();
+            const ballImg = images.player.ball;
+            if (ballImg) {
+                ctx.drawImage(ballImg, -screenW / 2, -screenH / 2, screenW, screenH);
+            } else {
+                ctx.fillStyle = playerFill;
+                ctx.beginPath();
+                ctx.arc(0, 0, screenH / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
             ctx.restore();
         }
@@ -1039,7 +1123,7 @@ class Camera {
         this.yOffset = 0;
 
         this.zoom = 2.5; // uniform zoom
-        this.smoothFactor = 0.05; // smaller = smoother/slower
+        this.smoothFactor = 0.02; // smaller = smoother/slower
     }
 
     follow(player) {
@@ -1255,7 +1339,7 @@ new Spike(inBlocks(212), -inBlocks(7), unit, unit, Math.PI);
 new Spike(inBlocks(213), -inBlocks(4));
 new Spike(inBlocks(214), -inBlocks(7), unit, unit, Math.PI);
 
-// new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "cube");
+new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "ufo");
 
 
 let isPressing = false;
@@ -1361,7 +1445,8 @@ function gameLoop() {
 }
 loadImages(() => {
     console.log("All textures loaded!");
-    gameLoop();
-});
+    recolorPlayer(colorToString(player.primaryColor, "hex"), colorToString(player.secondaryColor, "hex"));
 
-evalQuery();
+    gameLoop();
+    evalQuery();
+});
