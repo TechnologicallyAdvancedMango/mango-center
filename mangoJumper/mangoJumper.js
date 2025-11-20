@@ -370,9 +370,9 @@ class Player {
             } 
         } else if (this.gameMode === "ship") {
             if(isPressing) {
-                this.vy -= gravity * dt * 0.5; // Tweak for good feeling ship
+                this.vy -= gravity * dt * 0.33; // Tweak for good feeling ship
             } else {
-                this.vy += gravity * dt * 0.5;
+                this.vy += gravity * dt * 0.33;
             }
             // Calculate angle of movement
             const angle = Math.atan2(this.vy, speed);
@@ -1042,8 +1042,7 @@ class Portal {
 
     applyEffect(player) {
         if(this.triggered) return;
-        player.vy = 0;
-        player.rotation = 0;
+        player.vy *= 0.5; // Only carry a little momentum
         player.drawRotation = 0;
 
         portalTypes[this.effect](player);
@@ -1193,7 +1192,7 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
 }
 
 
-let player = new Player(inBlocks(0), -unit);
+let player = new Player(inBlocks(0), -inBlocks(1));
 let camera = new Camera(player.x, player.y);
 let ground = new Ground(0, 200);
 
@@ -1300,14 +1299,17 @@ for(let i = 0; i < 50; i++) {
 
 // Walls with gaps
 for(let i = 0; i < 7; i++) {
-    if(i > 5) continue;
+    if(i > 4) continue;
     new Block(inBlocks(175), -inBlocks(1 + i));
 }
+new Spike(inBlocks(175), -inBlocks(6));
 
 for(let i = 0; i < 7; i++) {
-    if(i < 1) continue;
+    if(i < 2) continue;
     new Block(inBlocks(185), -inBlocks(1 + i));
 }
+new Spike(inBlocks(185), -inBlocks(2), unit, unit, Math.PI);
+
 
 fillBlocks(inBlocks(192), -inBlocks(4), inBlocks(199), -inBlocks(4));
 
@@ -1341,6 +1343,13 @@ new Spike(inBlocks(214), -inBlocks(7), unit, unit, Math.PI);
 
 new Portal(inBlocks(215), -inBlocks(6), unit, inBlocks(3), "ufo");
 
+fillBlocks(inBlocks(216), -inBlocks(10), inBlocks(245), -inBlocks(10));
+
+for(let i = 233; i < 245; i++) {
+    new Spike(inBlocks(i), -inBlocks(7));
+}
+fillBlocks(inBlocks(233), -inBlocks(6), inBlocks(233), -inBlocks(1));
+fillBlocks(inBlocks(234), -inBlocks(6), inBlocks(244), -inBlocks(6));
 
 let isPressing = false;
 let cancelPress = false;
