@@ -1131,35 +1131,17 @@ class Camera {
         // Target is the player's center in world coords
         const playerCenterX = player.x + player.width / 2;
         const playerCenterY = player.y + player.height / 2;
-
+    
         // Calculate target camera position (center of screen)
-        // Note: The offsets should arguably be handled in toScreenX/Y for simplicity, 
-        // but we can incorporate them here by converting screen offset to world offset.
+        // The offsets are handled by converting screen offset to world offset using zoom.
         const targetX = playerCenterX + (this.xOffsetScreen / this.zoom);
         const targetY = playerCenterY + (this.yOffsetScreen / this.zoom);
-
-        // X snaps directly
-        this.x = targetX;
     
+        // X snaps directly to the target
+        this.x = targetX;
+        
         // Smoothly interpolate current Y toward the target
         this.y += (targetY - this.y) * this.smoothFactor;
-        
-        // --- Clamping Logic (Requires global 'canvas' and 'worldBounds' to exist) ---
-
-        // Calculate half-viewport dimensions in WORLD coordinates
-        let verticalHalfView = (canvas.height / this.zoom) / 2; // Fixed division
-        let horizontalHalfView = (canvas.width / this.zoom) / 2; // Added horizontal
-
-        // Define min/max *camera center* positions in the world
-        // Make sure 'worldBounds' (e.g., {width: 1000, height: 1000}) is defined globally
-        let maxX = worldBounds.width - horizontalHalfView;
-        let minX = horizontalHalfView;
-        let maxY = worldBounds.height - verticalHalfView;
-        let minY = verticalHalfView;
-    
-        // Clamp the camera's own position
-        this.x = Math.max(minX, Math.min(this.x, maxX));
-        this.y = Math.max(minY, Math.min(this.y, maxY));
     }
 
     toScreenX(worldX) {
