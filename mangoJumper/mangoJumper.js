@@ -1130,16 +1130,24 @@ class Camera {
     follow(player) {
         // X snaps directly
         this.x = (player.x + player.width / 2) + this.xOffset;
-
+    
         // max offset is less than off the screen
         this.maxOffset = (canvas.height * camera.zoom / 2) - 120;
-        // Target Y center
-        const targetY = Math.min((player.y + player.height / 2) + this.yOffset, -100);
-
-        // Smoothly interpolate current Y toward target
+    
+        // Calculate Target Y center
+        let targetY = (player.y + player.height / 2) + this.yOffset;
+        
+        // Ensure targetY is within the world bounds (or other constraints, like your -100 minimum)
+        targetY = Math.min(targetY, -100); // Apply your original minimum constraint
+        
+        // Clamp the target Y to maxOffset range *before* interpolation
+        targetY = Math.max(Math.min(targetY, this.maxOffset), -this.maxOffset);
+    
+        // Smoothly interpolate current Y toward the now-clamped target
         this.y += (targetY - this.y) * this.smoothFactor;
-        // Clamp this.y to maxOffset range
-        this.y = Math.max(Math.min(this.y, this.maxOffset), -this.maxOffset);
+        
+        // Note: The subsequent clamping is now redundant but safe to leave.
+        this.y = Math.max(Math.min(this.y, this.maxOffset), -this.maxOffset); 
     }
 
     toScreenX(worldX) {
