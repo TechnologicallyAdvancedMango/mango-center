@@ -3,6 +3,7 @@
 To do:
 
 Add orbs and pads
+Add a level system
 Add more gamemodes/portals
 
 */
@@ -1122,7 +1123,7 @@ class Camera {
         this.yOffset = 0;
 
         this.zoom = 2.5; // uniform zoom
-        this.smoothFactor = 0.02; // smaller = smoother/slower
+        this.smoothFactor = 0.04; // smaller = smoother/slower
     }
 
     follow(player) {
