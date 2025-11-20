@@ -1119,8 +1119,9 @@ class Camera {
     constructor() {
         this.x = 0;
         this.y = 0;
-        this.xOffset = canvas.width / 3;
-        this.yOffset = 0;
+        // xOffset represents the distance in SCREEN pixels the player is from center
+        this.xOffsetScreen = canvas.width / 3; 
+        this.yOffsetScreen = 0;
 
         this.zoom = 2.5; // uniform zoom
         this.smoothFactor = 0.04; // smaller = smoother/slower
