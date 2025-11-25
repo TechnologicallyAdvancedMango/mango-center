@@ -311,7 +311,7 @@ class Player {
         this.y = y;
         this.vy = 0;
 
-        this.gameMode = "cube";
+        this.gameMode = "wave";
         this.mini = false;
         this.god = false;
 
@@ -371,7 +371,7 @@ class Player {
             } 
         } else if (this.gameMode === "ship") {
             if(isPressing) {
-                this.vy -= gravity * dt * 0.33; // Tweak for good feeling ship
+                this.vy -= gravity * dt * 0.33; // Tweaked for good feeling ship
             } else {
                 this.vy += gravity * dt * 0.33;
             }
@@ -388,15 +388,32 @@ class Player {
                 this.vy = isPressing ? -slopeSpeed : slopeSpeed;
             } else {
                 this.vy = 0; // stay stable on ground
+
+                this.updateWaveTrail(); // can't find a better solution
             }
 
-            // Add current position to trail every 10 frames
+            // Add current position to trail every 10 frames (old)
+            /* Instead, we are going to add them on mousedown or up or when gravity changes
             if (simFrameCount % 10 === 0) {
                 this.trail.push({ x: this.x, y: this.y });
             }
-            // Remove points of the trail that are off the left edge of the camera view
+            */
+
+            // Remove points that are off screen AND their connected point is off screen
             const leftEdge = camera.toWorldX(0); // world coordinate of screen's left edge
-            this.trail = this.trail.filter(p => p.x >= leftEdge - 10); // Extra room to the left
+
+            this.trail = this.trail.filter((p, i, arr) => {
+                // Always keep if there's only one point in the trail
+                if (arr.length === 1) return true;
+
+                const next = arr[i + 1];
+                // keep if this point is on screen OR the next point is on screen
+                return p.x >= leftEdge - 50 || (next && next.x >= leftEdge - 50);
+            });
+            // if filter somehow removed everything, restore the last known point
+            if (this.trail.length === 0 && this.lastTrailPoint) {
+                this.trail.push(this.lastTrailPoint);
+            }
 
 
             if(!this.onGround) {
@@ -404,11 +421,11 @@ class Player {
             }
         } else if (this.gameMode === "ufo") {
             if (!this.onGround) {
-                this.vy += gravity * dt * 0.5; // Tweak for good feeling ufo
+                this.vy += gravity * dt * 0.3; // Tweaked for good feeling ufo
             }
         } else if (this.gameMode === "ball") {
             // gravity change is in jump()
-            this.vy += gravity * dt * 0.6; // Tweak for good feeling ball
+            this.vy += gravity * dt * 0.6; // Tweaked for good feeling ball
 
             if(this.onGround && !cancelPress) { // Only change direction when landing
                 if(gravity >= 0) {
@@ -427,7 +444,7 @@ class Player {
     
     jump() {
         let jumpingForce = 11;
-        if (this.gameMode === "ufo") jumpingForce = 8;
+        if (this.gameMode === "ufo") jumpingForce = 5;
         if(gravity < 0) jumpingForce *= -1; // Reverse direction if gravity flipped
 
         
@@ -514,6 +531,8 @@ class Player {
                     this.y = ground.y - (hb.height + (hb.y - this.y)); // offset-aware snap
                     this.vy = 0;
                     this.onGround = true;
+
+                    this.updateWaveTrail();
 
                     // snap rotation to 90 degree increments
                     snapTo90(this);
@@ -709,6 +728,11 @@ class Player {
         }
     }
 
+    updateWaveTrail() {
+        if (this.gameMode === "wave") this.trail.push({ x: this.x, y: this.y });
+        this.lastTrailPoint = this.trail[this.trail.length - 1];
+    }
+
 
     die() {
         if (this.god || !this.alive) return;
@@ -793,6 +817,8 @@ class Player {
                 if (i === 0) ctx.moveTo(tx, ty);
                 else ctx.lineTo(tx, ty);
             }
+            ctx.lineTo(screenX + screenW/2, screenY + screenH/2);
+
             ctx.lineWidth = 30 * (strokeWidth / 4);
             ctx.strokeStyle = colorToString({ 
                                 r: this.primaryColor.r, 
@@ -1042,7 +1068,9 @@ class Portal {
     }
 
     applyEffect(player) {
-        if(this.triggered) return;
+        if (this.triggered) return;
+        if (player.gameMode === "wave") player.updateWaveTrail();
+
         player.vy *= 0.5; // Only carry a little momentum
         player.drawRotation = 0;
 
@@ -1363,14 +1391,21 @@ let isPressing = false;
 let cancelPress = false;
 
 document.addEventListener("mousedown", (e) => {
-    if(e.button === 0) isPressing = true;
-    console.log(isPressing);
+    if(e.button === 0) {
+        isPressing = true;
+
+        player.updateWaveTrail();
+        console.log(isPressing);
+    } 
 })
 document.addEventListener("mouseup", (e) => {
-    if(e.button === 0) isPressing = false;
-    console.log(isPressing);
+    if(e.button === 0) {
+        isPressing = false;
+        cancelPress = false;
 
-    cancelPress = false;
+        player.updateWaveTrail();
+        console.log(isPressing);
+    } 
 })
 
 document.addEventListener("keydown", (e) => {
@@ -1378,8 +1413,12 @@ document.addEventListener("keydown", (e) => {
         return; // Ignore repeated keydown events
     }
 
-    if(e.key === " " || e.key === "w"|| e.key === "ArrowUp") isPressing = true;
-    console.log(isPressing);
+    if(e.key === " " || e.key === "w"|| e.key === "ArrowUp") {
+        isPressing = true;
+
+        player.updateWaveTrail();
+        console.log(isPressing);
+    }
 
     if (e.key === "+") camera.zoom *= 1.1; // zoom in
     if (e.key === "-") camera.zoom *= 0.9; // zoom out
@@ -1387,10 +1426,13 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "h") toggleHitboxes();
 })
 document.addEventListener("keyup", (e) => {
-    if(e.key === " " || e.key === "w"|| e.key === "ArrowUp") isPressing = false;
-    console.log(isPressing);
+    if(e.key === " " || e.key === "w"|| e.key === "ArrowUp") {
+        isPressing = false;
+        cancelPress = false;
 
-    cancelPress = false;
+        player.updateWaveTrail();
+        console.log(isPressing);
+    }
 })
 
 
