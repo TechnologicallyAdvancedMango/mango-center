@@ -350,7 +350,7 @@ class Player {
             this.rotation = 0;
         }
 
-        if (!this.gameMode === "wave") this.trail = [];
+        if (this.gameMode !== "wave") this.trail = [];
 
         if(this.onGround) {
             this.coyoteTime = 0;
