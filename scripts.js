@@ -92,8 +92,6 @@ if (userID === devID || userID === devID2) {
    document.getElementById("devTools").style.display = "block";
 }
 
- // Function to check the secret code
-
 function updateGame() {
   updateContent();
   checkAchievements();
