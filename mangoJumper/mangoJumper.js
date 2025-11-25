@@ -311,7 +311,7 @@ class Player {
         this.y = y;
         this.vy = 0;
 
-        this.gameMode = "wave";
+        this.gameMode = "cube";
         this.mini = false;
         this.god = false;
 
