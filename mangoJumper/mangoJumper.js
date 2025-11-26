@@ -966,10 +966,10 @@ class Spike {
     }
 
     getCollisionBox() {
-        // tweak these constants to taste
+        // GD accurate
         const offsetX = 0;
         const offsetY = 0;
-        const scaleX  = 0.3;
+        const scaleX  = 0.25;
         const scaleY  = 0.5;
 
         // center of the spike
