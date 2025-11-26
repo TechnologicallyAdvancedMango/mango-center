@@ -637,74 +637,73 @@ class Player {
             }
         }
 
-        // --- Spike collisions ---
-        const rectEdges = [
-            // [x1, y1, x2, y2]
-            [hb.x, hb.y, hb.x + hb.width, hb.y],                    // top
-            [hb.x + hb.width, hb.y, hb.x + hb.width, hb.y + hb.height], // right
-            [hb.x + hb.width, hb.y + hb.height, hb.x, hb.y + hb.height], // bottom
-            [hb.x, hb.y + hb.height, hb.x, hb.y]                     // left
-        ];
-
-        const pointInRect = (px, py, r) =>
-        px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height;
-
-        const segmentsIntersect = (x1, y1, x2, y2, x3, y3, x4, y4) => {
-            const cross = (ax, ay, bx, by) => ax * by - ay * bx;
-            const d1x = x2 - x1, d1y = y2 - y1;
-            const d2x = x4 - x3, d2y = y4 - y3;
-            const denom = cross(d1x, d1y, d2x, d2y);
-            if (denom === 0) return false; // parallel
-            const t = cross(x3 - x1, y3 - y1, d2x, d2y) / denom;
-            const u = cross(x3 - x1, y3 - y1, d1x, d1y) / denom;
-            return t >= 0 && t <= 1 && u >= 0 && u <= 1;
-        };
-
+        // Spike collisions
         for (let spike of spikes) {
-            if (spike.x + spike.width < minX || spike.x > maxX) {
-                continue; // skip spike outside window
-            }
+            if (spike.x + spike.width < minX || spike.x > maxX) continue;
 
-            const [a, b, c] = spike.getCollisionVertices(); // already scaled/rotated around center
+            const spikePoly = spike.getCollisionBox(); // rotated 4 points
+            const spikeBounds = {
+                x: Math.min(...spikePoly.map(p => p[0])),
+                y: Math.min(...spikePoly.map(p => p[1])),
+                w: Math.max(...spikePoly.map(p => p[0])) - Math.min(...spikePoly.map(p => p[0])),
+                h: Math.max(...spikePoly.map(p => p[1])) - Math.min(...spikePoly.map(p => p[1]))
+            };
 
-            // Player corners inside triangle
-            const corners = [
-                [hb.x, hb.y],
-                [hb.x + hb.width, hb.y],
-                [hb.x, hb.y + hb.height],
-                [hb.x + hb.width, hb.y + hb.height]
-            ];
-            for (let [px, py] of corners) {
-                if (pointInTriangle(px, py, a[0], a[1], b[0], b[1], c[0], c[1])) {
-                this.die();
-                break;
+            const playerRect = { x: hb.x, y: hb.y, w: hb.width, h: hb.height };
+
+            // 1. player corners inside spike polygon
+            for (const [px, py] of [
+                [playerRect.x, playerRect.y],
+                [playerRect.x + playerRect.w, playerRect.y],
+                [playerRect.x, playerRect.y + playerRect.h],
+                [playerRect.x + playerRect.w, playerRect.y + playerRect.h]
+            ]) {
+                if (pointInPolygon(px, py, spikePoly)) {
+                    this.die();
+                    break;
                 }
             }
 
-            // Triangle vertices inside player rect
-            if (pointInRect(a[0], a[1], hb) || pointInRect(b[0], b[1], hb) || pointInRect(c[0], c[1], hb)) {
-                this.die();
-                continue;
+            // 2. spike corners inside player rect
+            for (const [sx, sy] of spikePoly) {
+                if (pointInRect(sx, sy, playerRect)) {
+                    this.die();
+                    break;
+                }
             }
 
-            // Edge intersection: triangle edges vs rect edges
-            const triEdges = [
-                [a[0], a[1], b[0], b[1]],
-                [b[0], b[1], c[0], c[1]],
-                [c[0], c[1], a[0], a[1]]
+            // 3. edge intersection: spike polygon edges vs player rect edges
+            const spikeEdges = [
+                [spikePoly[0][0], spikePoly[0][1], spikePoly[1][0], spikePoly[1][1]],
+                [spikePoly[1][0], spikePoly[1][1], spikePoly[2][0], spikePoly[2][1]],
+                [spikePoly[2][0], spikePoly[2][1], spikePoly[3][0], spikePoly[3][1]],
+                [spikePoly[3][0], spikePoly[3][1], spikePoly[0][0], spikePoly[0][1]]
+            ];
+
+            const rectEdges = [
+                [playerRect.x, playerRect.y, playerRect.x + playerRect.w, playerRect.y], // top
+                [playerRect.x + playerRect.w, playerRect.y, playerRect.x + playerRect.w, playerRect.y + playerRect.h], // right
+                [playerRect.x + playerRect.w, playerRect.y + playerRect.h, playerRect.x, playerRect.y + playerRect.h], // bottom
+                [playerRect.x, playerRect.y + playerRect.h, playerRect.x, playerRect.y] // left
             ];
 
             let hit = false;
-            for (const [tx1, ty1, tx2, ty2] of triEdges) {
+            for (const [sx1, sy1, sx2, sy2] of spikeEdges) {
                 for (const [rx1, ry1, rx2, ry2] of rectEdges) {
-                if (segmentsIntersect(tx1, ty1, tx2, ty2, rx1, ry1, rx2, ry2)) {
-                    hit = true;
-                    break;
-                }
+                    if (segmentsIntersect(sx1, sy1, sx2, sy2, rx1, ry1, rx2, ry2)) {
+                        hit = true;
+                        break;
+                    }
                 }
                 if (hit) break;
             }
             if (hit) {
+                this.die();
+                continue;
+            }
+
+            // 4. bounding box overlap (catches flush overlap)
+            if (rectsOverlap(playerRect, spikeBounds)) {
                 this.die();
                 continue;
             }
@@ -966,47 +965,40 @@ class Spike {
         return [rotate(tip), rotate(rightBase), rotate(leftBase)];
     }
 
-    getCollisionVertices() {
-        // Base triangle vertices (tip + base corners)
-        const tip = [this.x + this.width / 2, this.y];
-        const leftBase = [this.x, this.y + this.height];
-        const rightBase = [this.x + this.width, this.y + this.height];
+    getCollisionBox() {
+        // tweak these constants to taste
+        const offsetX = 0;
+        const offsetY = 0;
+        const scaleX  = 0.3;
+        const scaleY  = 0.5;
 
-        // Use rectangle center as anchor
+        // center of the spike
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
 
-        // Scale factor: 1 = full size, <1 shrinks inward, >1 grows outward
-        const scale = spikeHitboxSize ?? 1;
+        // scaled dimensions
+        const w = this.width * scaleX;
+        const h = this.height * scaleY;
 
-        // Scale a vertex toward/away from rectangle center
-        const scaleVertex = ([vx, vy]) => {
-            return [
-                cx + (vx - cx) * scale,
-                cy + (vy - cy) * scale
-            ];
-        };
-
-        // Rotate a vertex around rectangle center
-        const rotate = ([vx, vy]) => {
-            const dx = vx - cx;
-            const dy = vy - cy;
-            const cos = Math.cos(this.rotation);
-            const sin = Math.sin(this.rotation);
-            return [
-                cx + dx * cos - dy * sin,
-                cy + dx * sin + dy * cos
-            ];
-        };
-
-        // Apply scaling then rotation
-        return [
-            rotate(scaleVertex(tip)),
-            rotate(scaleVertex(rightBase)),
-            rotate(scaleVertex(leftBase))
+        // unrotated corners (relative to center)
+        const corners = [
+            [-w/2 + offsetX, -h/2 + offsetY], // top-left
+            [ w/2 + offsetX, -h/2 + offsetY], // top-right
+            [ w/2 + offsetX,  h/2 + offsetY], // bottom-right
+            [-w/2 + offsetX,  h/2 + offsetY]  // bottom-left
         ];
+
+        // apply rotation around center
+        const angle = this.rotation || 0; // radians
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const rotated = corners.map(([dx, dy]) => {
+            return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+        });
+
+        return rotated; // array of 4 [x,y] points
     }
-    
 
     draw(camera) {
         const [a, b, c] = this.getVertices(camera); // rotated vertices
@@ -1038,11 +1030,13 @@ class Spike {
 
         // Draw hitbox
         if (this.drawHitbox) {
-            const [ha, hb, hc] = this.getCollisionVertices();
+            const corners = this.getCollisionBox(); // rotated 4 points
+
             ctx.beginPath();
-            ctx.moveTo(camera.toScreenX(ha[0]), camera.toScreenY(ha[1]));
-            ctx.lineTo(camera.toScreenX(hb[0]), camera.toScreenY(hb[1]));
-            ctx.lineTo(camera.toScreenX(hc[0]), camera.toScreenY(hc[1]));
+            ctx.moveTo(camera.toScreenX(corners[0][0]), camera.toScreenY(corners[0][1]));
+            for (let i = 1; i < corners.length; i++) {
+                ctx.lineTo(camera.toScreenX(corners[i][0]), camera.toScreenY(corners[i][1]));
+            }
             ctx.closePath();
             ctx.strokeStyle = "#ff0000";
             ctx.lineWidth = 2;
@@ -1220,11 +1214,48 @@ function fillBlocks(x1, y1, x2, y2) {
     }
 }
 
-function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
-    const area = 0.5 * (-by*cx + ay*(-bx+cx) + ax*(by-cy) + bx*cy);
-    const s = (ay*cx - ax*cy + (cy - ay) * px + (ax - cx) * py) / (2 * area);
-    const t = (ax*by - ay*bx + (ay - by) * px + (bx - ax) * py) / (2 * area);
-    return s >= 0 && t >= 0 && (s + t) <= 1;
+function rectsOverlap(a, b) {
+    return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+    );
+}
+
+function pointInRect(px, py, r) {
+    return (
+        px >= r.x &&
+        px <= r.x + r.w &&
+        py >= r.y &&
+        py <= r.y + r.h
+    );
+}
+
+function pointInPolygon(px, py, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0], yi = polygon[i][1];
+        const xj = polygon[j][0], yj = polygon[j][1];
+
+        const intersect =
+            ((yi > py) !== (yj > py)) &&
+            (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function segmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+    const cross = (ax, ay, bx, by) => ax * by - ay * bx;
+    const d1x = x2 - x1, d1y = y2 - y1;
+    const d2x = x4 - x3, d2y = y4 - y3;
+    const denom = cross(d1x, d1y, d2x, d2y);
+    if (denom === 0) return false; // parallel
+    const t = cross(x3 - x1, y3 - y1, d2x, d2y) / denom;
+    const u = cross(x3 - x1, y3 - y1, d1x, d1y) / denom;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
 
