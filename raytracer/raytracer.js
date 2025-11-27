@@ -6,8 +6,8 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 // Preview resolution (fast, interactive)
-const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 4);
-const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 4);
+const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
+const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
 
 // Render resolution (higher quality)
 const RENDER_WIDTH  = Math.floor(canvas.clientWidth / 2);
@@ -111,6 +111,34 @@ class RectangularPrism {
     }
 }
 
+async function loadOBJ(url, material) {
+    const text = await fetch(url).then(r => r.text());
+    const lines = text.split('\n');
+    const vertices = [];
+    const faces = [];
+
+    for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts[0] === 'v') {
+            vertices.push({
+                x: parseFloat(parts[1]),
+                y: parseFloat(parts[2]),
+                z: parseFloat(parts[3])
+            });
+        } else if (parts[0] === 'f') {
+            // OBJ indices are 1-based
+            const idx = parts.slice(1).map(p => parseInt(p.split('/')[0], 10) - 1);
+            if (idx.length === 3) faces.push(idx);
+            else if (idx.length === 4) {
+                // split quad into two triangles
+                faces.push([idx[0], idx[1], idx[2]]);
+                faces.push([idx[0], idx[2], idx[3]]);
+            }
+        }
+    }
+
+    return new Mesh(vertices, faces, material);
+}
 
 class Material {
     constructor({
@@ -220,6 +248,22 @@ const redGlow = new Material({
     emissionStrength:2
 });
 
+const red = new Material({
+    color:{r:255,g:0,b:0},
+    reflectivity:0.1,
+    roughness:0.5
+});
+const green = new Material({
+    color:{r:0,g:255,b:0},
+    reflectivity:0.1,
+    roughness:0.5
+});
+const blue = new Material({
+    color:{r:0,g:0,b:255},
+    reflectivity:0.1,
+    roughness:0.5
+});
+
 
 function getCameraBasis(camera) {
   const cosYaw = Math.cos(camera.yaw), sinYaw = Math.sin(camera.yaw);
@@ -271,6 +315,7 @@ const scene = {
         { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
         { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
         { center:{x:12,y:0,z:-5}, radius:1, material: redGlow },
+
         { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
     ],
     triangles: [
@@ -278,13 +323,27 @@ const scene = {
     ]
 };
 
+// Glass wall
 const box = new RectangularPrism(
     {x:10,y:-1,z:-2}, // min corner
-    {x:15,y:2,z:-1},    // max corner
+    {x:15,y:2,z:-1},  // max corner
     glass
 );
-
 scene.triangles.push(...box.triangles);
+
+scene.triangles.push(...new RectangularPrism(
+    {x:17,y:-1,z:-2}, // min corner
+    {x:18,y:2,z:-1},  // max corner
+    cyanGlow
+).triangles);
+
+// test model (laggy)
+/*
+loadOBJ("objects/suzanne.obj", greenMat).then(suzanne => {
+    scene.triangles.push(...suzanne.triangles);
+});
+*/
+
 
 const camera = new Camera(canvas.width, canvas.height);
 
@@ -369,7 +428,7 @@ function updateCamera() {
         camera.position.y += right.y * speed;
         camera.position.z += right.z * speed;
     }
-    // NEW: vertical relative to camera up
+    // vertical relative to camera up
     if (keys[" "]) { // Space
         camera.position.x -= up.x * speed;
         camera.position.y -= up.y * speed;
@@ -557,7 +616,7 @@ for (let i=0; i<numWorkers; i++) {
 }
 
 function displayFrame() {
-    // Canvas dimensions are full render resolution
+    // Canvas dimensions at full render resolution
     canvas.width  = RENDER_WIDTH;
     canvas.height = RENDER_HEIGHT;
 
