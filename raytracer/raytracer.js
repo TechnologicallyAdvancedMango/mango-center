@@ -43,6 +43,169 @@ class Camera {
     }
 }
 
+class Mesh {
+    constructor(vertices = [], faces = [], material = null) {
+        this.triangles = faces.map(face => {
+            const [i0, i1, i2] = face;
+            return {
+                v0: vertices[i0],
+                v1: vertices[i1],
+                v2: vertices[i2],
+                material
+            };
+        });
+    }
+}
+
+class RectangularPrism {
+    constructor(min, max, material) {
+        // Corner indices
+        //  z=min (front)             z=max (back)
+        //  0----1                     4----5
+        //  |    |                     |    |
+        //  3----2                     7----6
+
+        const v = [
+            {x:min.x, y:min.y, z:min.z}, // 0
+            {x:max.x, y:min.y, z:min.z}, // 1
+            {x:max.x, y:max.y, z:min.z}, // 2
+            {x:min.x, y:max.y, z:min.z}, // 3
+            {x:min.x, y:min.y, z:max.z}, // 4
+            {x:max.x, y:min.y, z:max.z}, // 5
+            {x:max.x, y:max.y, z:max.z}, // 6
+            {x:min.x, y:max.y, z:max.z}  // 7
+        ];
+
+        this.triangles = [
+            // front (z = min.z), outward normal (0,0,-1)
+            { v0:v[0], v1:v[3], v2:v[2], material },
+            { v0:v[2], v1:v[1], v2:v[0], material },
+
+            // back (z = max.z), outward normal (0,0,1)
+            { v0:v[4], v1:v[5], v2:v[6], material },
+            { v0:v[6], v1:v[7], v2:v[4], material },
+
+            // left (x = min.x), outward normal (-1,0,0)
+            { v0:v[0], v1:v[4], v2:v[7], material },
+            { v0:v[7], v1:v[3], v2:v[0], material },
+
+            // right (x = max.x), outward normal (1,0,0)
+            { v0:v[1], v1:v[2], v2:v[6], material },
+            { v0:v[6], v1:v[5], v2:v[1], material },
+
+            // bottom (y = min.y), outward normal (0,-1,0)
+            { v0:v[0], v1:v[1], v2:v[5], material },
+            { v0:v[5], v1:v[4], v2:v[0], material },
+
+            // top (y = max.y), outward normal (0,1,0)
+            { v0:v[3], v1:v[7], v2:v[6], material },
+            { v0:v[6], v1:v[2], v2:v[3], material }
+        ];
+    }
+}
+
+
+class Material {
+    constructor({
+        color = {r:255,g:255,b:255},
+        reflectivity = 0.0,
+        roughness = 0.0,
+        ior = null, // index of refraction (null = opaque)
+        emission = {r:0,g:0,b:0},
+        emissionStrength = 0.0,
+        doubleSided = false
+    } = {}) {
+        this.color = color;
+        this.reflectivity = reflectivity;
+        this.roughness = roughness;
+        this.ior = ior;
+        this.emission = emission;
+        this.emissionStrength = emissionStrength;
+        this.doubleSided = doubleSided;
+    }
+}
+
+const ground = new Material({
+    color: {r:255,g:255,b:255},
+    reflectivity: 0.1,
+    roughness: 0.8,
+    ior: null
+});
+
+const glass = new Material({
+    color: {r:255,g:255,b:255},
+    reflectivity: 0.05,
+    roughness: 0.0,
+    ior: 1.5, // glass
+    doubleSided: true
+});
+
+const mirror = new Material({
+    color: {r:0,g:0,b:0},
+    reflectivity: 1,
+    roughness: 0.0,
+    ior: null
+});
+
+const light = new Material({
+    color: {r:255,g:255,b:255},
+    reflectivity: 0,
+    roughness: 0.0,
+    ior: null,
+    emission: {r:255,g:255,b:255},
+    emissionStrength: 1
+});
+
+const sun = new Material({
+    color: {r:255,g:255,b:255},
+    reflectivity: 0,
+    roughness: 0.0,
+    ior: null,
+    emission: {r:255,g:255,b:255},
+    emissionStrength: 1
+});
+
+const redMat = new Material({
+    color:{r:255,g:0,b:0},
+    reflectivity:0.2,
+    roughness:0.2
+});
+
+const greenMat = new Material({
+    color:{r:0,g:255,b:0},
+    reflectivity:0.1,
+    roughness:0.7
+});
+
+const whiteMat = new Material({
+    color:{r:255,g:255,b:255},
+    reflectivity:0.2,
+    roughness:0.0
+});
+
+const mirrorMat = new Material({
+    color:{r:0,g:0,b:0},
+    reflectivity:1.0,
+    roughness:0.0
+});
+
+const cyanGlow = new Material({
+    color:{r:0,g:255,b:255},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:0,g:255,b:255},
+    emissionStrength:2
+});
+
+const magentaGlow = new Material({
+    color:{r:255,g:0,b:255},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:255,g:0,b:255},
+    emissionStrength:2
+});
+
+
 function getCameraBasis(camera) {
   const cosYaw = Math.cos(camera.yaw), sinYaw = Math.sin(camera.yaw);
   const cosPitch = Math.cos(camera.pitch), sinPitch = Math.sin(camera.pitch);
@@ -84,66 +247,26 @@ function normalize(v) {
 // scene
 const scene = {
     spheres: [
-        { // red sphere
-            center:{x:0,y:0,z:-5}, radius:1,
-            color:{r:255,g:0,b:0}, reflectivity:0.2, roughness:0.2,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-
-        { // green matte sphere
-            center:{x:6,y:0,z:-5}, radius:1,
-            color:{r:0,g:255,b:0}, reflectivity:0.1, roughness:0.7,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-
-        { // white shiny sphere
-            center:{x:9,y:0,z:-5}, radius:1,
-            color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.0,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-
-        { // mirror sphere
-            center:{x:3,y:0,z:-5}, radius:1,
-            color:{r:0,g:0,b:0}, reflectivity:1.0, roughness:0.0,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-
-        { // glowing cyan
-            center:{x:-3,y:0,z:-5}, radius:1,
-            color:{r:0,g:255,b:255}, reflectivity:0.0, roughness:0.3,
-            emission:{r:0,g:255,b:255}, emissionStrength:2
-        },
-
-        { // glowing magenta
-            center:{x:-5.5,y:0,z:-5}, radius:1,
-            color:{r:255,g:0,b:255}, reflectivity:0.0, roughness:0.3,
-            emission:{r:255,g:0,b:255}, emissionStrength:2
-        },
-
-        { // sun
-            center:{x:3,y:15,z:-5}, radius:10, 
-            color:{r:255,g:255,b:255}, reflectivity:0, roughness:0,
-            emission:{r:255,g:255,b:255}, emissionStrength:1
-        }
+        { center:{x:0,y:0,z:-5}, radius:1, material: glass }, // glass ball
+        { center:{x:6,y:0,z:-5}, radius:1, material: greenMat },
+        { center:{x:9,y:0,z:-5}, radius:1, material: whiteMat },
+        { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat },
+        { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
+        { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
+        { center:{x:3,y:15,z:-5}, radius:10, material: sun } // sun
     ],
     triangles: [
-        { // ground
-            v0:{x:100,y:-1,z:-100}, v1:{x:-100,y:-1,z:-100}, v2:{x:0,y:-1,z:100}, 
-            color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.5,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-        { // mirror 1
-            v0:{x:-1,y:-1,z:-7}, v1:{x:-3,y:-1,z:-7}, v2:{x:-2,y:1,z:-7},
-            color:{r:0,g:0,b:0}, reflectivity:0.9, roughness:0.0,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        },
-        { // mirror 2
-            v0:{x:-1,y:-1,z:-8}, v1:{x:-3,y:-1,z:-8}, v2:{x:-2,y:1,z:-8},
-            color:{r:0,g:0,b:0}, reflectivity:0.9, roughness:0.0,
-            emission:{r:0,g:0,b:0}, emissionStrength:0.0
-        }
+        { v0:{x:100,y:-1,z:-100}, v1:{x:-100,y:-1,z:-100}, v2:{x:0,y:-1,z:100}, material: ground } // ground
     ]
 };
+
+const box = new RectangularPrism(
+    {x:2,y:-1,z:-2}, // min corner
+    {x:3,y:2,z:-1},    // max corner
+    glass
+);
+
+scene.triangles.push(...box.triangles);
 
 const camera = new Camera(canvas.width, canvas.height);
 
@@ -289,7 +412,11 @@ function traceRay(origin, dir, scene) {
             const t = (-b - Math.sqrt(discriminant)) / (2*a);
             if (t > 0.001 && t < closest) {
                 closest = t;
-                hitColor = {r:s.color.r/255, g:s.color.g/255, b:s.color.b/255};
+                hitColor = {
+                    r: s.material.color.r/255,
+                    g: s.material.color.g/255,
+                    b: s.material.color.b/255
+                };
             }
         }
     }
@@ -319,7 +446,11 @@ function traceRay(origin, dir, scene) {
                     const t = f * dot(edge2, q);
                     if (t > 0.001 && t < closest) {
                         closest = t;
-                        hitColor = {r:tri.color.r/255, g:tri.color.g/255, b:tri.color.b/255};
+                        hitColor = {
+                            r: tri.material.color.r/255,
+                            g: tri.material.color.g/255,
+                            b: tri.material.color.b/255
+                        };
                     }
                 }
             }

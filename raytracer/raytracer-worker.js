@@ -29,7 +29,7 @@ function intersectSphere(ray, sphere) {
     if (dot(normal, ray.dir) > 0) {
         normal = { x:-normal.x, y:-normal.y, z:-normal.z };
     }
-    return { t, color: sphere.color, hitPoint, normal };
+    return { t, hitPoint, normal, material: sphere.material };
 }
 
 // Ray-triangle intersection (Möller–Trumbore)
@@ -67,20 +67,30 @@ function intersectTriangle(ray, tri) {
             y: ray.origin.y + ray.dir.y * t,
             z: ray.origin.z + ray.dir.z * t
         };
+
         // Geometric normal
         let normal = normalize({
             x: edge1.y*edge2.z - edge1.z*edge2.y,
             y: edge1.z*edge2.x - edge1.x*edge2.z,
             z: edge1.x*edge2.y - edge1.y*edge2.x
         });
-        // Face-forward: make sure normal opposes ray.dir
-        if (dot(normal, ray.dir) > 0) {
+
+        // Determine front vs back
+        const frontFace = dot(ray.dir, normal) < 0;
+        if (!frontFace && !tri.material.doubleSided) {
+            return null; // cull backfaces if not double-sided
+        }
+
+        // Flip normal so it always opposes the ray (for consistent shading)
+        if (!frontFace) {
             normal = { x:-normal.x, y:-normal.y, z:-normal.z };
         }
-        return { t, color: tri.color, hitPoint, normal };
+
+        return { t, hitPoint, normal, material: tri.material, frontFace };
     }
     return null;
 }
+
 
 function reflect(dir, normal) {
     return normalize({
@@ -88,6 +98,48 @@ function reflect(dir, normal) {
         y: dir.y - 2 * dot(dir, normal) * normal.y,
         z: dir.z - 2 * dot(dir, normal) * normal.z
     });
+}
+
+function refract(dir, normal, etai, etat) {
+    let cosi = Math.max(-1, Math.min(1, dot(dir, normal)));
+    let n = normal;
+    if (cosi < 0) {
+        cosi = -cosi;
+    } else {
+        // exiting: flip normal
+        n = {x:-normal.x, y:-normal.y, z:-normal.z};
+    }
+    const eta = etai / etat;
+    const k = 1 - eta*eta*(1 - cosi*cosi);
+    if (k < 0) return null; // total internal reflection
+    return normalize({
+        x: dir.x*eta + n.x*(eta*cosi - Math.sqrt(k)),
+        y: dir.y*eta + n.y*(eta*cosi - Math.sqrt(k)),
+        z: dir.z*eta + n.z*(eta*cosi - Math.sqrt(k))
+    });
+}
+
+
+function fresnel(dir, normal, ior) {
+    let cosi = Math.max(-1, Math.min(1, dot(dir, normal)));
+    let etai = 1, etat = ior;
+    if (cosi > 0) [etai, etat] = [etat, etai];
+    // Compute sine of transmission angle using Snell's law
+    const sint = etai / etat * Math.sqrt(Math.max(0, 1 - cosi*cosi));
+    if (sint >= 1) return 1; // total internal reflection
+    const cost = Math.sqrt(Math.max(0, 1 - sint*sint));
+    cosi = Math.abs(cosi);
+    const Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+    const Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+    return (Rs*Rs + Rp*Rp) / 2;
+}
+
+function applyAbsorption(color, dist, absorptionColor, density=0.2) {
+    return {
+        r: color.r * Math.exp(-density * dist * (1 - absorptionColor.r/255)),
+        g: color.g * Math.exp(-density * dist * (1 - absorptionColor.g/255)),
+        b: color.b * Math.exp(-density * dist * (1 - absorptionColor.b/255))
+    };
 }
 
 function randomInHemisphere(normal) {
@@ -181,12 +233,14 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     // Miss → black
     if (!hitObj) return { r:0, g:0, b:0 };
 
+    const mat = hitObj.material;
+
     // If we hit an emissive object, return its emission modulated by throughput
-    if (hitObj.emissionStrength > 0) {
+    if (mat.emissionStrength > 0) {
         return {
-            r: throughput.r * (hitObj.emission.r / 255) * hitObj.emissionStrength,
-            g: throughput.g * (hitObj.emission.g / 255) * hitObj.emissionStrength,
-            b: throughput.b * (hitObj.emission.b / 255) * hitObj.emissionStrength
+            r: throughput.r * (mat.emission.r / 255) * mat.emissionStrength,
+            g: throughput.g * (mat.emission.g / 255) * mat.emissionStrength,
+            b: throughput.b * (mat.emission.b / 255) * mat.emissionStrength
         };
     }
 
@@ -194,9 +248,9 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     if (depth >= maxRayBounces) {
         // terminate with the surface albedo contribution so objects don't fade to black
         const albedo = {
-            r: (hitObj.color.r || 0) / 255,
-            g: (hitObj.color.g || 0) / 255,
-            b: (hitObj.color.b || 0) / 255
+            r: (mat.color.r || 0) / 255,
+            g: (mat.color.g || 0) / 255,
+            b: (mat.color.b || 0) / 255
         };
         return {
             r: throughput.r * albedo.r,
@@ -216,26 +270,28 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
 
     // Cosine-weighted diffuse bounce
     const bounceDir = cosineSampleHemisphere(normal);
+    const EPS = 1e-4;
     const origin = {
-        x: hitPoint.x + normal.x * 1e-4,
-        y: hitPoint.y + normal.y * 1e-4,
-        z: hitPoint.z + normal.z * 1e-4
+        x: hitPoint.x + normal.x * EPS,
+        y: hitPoint.y + normal.y * EPS,
+        z: hitPoint.z + normal.z * EPS
     };
 
-    // Update throughput by surface albedo (0..1)
+    // Albedo
     const albedo = {
-        r: (hitObj.color.r || 0) / 255,
-        g: (hitObj.color.g || 0) / 255,
-        b: (hitObj.color.b || 0) / 255
+        r: (mat.color.r || 0) / 255,
+        g: (mat.color.g || 0) / 255,
+        b: (mat.color.b || 0) / 255
     };
 
+    const cosTheta = Math.max(0.0, dot(bounceDir, normal));
     let nextThroughput = {
-        r: throughput.r * albedo.r,
-        g: throughput.g * albedo.g,
-        b: throughput.b * albedo.b
+        r: throughput.r * albedo.r * cosTheta,
+        g: throughput.g * albedo.g * cosTheta,
+        b: throughput.b * albedo.b * cosTheta
     };
 
-    let refl = hitObj.reflectivity != null ? hitObj.reflectivity : 0.0;
+    let refl = mat.reflectivity != null ? mat.reflectivity : 0.0;
     refl = Math.max(0, Math.min(1, refl)); // clamp 0..1
 
     if (specDepth >= maxRayBounces) {
@@ -244,8 +300,61 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
         return trace(diffRay, scene, depth+1, nextThroughput, specDepth);
     }
 
+    if (mat.ior) {
+        const entering = dot(ray.dir, normal) < 0;
+        const etai = entering ? 1.0 : mat.ior;
+        const etat = entering ? mat.ior : 1.0;
+
+        const kr = fresnel(ray.dir, normal, mat.ior);
+        const refrDir = refract(ray.dir, normal, etai, etat);
+
+        const EPS = 1e-4;
+
+        // Reflection ray
+        const reflOrigin = {
+            x: hitPoint.x + normal.x * EPS,
+            y: hitPoint.y + normal.y * EPS,
+            z: hitPoint.z + normal.z * EPS
+        };
+        const reflDir = perturbDirection(reflect(ray.dir, normal), mat.roughness || 0);
+        const reflRay = { origin: reflOrigin, dir: reflDir };
+        const reflCol = trace(reflRay, scene, depth+1, {
+            r: throughput.r * kr,
+            g: throughput.g * kr,
+            b: throughput.b * kr
+        }, specDepth+1);
+
+        // Refraction ray
+        let refrCol = {r:0,g:0,b:0};
+        if (refrDir) {
+            const refrOrigin = entering
+                ? { x: hitPoint.x - normal.x * EPS,
+                    y: hitPoint.y - normal.y * EPS,
+                    z: hitPoint.z - normal.z * EPS }
+                : { x: hitPoint.x + normal.x * EPS,
+                    y: hitPoint.y + normal.y * EPS,
+                    z: hitPoint.z + normal.z * EPS };
+
+            const refrRay = { origin: refrOrigin, dir: refrDir };
+            const rawCol = trace(refrRay, scene, depth+1, {
+                r: throughput.r * (1-kr),
+                g: throughput.g * (1-kr),
+                b: throughput.b * (1-kr)
+            }, specDepth);
+
+            // Apply absorption only while inside
+            refrCol = entering ? applyAbsorption(rawCol, closest, mat.color) : rawCol;
+        }
+
+        return {
+            r: reflCol.r + refrCol.r,
+            g: reflCol.g + refrCol.g,
+            b: reflCol.b + refrCol.b
+        };
+    }
+
     // Reflection ray
-    const reflDir = perturbDirection(reflect(ray.dir, normal), hitObj.roughness || 0);
+    const reflDir = perturbDirection(reflect(ray.dir, normal), mat.roughness || 0);
     const specRay = { origin, dir: reflDir };
     const specColor = trace(specRay, scene, depth+1, {
         r: throughput.r * refl,
