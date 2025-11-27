@@ -2,383 +2,426 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext('2d');
 
 // Match internal resolution to CSS size
-canvas.width  = Math.floor(canvas.clientWidth / 4);
-canvas.height = Math.floor(canvas.clientHeight / 4);
+canvas.width  = Math.floor(canvas.clientWidth / 2);
+canvas.height = Math.floor(canvas.clientHeight / 2);
 
-const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-const buf = img.data;
-
-class Vec3 {
-    constructor(x=0, y=0, z=0) { this.x=x; this.y=y; this.z=z; }
-    add(v) { return new Vec3(this.x+v.x, this.y+v.y, this.z+v.z); }
-    sub(v) { return new Vec3(this.x-v.x, this.y-v.y, this.z-v.z); }
-    mul(k) { return new Vec3(this.x*k, this.y*k, this.z*k); }
-    dot(v) { return this.x*v.x + this.y*v.y + this.z*v.z; }
-    cross(v) {
-        return new Vec3(
-        this.y*v.z - this.z*v.y,
-        this.z*v.x - this.x*v.z,
-        this.x*v.y - this.y*v.x
-        );
-    }
-    length() { return Math.hypot(this.x,this.y,this.z); }
-    norm() { const L=this.length(); return L>0? this.mul(1/L):new Vec3(); }
-}
-
-class Ray {
-    constructor(origin, direction) {
-        this.origin = origin;
-        this.direction = direction.norm();
-    }
-    at(t) { return this.origin.add(this.direction.mul(t)); }
-}
-
-class Sphere {
-    constructor(center, radius, color, emissive={r:0,g:0,b:0}, emissionStrength=1) {
-        this.center = center;
-        this.radius = radius;
-        this.color = color;
-        this.emissive = emissive;
-        this.emissionStrength = emissionStrength;
-    }
-
-    intersect(ray) {
-        const oc = ray.origin.sub(this.center);
-        const a = ray.direction.dot(ray.direction);
-        const b = 2 * oc.dot(ray.direction);
-        const c = oc.dot(oc) - this.radius*this.radius;
-        const disc = b*b - 4*a*c;
-        if (disc < 0) return null;
-        const t = (-b - Math.sqrt(disc)) / (2*a);
-        if (t < 0) return null;
-        const point = ray.at(t);
-        const normal = point.sub(this.center).norm();
-
-        return {
-            t, point, normal,
-            color: this.color,
-            emissive: this.emissive,
-            emissionStrength: this.emissionStrength
-        };
-    }
-}
-
-
-class Triangle {
-    constructor(v0, v1, v2, color, emissive={r:0,g:0,b:0}) {
-        this.v0 = v0;
-        this.v1 = v1;
-        this.v2 = v2;
-        this.color = color;
-        this.emissive = emissive;
-    }
-
-    intersect(ray) {
-        const EPS = 1e-6;
-        const edge1 = this.v1.sub(this.v0);
-        const edge2 = this.v2.sub(this.v0);
-
-        const h = ray.direction.cross(edge2);
-        const a = edge1.dot(h);
-        if (Math.abs(a) < EPS) return null;
-
-        const f = 1 / a;
-        const s = ray.origin.sub(this.v0);
-        const u = f * s.dot(h);
-        if (u < 0 || u > 1) return null;
-
-        const q = s.cross(edge1);
-        const v = f * ray.direction.dot(q);
-        if (v < 0 || u + v > 1) return null;
-
-        const t = f * edge2.dot(q);
-        if (t > EPS) {
-            const point = ray.at(t);
-            const normal = edge1.cross(edge2).norm();
-            return { t, point, normal, color: this.color, emissive: this.emissive };
-        }
-        return null;
-    }
-}
+// how many samples each worker computes per pixel, per batch
+const samplesPerPixel = 1; // try 1–4 for speed, higher for quality
+const tileSize = 64;
 
 class Camera {
-    constructor(position, yaw=0, pitch=0, roll=0, fov=Math.PI/3, aspect=1) {
-        this.position = position; // Vec3
-        this.yaw = yaw; // rotation around Y axis
-        this.pitch = pitch; // rotation around X axis
-        this.roll = roll; // rotation around Z axis
-        this.fov = fov;
-        this.aspect = aspect;
-        this.updateBasis();
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+        this.position = {x:0, y:0, z:0};
+        this.yaw = 0;   // left/right rotation
+        this.pitch = 0; // up/down rotation
+        this.speed = 0.1;
+        this.fov = 60; // also set in workers
     }
 
-    updateBasis() {
-        // Forward vector from yaw/pitch
-        const fx = Math.cos(this.pitch) * Math.cos(this.yaw);
-        const fy = Math.sin(this.pitch); // pitch up/down
-        const fz = Math.cos(this.pitch) * Math.sin(this.yaw);
-        this.forward = new Vec3(fx, fy, fz).norm();
+    getDirection(u, v) {
+        const { forward, right, up } = getCameraBasis(this);
+        const aspect = this.width / this.height;
+        const fovScale = Math.tan((this.fov * Math.PI / 180) * 0.5);
 
-        // Right vector (perpendicular to forward and world up)
-        const worldUp = new Vec3(0,1,0);
-        this.right = this.forward.cross(worldUp).norm();
+        const px = u * aspect * fovScale;
+        const py = v * fovScale;
 
-        // Recompute up vector
-        this.up = this.right.cross(this.forward).norm();
-    }
-
-    getRay(x, y, width, height) {
-        const u = (2*(x+0.5)/width - 1) * Math.tan(this.fov/2) * this.aspect;
-        const v = (1 - 2*(y+0.5)/height) * Math.tan(this.fov/2);
-
-        const dir = this.forward
-            .add(this.right.mul(u))
-            .add(this.up.mul(v))
-            .norm();
-
-        return new Ray(this.position, dir);
+        return normalize({
+            x: forward.x + px * right.x + py * up.x,
+            y: forward.y + px * right.y + py * up.y,
+            z: forward.z + px * right.z + py * up.z
+        });
     }
 }
 
+function getCameraBasis(camera) {
+  const cosYaw = Math.cos(camera.yaw), sinYaw = Math.sin(camera.yaw);
+  const cosPitch = Math.cos(camera.pitch), sinPitch = Math.sin(camera.pitch);
 
-class Scene {
-        constructor() {
-        this.objects = [];
+  // Forward vector
+  const forward = {
+    x: cosPitch * sinYaw,
+    y: -sinPitch,
+    z: -cosPitch * cosYaw
+  };
+
+  // Right vector (cross of forward with world up)
+  const upWorld = {x:0,y:1,z:0};
+  const right = normalize({
+    x: forward.z*upWorld.y - forward.y*upWorld.z,
+    y: forward.x*upWorld.z - forward.z*upWorld.x,
+    z: forward.y*upWorld.x - forward.x*upWorld.y
+  });
+
+  // Up vector (cross of right and forward)
+  const up = normalize({
+    x: right.y*forward.z - right.z*forward.y,
+    y: right.z*forward.x - right.x*forward.z,
+    z: right.x*forward.y - right.y*forward.x
+  });
+
+  return {forward, right, up};
+}
+
+// Utility math
+function dot(a, b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+function sub(a, b) { return {x:a.x-b.x, y:a.y-b.y, z:a.z-b.z}; }
+function normalize(v) {
+    const len = Math.sqrt(dot(v,v));
+    if (len === 0) return {x:0, y:0, z:-1}; // guard against NaN
+    return {x:v.x/len, y:v.y/len, z:v.z/len};
+}
+
+// scene
+const scene = {
+    spheres: [
+        { 
+            center:{x:0,y:0,z:-5}, radius:1,
+            color:{r:255,g:0,b:0}, reflectivity:0.2,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+
+        {
+            center:{x:3,y:15,z:-5}, radius:10,
+            color:{r:255,g:255,b:255}, reflectivity:0.2,
+            emission:{r:255,g:255,b:255}, emissionStrength:2
+        } // glowing white sphere
+    ],
+    triangles: [
+        { // ground
+            v0:{x:100,y:-5,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
+            color:{r:255,g:255,b:255}, reflectivity:0.8,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+        {
+            v0:{x:-1,y:-1,z:-3}, v1:{x:-3,y:-1,z:-3}, v2:{x:-2,y:1,z:-3},
+            color:{r:0,g:255,b:0}, reflectivity:0.0,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
         }
-    add(obj) { this.objects.push(obj); }
-    trace(ray) {
-        let closest = null;
-        for (const obj of this.objects) {
-        const hit = obj.intersect(ray);
-        if (hit && (!closest || hit.t < closest.t)) closest = hit;
-        }
-        return closest;
-    }
-}
+    ]
+};
 
-const camera = new Camera(
-    new Vec3(0, 0, 0), // position
-    0, // yaw (30°)
-    0, // pitch
-    0, // roll
-    Math.PI/3, // FOV
-    canvas.width/canvas.height
-);
-
-function randomHemisphere(normal) {
-    const u = Math.random();
-    const v = Math.random();
-    const theta = 2 * Math.PI * u;
-    const phi = Math.acos(2*v - 1);
-    const x = Math.sin(phi) * Math.cos(theta);
-    const y = Math.sin(phi) * Math.sin(theta);
-    const z = Math.cos(phi);
-    const dir = new Vec3(x,y,z);
-    return dir.dot(normal) > 0 ? dir : dir.mul(-1);
-}
-
-function trace(ray, scene, depth=3) {
-    const hit = scene.trace(ray);
-    if (!hit) return {r:0,g:0,b:0}; // black background
-
-    // Emissive surfaces glow directly
-    if (hit.emissive.r || hit.emissive.g || hit.emissive.b) {
-        return {
-            r: hit.emissive.r * hit.emissionStrength,
-            g: hit.emissive.g * hit.emissionStrength,
-            b: hit.emissive.b * hit.emissionStrength
-        };
-    }
-
-
-    // Stop if max depth reached
-    if (depth <= 0) return {r:0,g:0,b:0};
-
-    // Diffuse bounce: pick random direction in hemisphere
-    const bounceDir = randomHemisphere(hit.normal);
-    const bounceRay = new Ray(hit.point.add(hit.normal.mul(1e-4)), bounceDir);
-
-    // Recursive call
-    const bouncedColor = trace(bounceRay, scene, depth-1);
-
-    // Attenuate by surface color
-    return {
-        r: hit.color.r/255 * bouncedColor.r,
-        g: hit.color.g/255 * bouncedColor.g,
-        b: hit.color.b/255 * bouncedColor.b
-    };
-}
-
-const scene = new Scene();
-
-scene.add(new Sphere(new Vec3(5, -1001, 0), 1000, {r:255, g:255, b:255})); // ground sphere
-scene.add(new Sphere(new Vec3(-20, 25, -20), 20, {r:255, g:255, b:255}, {r:255, g:255, b:255}, 1.5)); // sun sphere
-
-scene.add(new Sphere(new Vec3(5, 0, 0), 1, {r:255, g:255, b:255}));
-
-scene.add(new Sphere(new Vec3(5, 0, -3), 1, {r:255, g:0, b:255}, {r:255, g:0, b:255}, 2)); // Emmisive
-scene.add(new Sphere(new Vec3(5, 0, 3), 1, {r:255, g:255, b:0}, {r:255, g:255, b:0}, 2)); // Emmisive
-scene.add(new Sphere(new Vec3(5, 2, 1), 1, {r:0, g:255, b:255}, {r:0, g:255, b:255}, 2)); // Emmisive
-scene.add(new Sphere(new Vec3(3, 0, 5), 0.5, {r:255, g:255, b:255}));
-scene.add(new Sphere(new Vec3(0, 0, 6), 1, {r:255, g:0, b:0}, {r:255, g:0, b:0}, 2)); // Emmisive
-scene.add(new Sphere(new Vec3(2, 0, 8), 1, {r:0, g:0, b:255}, {r:0, g:0, b:255}, 2)); // Emmisive
-
-scene.add(new Sphere(new Vec3(-10, 2, 3), 3, {r:255, g:255, b:255}));
-
-// Define triangle vertices
-const v0 = new Vec3(2, 0, -5);
-const v1 = new Vec3(0, 2, -5);
-const v2 = new Vec3(-2, 0, -5);
-
-// Add a triangle to the scene
-scene.add(new Triangle(v0, v1, v2, {r:255, g:0, b:0}));
-
+const camera = new Camera(canvas.width, canvas.height);
 
 const keys = {};
-document.addEventListener("keydown", e => keys[e.code] = true);
-document.addEventListener("keyup",   e => keys[e.code] = false);
 
-function updateCameraMovement() {
-    const speed = 0.1; // movement speed per frame
-
-    if (keys["KeyW"] || keys["KeyS"] || keys["KeyA"] || keys["KeyD"] || keys["Space"] || keys["ShiftLeft"]) {
-        resetAccumulation();
-    }
-
-    // forward/back
-    if (keys["KeyW"]) {
-        camera.position = camera.position.add(camera.forward.mul(speed));
-    }
-    if (keys["KeyS"]) {
-        camera.position = camera.position.sub(camera.forward.mul(speed));
-    }
-
-    // strafe left/right
-    if (keys["KeyA"]) {
-        camera.position = camera.position.sub(camera.right.mul(speed));
-    }
-    if (keys["KeyD"]) {
-        camera.position = camera.position.add(camera.right.mul(speed));
-    }
-
-    // up/down with space/shift
-    if (keys["Space"]) {
-        camera.position = camera.position.add(camera.up.mul(speed));
-    }
-    if (keys["ShiftLeft"]) {
-        camera.position = camera.position.sub(camera.up.mul(speed));
-    }
+function markInput() {
+    lastInputAt = performance.now();
+    needReset = true;
 }
+
+let isMoving = false;
+let cameraChanged = false;
+
+document.addEventListener("keydown", e => {
+    keys[e.key] = true;
+    lastInputAt = performance.now();
+    needReset = true;
+});
+
+document.addEventListener("keyup", e => {
+    keys[e.key] = false;
+    lastInputAt = performance.now();
+    needReset = true;
+});
+
+document.addEventListener("mousemove", e => {
+    if (document.pointerLockElement === canvas) {
+        camera.yaw   -= e.movementX * 0.002;
+        camera.pitch += e.movementY * 0.002;
+        const maxPitch = Math.PI/2 - 0.01;
+        camera.pitch = Math.max(-maxPitch, Math.min(maxPitch, camera.pitch));
+        lastInputAt = performance.now();
+        needReset = true;
+    }
+});
 
 
 canvas.addEventListener("click", () => {
     canvas.requestPointerLock();
 });
 
-document.addEventListener("pointerlockchange", () => {
-    if (document.pointerLockElement === canvas) {
-        document.addEventListener("mousemove", onMouseMove);
-    } else {
-        document.removeEventListener("mousemove", onMouseMove);
-    }
-});
 
-function onMouseMove(e) {
-    camera.yaw += e.movementX * 0.002;
-    camera.pitch -= e.movementY * 0.002;
-    camera.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.pitch));
-    camera.updateBasis();
-    resetAccumulation();
+function updateCamera() {
+    const { forward, right } = getCameraBasis(camera);
+    const speed = camera.speed;
+
+    if (keys["w"]) {
+        camera.position.x += forward.x * speed;
+        camera.position.y += forward.y * speed;
+        camera.position.z += forward.z * speed;
+    }
+    if (keys["s"]) {
+        camera.position.x -= forward.x * speed;
+        camera.position.y -= forward.y * speed;
+        camera.position.z -= forward.z * speed;
+    }
+    if (keys["a"]) {
+        camera.position.x -= right.x * speed;
+        camera.position.y -= right.y * speed;
+        camera.position.z -= right.z * speed;
+    }
+    if (keys["d"]) {
+        camera.position.x += right.x * speed;
+        camera.position.y += right.y * speed;
+        camera.position.z += right.z * speed;
+    }
 }
 
-function boxBlur(width, height, radius=1) {
-    const src = ctx.getImageData(0, 0, width, height);
-    const dst = ctx.createImageData(width, height);
-    const sdata = src.data;
-    const ddata = dst.data;
+function renderOneFrameNow() {
+    // create a temporary buffer
+    const img = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+    const basis = getCameraBasis(camera);
 
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            let r = 0, g = 0, b = 0, a = 0, count = 0;
+    for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+            // normalize screen coords to [-1,1]
+            const u = (2 * (x + 0.5) / canvas.width - 1);
+            const v = (2 * (y + 0.5) / canvas.height - 1);
 
-            // average over neighbors in a (2*radius+1) box
-            for (let dy = -radius; dy <= radius; dy++) {
-                for (let dx = -radius; dx <= radius; dx++) {
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        const i = (ny * width + nx) * 4;
-                        r += sdata[i];
-                        g += sdata[i+1];
-                        b += sdata[i+2];
-                        a += sdata[i+3];
-                        count++;
+            // get ray direction from camera
+            const dir = camera.getDirection(u, v);
+
+            // trace one ray (replace with your own trace function)
+            const color = traceRay(camera.position, dir, scene);
+
+            // gamma correct
+            let r = Math.pow(Math.max(0, Math.min(1, color.r)), 1/2.2) * 255;
+            let g = Math.pow(Math.max(0, Math.min(1, color.g)), 1/2.2) * 255;
+            let b = Math.pow(Math.max(0, Math.min(1, color.b)), 1/2.2) * 255;
+
+            const idx = (y * canvas.width + x) * 4;
+            img[idx]   = r|0;
+            img[idx+1] = g|0;
+            img[idx+2] = b|0;
+            img[idx+3] = 255;
+        }
+    }
+
+    ctx.putImageData(new ImageData(img, canvas.width, canvas.height), 0, 0);
+}
+
+function traceRay(origin, dir, scene) {
+    let closest = Infinity;
+    let hitColor = {r:0, g:0, b:0};
+
+    // sphere intersection
+    for (const s of scene.spheres) {
+        const oc = sub(origin, s.center);
+        const a = dot(dir, dir);
+        const b = 2 * dot(oc, dir);
+        const c = dot(oc, oc) - s.radius * s.radius;
+        const discriminant = b*b - 4*a*c;
+        if (discriminant > 0) {
+            const t = (-b - Math.sqrt(discriminant)) / (2*a);
+            if (t > 0.001 && t < closest) {
+                closest = t;
+                hitColor = {r:s.color.r/255, g:s.color.g/255, b:s.color.b/255};
+            }
+        }
+    }
+
+    // triangle intersection (very simple, no shading)
+    for (const tri of scene.triangles) {
+        const edge1 = sub(tri.v1, tri.v0);
+        const edge2 = sub(tri.v2, tri.v0);
+        const h = {
+            x: dir.y*edge2.z - dir.z*edge2.y,
+            y: dir.z*edge2.x - dir.x*edge2.z,
+            z: dir.x*edge2.y - dir.y*edge2.x
+        };
+        const a = dot(edge1, h);
+        if (Math.abs(a) > 1e-6) {
+            const f = 1/a;
+            const s = sub(origin, tri.v0);
+            const u = f * dot(s, h);
+            if (u >= 0 && u <= 1) {
+                const q = {
+                    x: s.y*edge1.z - s.z*edge1.y,
+                    y: s.z*edge1.x - s.x*edge1.z,
+                    z: s.x*edge1.y - s.y*edge1.x
+                };
+                const v = f * dot(dir, q);
+                if (v >= 0 && u+v <= 1) {
+                    const t = f * dot(edge2, q);
+                    if (t > 0.001 && t < closest) {
+                        closest = t;
+                        hitColor = {r:tri.color.r/255, g:tri.color.g/255, b:tri.color.b/255};
                     }
                 }
             }
-
-            const j = (y * width + x) * 4;
-            ddata[j]   = r / count;
-            ddata[j+1] = g / count;
-            ddata[j+2] = b / count;
-            ddata[j+3] = a / count;
         }
     }
 
-    ctx.putImageData(dst, 0, 0);
+    return hitColor; // black if nothing hit
 }
-
-
-// Global accumulation buffers
-const accum = new Float32Array(canvas.width * canvas.height * 3);
-let sampleCount = 0;
 
 function resetAccumulation() {
-    accum.fill(0);
-    sampleCount = 0;
+    accumRGB.fill(0);
+    sampleCount.fill(0);
+    currentGen++;
+    needReset = false;
+    requeueAll(); // workers start accumulating
 }
 
-let frameCounter = 0;
 
-function renderFrame() {
-    updateCameraMovement();
-    sampleCount++;
+let currentGen = 0;
+let lastInputAt = 0;
+let needReset = true; // initial reset at boot
+let previewing = false;
+const idleDelayMs = 60; // small debounce so movement doesn’t thrash
 
-    const samplesPerPixel = 1;
-    const maxRayBounces = 5;
+const accumRGB = new Float32Array(canvas.width * canvas.height * 3);
+const sampleCount = new Uint32Array(canvas.width * canvas.height);
 
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            const i = (y * canvas.width + x) * 3;
-            for (let s = 0; s < samplesPerPixel; s++) {
-                const jitterX = Math.random() * 0.5;
-                const jitterY = Math.random() * 0.5;
-                const ray = camera.getRay(x + jitterX, y + jitterY, canvas.width, canvas.height);
-                const col = trace(ray, scene, maxRayBounces);
-                accum[i]   += col.r;
-                accum[i+1] += col.g;
-                accum[i+2] += col.b;
-            }
+const numWorkers = navigator.hardwareConcurrency || 4;
+const workers = [];
+let frameId = 0;
+let currentFrameId = 1;
+let frameBuffer = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+let tilesDone = 0;
+let camPayload = null;
+
+function startWorkers() {
+    const basis = getCameraBasis(camera);
+    camPayload = {
+        position: { ...camera.position },
+        width: canvas.width,
+        height: canvas.height,
+        fov: 60,
+        forward: basis.forward,
+        right: basis.right,
+        up: basis.up
+    };
+
+    // one full-frame job per worker
+    for (let i = 0; i < numWorkers; i++) {
+        workers[i].postMessage({
+            scene,
+            camera: camPayload,
+            x: 0,
+            y: 0,
+            width: canvas.width,
+            height: canvas.height,
+            frameId: currentGen,
+            samplesPerPixel
+        });
+    }
+}
+
+for (let i=0; i<numWorkers; i++) {
+    workers[i] = new Worker("raytracer-worker.js");
+    workers[i].onmessage = (e) => {
+        const { x, y, width, height, accum, samples, frameId } = e.data;
+        if (frameId !== currentGen) return;
+
+        onTile({ x, y, width, height, accum, samples });
+
+        workers[i].postMessage({
+            scene,
+            camera: camPayload,
+            x, y, width, height,
+            frameId: currentGen,
+            samplesPerPixel
+        });
+    };
+}
+
+function displayFrame() {
+    const img = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+
+    for (let p=0, q=0; p<sampleCount.length; p++, q+=4) {
+        const s = Math.max(1, sampleCount[p]);
+        let r = accumRGB[p*3]   / s;
+        let g = accumRGB[p*3+1] / s;
+        let b = accumRGB[p*3+2] / s;
+
+        // gamma correction
+        r = Math.pow(Math.max(0, Math.min(1, r)), 1/2.2) * 255;
+        g = Math.pow(Math.max(0, Math.min(1, g)), 1/2.2) * 255;
+        b = Math.pow(Math.max(0, Math.min(1, b)), 1/2.2) * 255;
+
+
+        img[q]   = r|0;
+        img[q+1] = g|0;
+        img[q+2] = b|0;
+        img[q+3] = 255;
+    }
+
+    ctx.putImageData(new ImageData(img, canvas.width, canvas.height), 0, 0);
+}
+
+function onTile({x, y, width, height, accum, samples}) {
+    // accumulate
+    for (let j=0; j<height; j++) {
+        for (let i=0; i<width; i++) {
+            const dstIdx = ((j + y) * canvas.width + (i + x)) * 3;
+            const srcIdx = (j * width + i) * 3;
+            accumRGB[dstIdx]   += accum[srcIdx];
+            accumRGB[dstIdx+1] += accum[srcIdx+1];
+            accumRGB[dstIdx+2] += accum[srcIdx+2];
+            sampleCount[(j + y) * canvas.width + (i + x)] += samples;
         }
     }
 
-    // Write averaged result to canvas
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            const i3 = (y * canvas.width + x) * 3;
-            const i4 = (y * canvas.width + x) * 4;
+    // only paint accumulated frame when NOT previewing
+    if (!previewing) {
+        displayFrame();
+    }
+}
 
-            buf[i4]   = Math.min(255, accum[i3]   / (sampleCount * samplesPerPixel));
-            buf[i4+1] = Math.min(255, accum[i3+1] / (sampleCount * samplesPerPixel));
-            buf[i4+2] = Math.min(255, accum[i3+2] / (sampleCount * samplesPerPixel));
-            buf[i4+3] = 255;
+
+function requeueAll() {
+    const basis = getCameraBasis(camera);
+    camPayload = {
+        position: { ...camera.position },
+        width: canvas.width,
+        height: canvas.height,
+        fov: 60,
+        forward: basis.forward,
+        right: basis.right,
+        up: basis.up
+    };
+
+    for (let i = 0; i < numWorkers; i++) {
+        workers[i].postMessage({
+            scene,
+            camera: camPayload,
+            x: 0,
+            y: 0,
+            width: canvas.width,
+            height: canvas.height,
+            frameId: currentGen,
+            samplesPerPixel
+        });
+    }
+}
+
+function tick() {
+    updateCamera();
+
+    const now = performance.now();
+    const keysActive = keys["w"] || keys["a"] || keys["s"] || keys["d"];
+
+    // preview if keys or mouse moved recently
+    isPreviewing = (now - lastInputAt) < 50;
+
+    if (isPreviewing) {
+        renderOneFrameNow();
+    } else {
+        // if we just stopped previewing, reset immediately
+        if (needReset) {
+            resetAccumulation();
         }
+        displayFrame();
     }
 
-    ctx.putImageData(img, 0, 0);
-    // boxBlur(canvas.width, canvas.height, 1);
-
-    frameCounter++;
-    requestAnimationFrame(renderFrame);
+    requestAnimationFrame(tick);
 }
-renderFrame();
+
+
+startWorkers();
+resetAccumulation(); // start accumulation immediately
+tick();
