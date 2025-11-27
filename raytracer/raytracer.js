@@ -96,6 +96,12 @@ const scene = {
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
+        { // white shiny sphere
+            center:{x:6,y:0,z:-3}, radius:1,
+            color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.0,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+
         { // mirror sphere
             center:{x:3,y:0,z:-5}, radius:1,
             color:{r:0,g:0,b:0}, reflectivity:1.0, roughness:0.0,
