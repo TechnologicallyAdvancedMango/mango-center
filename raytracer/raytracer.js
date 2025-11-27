@@ -117,7 +117,7 @@ const scene = {
         { // sun
             center:{x:3,y:15,z:-5}, radius:10, 
             color:{r:255,g:255,b:255}, reflectivity:0, roughness:0,
-            emission:{r:255,g:255,b:255}, emissionStrength:2
+            emission:{r:255,g:255,b:255}, emissionStrength:1
         }
     ],
     triangles: [
