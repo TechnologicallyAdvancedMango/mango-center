@@ -97,7 +97,7 @@ const scene = {
         },
 
         { // white shiny sphere
-            center:{x:6,y:0,z:-3}, radius:1,
+            center:{x:9,y:0,z:-5}, radius:1,
             color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.0,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
@@ -128,7 +128,7 @@ const scene = {
     ],
     triangles: [
         { // ground
-            v0:{x:100,y:-5,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
+            v0:{x:100,y:0,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
             color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.5,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
