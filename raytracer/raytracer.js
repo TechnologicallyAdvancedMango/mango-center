@@ -86,13 +86,13 @@ const scene = {
     spheres: [
         { // red sphere
             center:{x:0,y:0,z:-5}, radius:1,
-            color:{r:255,g:0,b:0}, reflectivity:0.1, roughness:0.3,
+            color:{r:255,g:0,b:0}, reflectivity:0.2, roughness:0.2,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
         { // green matte sphere
             center:{x:6,y:0,z:-5}, radius:1,
-            color:{r:0,g:255,b:0}, reflectivity:0.0, roughness:0.3,
+            color:{r:0,g:255,b:0}, reflectivity:0.1, roughness:0.7,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
@@ -105,13 +105,13 @@ const scene = {
         { // glowing cyan
             center:{x:-3,y:0,z:-5}, radius:1,
             color:{r:0,g:255,b:255}, reflectivity:0.0, roughness:0.3,
-            emission:{r:0,g:255,b:255}, emissionStrength:1
+            emission:{r:0,g:255,b:255}, emissionStrength:2
         },
 
         { // glowing magenta
             center:{x:-5.5,y:0,z:-5}, radius:1,
             color:{r:255,g:0,b:255}, reflectivity:0.0, roughness:0.3,
-            emission:{r:255,g:0,b:255}, emissionStrength:1
+            emission:{r:255,g:0,b:255}, emissionStrength:2
         },
 
         { // sun
@@ -123,7 +123,7 @@ const scene = {
     triangles: [
         { // ground
             v0:{x:100,y:-5,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
-            color:{r:255,g:255,b:255}, reflectivity:0.5, roughness:0.3,
+            color:{r:255,g:255,b:255}, reflectivity:0.2, roughness:0.5,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
         { // mirror 1
