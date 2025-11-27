@@ -2,15 +2,22 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext('2d');
 
 // Match internal resolution to CSS size
-canvas.width  = Math.floor(canvas.clientWidth / 2);
-canvas.height = Math.floor(canvas.clientHeight / 2);
+canvas.width  = Math.floor(canvas.clientWidth);
+canvas.height = Math.floor(canvas.clientHeight);
+
+// Preview resolution (fast, interactive)
+const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 4);
+const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 4);
+
+// Render resolution (higher quality)
+const RENDER_WIDTH  = Math.floor(canvas.clientWidth / 2);
+const RENDER_HEIGHT = Math.floor(canvas.clientHeight / 2);
 
 // how many samples each worker computes per pixel, per batch
-const samplesPerPixel = 1; // 1–4 for speed, higher for quality
-const tileSize = 64;
+const samplesPerPixel = 2; // 1–4 for speed, higher for quality
 
-let autoPreview = false;      // automatic preview on movement
-let manualPreview = false;   // manual toggle when autoPreview is false
+let autoPreview = false;     // automatic preview on movement
+let manualPreview = true;   // manual toggle when autoPreview is false
 
 function isPreviewMode() {
     return autoPreview ? true : manualPreview;
@@ -133,7 +140,7 @@ const ground = new Material({
 });
 
 const glass = new Material({
-    color: {r:255,g:255,b:255},
+    color: {r:200,g:200,b:200},
     reflectivity: 0.05,
     roughness: 0.0,
     ior: 1.5, // glass
@@ -205,6 +212,14 @@ const magentaGlow = new Material({
     emissionStrength:2
 });
 
+const redGlow = new Material({
+    color:{r:255,g:0,b:0},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:255,g:0,b:0},
+    emissionStrength:2
+});
+
 
 function getCameraBasis(camera) {
   const cosYaw = Math.cos(camera.yaw), sinYaw = Math.sin(camera.yaw);
@@ -247,13 +262,16 @@ function normalize(v) {
 // scene
 const scene = {
     spheres: [
-        { center:{x:0,y:0,z:-5}, radius:1, material: glass }, // glass ball
+        { center:{x:0,y:0,z:-5}, radius:1, material: glass }, // glass balls
+        { center:{x:0,y:0,z:-8}, radius:1, material: glass }, 
         { center:{x:6,y:0,z:-5}, radius:1, material: greenMat },
         { center:{x:9,y:0,z:-5}, radius:1, material: whiteMat },
-        { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat },
+        { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat }, // mirror balls
+         { center:{x:3,y:0,z:-8}, radius:1, material: mirrorMat },
         { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
         { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
-        { center:{x:3,y:15,z:-5}, radius:10, material: sun } // sun
+        { center:{x:12,y:0,z:-5}, radius:1, material: redGlow },
+        { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
     ],
     triangles: [
         { v0:{x:100,y:-1,z:-100}, v1:{x:-100,y:-1,z:-100}, v2:{x:0,y:-1,z:100}, material: ground } // ground
@@ -261,8 +279,8 @@ const scene = {
 };
 
 const box = new RectangularPrism(
-    {x:2,y:-1,z:-2}, // min corner
-    {x:3,y:2,z:-1},    // max corner
+    {x:10,y:-1,z:-2}, // min corner
+    {x:15,y:2,z:-1},    // max corner
     glass
 );
 
@@ -365,36 +383,39 @@ function updateCamera() {
 }
 
 function renderOneFrameNow() {
-    // create a temporary buffer
-    const img = new Uint8ClampedArray(canvas.width * canvas.height * 4);
-    const basis = getCameraBasis(camera);
+    const previewCam = new Camera(PREVIEW_WIDTH, PREVIEW_HEIGHT);
+    previewCam.position = {...camera.position};
+    previewCam.yaw = camera.yaw;
+    previewCam.pitch = camera.pitch;
+    previewCam.fov = camera.fov;
 
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            // normalize screen coords to [-1,1]
-            const u = (2 * (x + 0.5) / canvas.width - 1);
-            const v = (2 * (y + 0.5) / canvas.height - 1);
+    const img = new Uint8ClampedArray(PREVIEW_WIDTH * PREVIEW_HEIGHT * 4);
+    const basis = getCameraBasis(previewCam);
 
-            // get ray direction from camera
-            const dir = camera.getDirection(u, v);
+    for (let y = 0; y < PREVIEW_HEIGHT; y++) {
+        for (let x = 0; x < PREVIEW_WIDTH; x++) {
+            const u = (2 * (x + 0.5) / PREVIEW_WIDTH - 1);
+            const v = (2 * (y + 0.5) / PREVIEW_HEIGHT - 1);
 
-            // trace one ray (replace with your own trace function)
-            const color = traceRay(camera.position, dir, scene);
+            const dir = previewCam.getDirection(u, v);
+            const color = traceRay(previewCam.position, dir, scene);
 
-            // gamma correct
-            let r = Math.pow(Math.max(0, Math.min(1, color.r)), 1/2.2) * 255;
-            let g = Math.pow(Math.max(0, Math.min(1, color.g)), 1/2.2) * 255;
-            let b = Math.pow(Math.max(0, Math.min(1, color.b)), 1/2.2) * 255;
-
-            const idx = (y * canvas.width + x) * 4;
-            img[idx]   = r|0;
-            img[idx+1] = g|0;
-            img[idx+2] = b|0;
+            const idx = (y * PREVIEW_WIDTH + x) * 4;
+            img[idx]   = Math.pow(color.r, 1/2.2) * 255 | 0;
+            img[idx+1] = Math.pow(color.g, 1/2.2) * 255 | 0;
+            img[idx+2] = Math.pow(color.b, 1/2.2) * 255 | 0;
             img[idx+3] = 255;
         }
     }
 
-    ctx.putImageData(new ImageData(img, canvas.width, canvas.height), 0, 0);
+    const previewImage = new ImageData(img, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+    const offscreen = document.createElement("canvas");
+    offscreen.width = PREVIEW_WIDTH;
+    offscreen.height = PREVIEW_HEIGHT;
+    offscreen.getContext("2d").putImageData(previewImage, 0, 0);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
 }
 
 function traceRay(origin, dir, scene) {
@@ -488,25 +509,29 @@ let camPayload = null;
 
 function startWorkers() {
     const basis = getCameraBasis(camera);
-    camPayload = {
+        camPayload = {
         position: { ...camera.position },
-        width: canvas.width,
-        height: canvas.height,
+        width: RENDER_WIDTH,
+        height: RENDER_HEIGHT,
         fov: 60,
         forward: basis.forward,
         right: basis.right,
         up: basis.up
     };
 
-    // one full-frame job per worker
+    const sliceHeight = Math.floor(canvas.height / numWorkers);
+
     for (let i = 0; i < numWorkers; i++) {
+        const yStart = i * sliceHeight;
+        const h = (i === numWorkers-1) ? canvas.height - yStart : sliceHeight;
+
         workers[i].postMessage({
             scene,
             camera: camPayload,
             x: 0,
-            y: 0,
+            y: yStart,
             width: canvas.width,
-            height: canvas.height,
+            height: h,
             frameId: currentGen,
             samplesPerPixel
         });
@@ -532,6 +557,10 @@ for (let i=0; i<numWorkers; i++) {
 }
 
 function displayFrame() {
+    // Canvas dimensions are full render resolution
+    canvas.width  = RENDER_WIDTH;
+    canvas.height = RENDER_HEIGHT;
+
     const img = new Uint8ClampedArray(canvas.width * canvas.height * 4);
 
     for (let p=0, q=0; p<sampleCount.length; p++, q+=4) {
@@ -551,8 +580,85 @@ function displayFrame() {
         img[q+2] = b|0;
         img[q+3] = 255;
     }
-
     ctx.putImageData(new ImageData(img, canvas.width, canvas.height), 0, 0);
+}
+
+function boxBlur(src, width, height, radius=1) {
+    const channels = 4;
+    const tmp = new Float32Array(src.length);
+    const dst = new Uint8ClampedArray(src.length);
+
+    // Horizontal pass
+    for (let y=0; y<height; y++) {
+        for (let x=0; x<width; x++) {
+            let r=0,g=0,b=0,a=0,count=0;
+            for (let dx=-radius; dx<=radius; dx++) {
+                const nx = x+dx;
+                if (nx>=0 && nx<width) {
+                    const idx = (y*width+nx)*channels;
+                    r+=src[idx]; g+=src[idx+1]; b+=src[idx+2]; a+=src[idx+3];
+                    count++;
+                }
+            }
+            const outIdx = (y*width+x)*channels;
+            tmp[outIdx]   = r/count;
+            tmp[outIdx+1] = g/count;
+            tmp[outIdx+2] = b/count;
+            tmp[outIdx+3] = a/count;
+        }
+    }
+
+    // Vertical pass
+    for (let y=0; y<height; y++) {
+        for (let x=0; x<width; x++) {
+            let r=0,g=0,b=0,a=0,count=0;
+            for (let dy=-radius; dy<=radius; dy++) {
+                const ny = y+dy;
+                if (ny>=0 && ny<height) {
+                    const idx = (ny*width+x)*channels;
+                    r+=tmp[idx]; g+=tmp[idx+1]; b+=tmp[idx+2]; a+=tmp[idx+3];
+                    count++;
+                }
+            }
+            const outIdx = (y*width+x)*channels;
+            dst[outIdx]   = r/count;
+            dst[outIdx+1] = g/count;
+            dst[outIdx+2] = b/count;
+            dst[outIdx+3] = a/count;
+        }
+    }
+
+    return dst;
+}
+
+function applyBloom(src, width, height, threshold=0.8, radius=2) {
+    const channels = 4;
+    const bright = new Float32Array(src.length);
+
+    // 1. Extract bright areas
+    for (let i=0; i<src.length; i+=channels) {
+        const r = src[i]/255, g = src[i+1]/255, b = src[i+2]/255;
+        const brightness = Math.max(r, g, b); // instead of luminance
+        if (brightness > threshold) {
+            bright[i]   = src[i];
+            bright[i+1] = src[i+1];
+            bright[i+2] = src[i+2];
+            bright[i+3] = 255;
+        }
+    }
+
+    // 2. Blur bright buffer (simple box blur)
+    const blurred = boxBlur(bright, width, height, radius);
+
+    // 3. Additive blend back
+    const dst = new Uint8ClampedArray(src.length);
+    for (let i=0; i<src.length; i+=channels) {
+        dst[i]   = Math.min(255, src[i]   + blurred[i]);
+        dst[i+1] = Math.min(255, src[i+1] + blurred[i+1]);
+        dst[i+2] = Math.min(255, src[i+2] + blurred[i+2]);
+        dst[i+3] = 255;
+    }
+    return dst;
 }
 
 function onTile({x, y, width, height, accum, samples}) {
@@ -574,27 +680,31 @@ function onTile({x, y, width, height, accum, samples}) {
     }
 }
 
-
 function requeueAll() {
     const basis = getCameraBasis(camera);
     camPayload = {
         position: { ...camera.position },
-        width: canvas.width,
-        height: canvas.height,
+        width: RENDER_WIDTH,
+        height: RENDER_HEIGHT,
         fov: 60,
         forward: basis.forward,
         right: basis.right,
         up: basis.up
     };
 
+    const sliceHeight = Math.floor(canvas.height / numWorkers);
+
     for (let i = 0; i < numWorkers; i++) {
+        const yStart = i * sliceHeight;
+        const h = (i === numWorkers - 1) ? canvas.height - yStart : sliceHeight;
+
         workers[i].postMessage({
             scene,
             camera: camPayload,
             x: 0,
-            y: 0,
+            y: yStart,
             width: canvas.width,
-            height: canvas.height,
+            height: h,
             frameId: currentGen,
             samplesPerPixel
         });
