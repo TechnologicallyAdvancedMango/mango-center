@@ -127,6 +127,27 @@ function cosineSampleHemisphere(n) {
     });
 }
 
+function perturbDirection(dir, roughness) {
+    if (roughness <= 0) return dir; // perfect mirror
+
+    // sample random vector in unit sphere
+    let x, y, z;
+    do {
+        x = Math.random()*2 - 1;
+        y = Math.random()*2 - 1;
+        z = Math.random()*2 - 1;
+    } while (x*x + y*y + z*z > 1);
+
+    const rand = {x, y, z};
+    // scale by roughness
+    const perturbed = {
+        x: dir.x + rand.x * roughness,
+        y: dir.y + rand.y * roughness,
+        z: dir.z + rand.z * roughness
+    };
+    return normalize(perturbed);
+}
+
 function cross(a,b){ return { x:a.y*b.z - a.z*b.y, y:a.z*b.x - a.x*b.z, z:a.x*b.y - a.y*b.x }; }
 
 function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
@@ -224,7 +245,7 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     }
 
     // Reflection ray
-    const reflDir = reflect(ray.dir, normal);
+    const reflDir = perturbDirection(reflect(ray.dir, normal), hitObj.roughness || 0);
     const specRay = { origin, dir: reflDir };
     const specColor = trace(specRay, scene, depth+1, {
         r: throughput.r * refl,

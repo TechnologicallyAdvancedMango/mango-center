@@ -6,7 +6,7 @@ canvas.width  = Math.floor(canvas.clientWidth / 2);
 canvas.height = Math.floor(canvas.clientHeight / 2);
 
 // how many samples each worker computes per pixel, per batch
-const samplesPerPixel = 1; // try 1–4 for speed, higher for quality
+const samplesPerPixel = 2; // 1–4 for speed, higher for quality
 const tileSize = 64;
 
 let autoPreview = false;      // automatic preview on movement
@@ -86,48 +86,54 @@ const scene = {
     spheres: [
         { // red sphere
             center:{x:0,y:0,z:-5}, radius:1,
-            color:{r:255,g:0,b:0}, reflectivity:0.1,
+            color:{r:255,g:0,b:0}, reflectivity:0.1, roughness:0.3,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
         { // green matte sphere
             center:{x:6,y:0,z:-5}, radius:1,
-            color:{r:0,g:255,b:0}, reflectivity:0.0,
+            color:{r:0,g:255,b:0}, reflectivity:0.0, roughness:0.3,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
         { // mirror sphere
             center:{x:3,y:0,z:-5}, radius:1,
-            color:{r:0,g:0,b:0}, reflectivity:1.0,
+            color:{r:0,g:0,b:0}, reflectivity:1.0, roughness:0.0,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
         { // glowing cyan
             center:{x:-3,y:0,z:-5}, radius:1,
-            color:{r:0,g:255,b:255}, reflectivity:0.0,
+            color:{r:0,g:255,b:255}, reflectivity:0.0, roughness:0.3,
             emission:{r:0,g:255,b:255}, emissionStrength:1
         },
 
+        { // glowing magenta
+            center:{x:-5.5,y:0,z:-5}, radius:1,
+            color:{r:255,g:0,b:255}, reflectivity:0.0, roughness:0.3,
+            emission:{r:255,g:0,b:255}, emissionStrength:1
+        },
+
         { // sun
-            center:{x:3,y:15,z:-5}, radius:10,
-            color:{r:255,g:255,b:255}, reflectivity:0,
+            center:{x:3,y:15,z:-5}, radius:10, 
+            color:{r:255,g:255,b:255}, reflectivity:0, roughness:0,
             emission:{r:255,g:255,b:255}, emissionStrength:2
         }
     ],
     triangles: [
         { // ground
             v0:{x:100,y:-5,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
-            color:{r:255,g:255,b:255}, reflectivity:0.1,
+            color:{r:255,g:255,b:255}, reflectivity:0.5, roughness:0.3,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
         { // mirror 1
-            v0:{x:-1,y:-1,z:-6}, v1:{x:-3,y:-1,z:-6}, v2:{x:-2,y:1,z:-6},
-            color:{r:0,g:0,b:0}, reflectivity:0.9,
+            v0:{x:-1,y:-1,z:-7}, v1:{x:-3,y:-1,z:-7}, v2:{x:-2,y:1,z:-7},
+            color:{r:0,g:0,b:0}, reflectivity:0.9, roughness:0.0,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
         { // mirror 2
-            v0:{x:-1,y:-1,z:-7}, v1:{x:-3,y:-1,z:-7}, v2:{x:-2,y:1,z:-7},
-            color:{r:0,g:0,b:0}, reflectivity:0.9,
+            v0:{x:-1,y:-1,z:-8}, v1:{x:-3,y:-1,z:-8}, v2:{x:-2,y:1,z:-8},
+            color:{r:0,g:0,b:0}, reflectivity:0.9, roughness:0.0,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         }
     ]
