@@ -9,6 +9,13 @@ canvas.height = Math.floor(canvas.clientHeight / 2);
 const samplesPerPixel = 1; // try 1–4 for speed, higher for quality
 const tileSize = 64;
 
+let autoPreview = false;      // automatic preview on movement
+let manualPreview = false;   // manual toggle when autoPreview is false
+
+function isPreviewMode() {
+    return autoPreview ? true : manualPreview;
+}
+
 class Camera {
     constructor(width, height) {
         this.width = width;
@@ -116,18 +123,35 @@ let isMoving = false;
 let cameraChanged = false;
 
 document.addEventListener("keydown", e => {
+    if (e.key === "r" || e.key === "R") {
+        manualPreview = !manualPreview;
+
+        // If we just turned preview OFF, reset accumulation so workers restart
+        if (!manualPreview) {
+            needReset = true;
+        }
+
+        return; // stop here so R isn’t added to keys[]
+    }
+
+    if (!isPreviewMode()) return; // ignore other keys in render mode
+
     keys[e.key] = true;
     lastInputAt = performance.now();
     needReset = true;
 });
 
 document.addEventListener("keyup", e => {
+    if (!isPreviewMode()) return;
+
     keys[e.key] = false;
     lastInputAt = performance.now();
     needReset = true;
 });
 
 document.addEventListener("mousemove", e => {
+    if (!isPreviewMode()) return;
+
     if (document.pointerLockElement === canvas) {
         camera.yaw   -= e.movementX * 0.002;
         camera.pitch += e.movementY * 0.002;
@@ -145,7 +169,7 @@ canvas.addEventListener("click", () => {
 
 
 function updateCamera() {
-    const { forward, right } = getCameraBasis(camera);
+    const { forward, right, up } = getCameraBasis(camera);
     const speed = camera.speed;
 
     if (keys["w"]) {
@@ -167,6 +191,17 @@ function updateCamera() {
         camera.position.x += right.x * speed;
         camera.position.y += right.y * speed;
         camera.position.z += right.z * speed;
+    }
+    // NEW: vertical relative to camera up
+    if (keys[" "]) { // Space
+        camera.position.x -= up.x * speed;
+        camera.position.y -= up.y * speed;
+        camera.position.z -= up.z * speed;
+    }
+    if (keys["Shift"]) { // Shift
+        camera.position.x += up.x * speed;
+        camera.position.y += up.y * speed;
+        camera.position.z += up.z * speed;
     }
 }
 
@@ -400,27 +435,36 @@ function requeueAll() {
 }
 
 function tick() {
-    updateCamera();
+    if (isPreviewMode()) {
+        updateCamera(); // only move camera in preview mode
+    }
 
     const now = performance.now();
+    // Decide whether to preview
+    previewing = autoPreview ? (now - lastInputAt) < 50 : manualPreview;
+
     const keysActive = keys["w"] || keys["a"] || keys["s"] || keys["d"];
 
-    // preview if keys or mouse moved recently
-    isPreviewing = (now - lastInputAt) < 50;
+    if (keysActive) {
+        lastInputAt = now;
+        cameraChanged = true;
+    }
 
-    if (isPreviewing) {
+    if (cameraChanged) {
+        resetAccumulation();
+        cameraChanged = false;
+    }
+
+    if (previewing) {
         renderOneFrameNow();
+    } else if (needReset && (now - lastInputAt) > idleDelayMs) {
+        resetAccumulation();
     } else {
-        // if we just stopped previewing, reset immediately
-        if (needReset) {
-            resetAccumulation();
-        }
         displayFrame();
     }
 
     requestAnimationFrame(tick);
 }
-
 
 startWorkers();
 resetAccumulation(); // start accumulation immediately
