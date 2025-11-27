@@ -6,7 +6,7 @@ canvas.width  = Math.floor(canvas.clientWidth / 2);
 canvas.height = Math.floor(canvas.clientHeight / 2);
 
 // how many samples each worker computes per pixel, per batch
-const samplesPerPixel = 2; // 1–4 for speed, higher for quality
+const samplesPerPixel = 1; // 1–4 for speed, higher for quality
 const tileSize = 64;
 
 let autoPreview = false;      // automatic preview on movement
