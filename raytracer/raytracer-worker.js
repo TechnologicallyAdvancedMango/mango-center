@@ -24,9 +24,12 @@ function intersectSphere(ray, sphere) {
         y: ray.origin.y + ray.dir.y * t,
         z: ray.origin.z + ray.dir.z * t
     };
-    const normal = normalize(sub(hitPoint, sphere.center));
-
-    return {t, color:sphere.color, hitPoint, normal};
+    let normal = normalize(sub(hitPoint, sphere.center));
+    // Face-forward for consistency
+    if (dot(normal, ray.dir) > 0) {
+        normal = { x:-normal.x, y:-normal.y, z:-normal.z };
+    }
+    return { t, color: sphere.color, hitPoint, normal };
 }
 
 // Ray-triangle intersection (Möller–Trumbore)
@@ -59,18 +62,21 @@ function intersectTriangle(ray, tri) {
 
     const t = f * dot(edge2, q);
     if (t > EPS) {
-        // Compute hit point
         const hitPoint = {
             x: ray.origin.x + ray.dir.x * t,
             y: ray.origin.y + ray.dir.y * t,
             z: ray.origin.z + ray.dir.z * t
         };
-        // Flat-shaded normal from triangle edges
-        const normal = normalize({
+        // Geometric normal
+        let normal = normalize({
             x: edge1.y*edge2.z - edge1.z*edge2.y,
             y: edge1.z*edge2.x - edge1.x*edge2.z,
             z: edge1.x*edge2.y - edge1.y*edge2.x
         });
+        // Face-forward: make sure normal opposes ray.dir
+        if (dot(normal, ray.dir) > 0) {
+            normal = { x:-normal.x, y:-normal.y, z:-normal.z };
+        }
         return { t, color: tri.color, hitPoint, normal };
     }
     return null;
@@ -123,7 +129,7 @@ function cosineSampleHemisphere(n) {
 
 function cross(a,b){ return { x:a.y*b.z - a.z*b.y, y:a.z*b.x - a.x*b.z, z:a.x*b.y - a.y*b.x }; }
 
-function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}) {
+function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     let closest = Infinity;
     let hitObj = null;
     let hitPoint = null;
@@ -164,7 +170,19 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}) {
     }
 
     // Depth cap
-    if (depth >= maxDepth) return { r:0, g:0, b:0 };
+    if (depth >= maxRayBounces) {
+        // terminate with the surface albedo contribution so objects don't fade to black
+        const albedo = {
+            r: (hitObj.color.r || 0) / 255,
+            g: (hitObj.color.g || 0) / 255,
+            b: (hitObj.color.b || 0) / 255
+        };
+        return {
+            r: throughput.r * albedo.r,
+            g: throughput.g * albedo.g,
+            b: throughput.b * albedo.b
+        };
+    }
 
     // Russian roulette after rrStartDepth
     if (depth >= rrStartDepth) {
@@ -196,36 +214,42 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}) {
         b: throughput.b * albedo.b
     };
 
-    // Optional specular reflection: mix with reflectivity
-    const refl = hitObj.reflectivity != null ? hitObj.reflectivity : 0.0;
-    if (refl > 0) {
-        const reflDir = reflect(ray.dir, normal);
-        const specRay = { origin, dir: reflDir };
-        const specColor = trace(specRay, scene, depth+1, {
-            r: throughput.r * refl,
-            g: throughput.g * refl,
-            b: throughput.b * refl
-        });
+    let refl = hitObj.reflectivity != null ? hitObj.reflectivity : 0.0;
+    refl = Math.max(0, Math.min(1, refl)); // clamp 0..1
+
+    if (specDepth >= maxRayBounces) {
+        // too many reflections → just diffuse
         const diffRay = { origin, dir: bounceDir };
-        const diffColor = trace(diffRay, scene, depth+1, {
-            r: nextThroughput.r * (1 - refl),
-            g: nextThroughput.g * (1 - refl),
-            b: nextThroughput.b * (1 - refl)
-        });
-        return {
-            r: specColor.r + diffColor.r,
-            g: specColor.g + diffColor.g,
-            b: specColor.b + diffColor.b
-        };
-    } else {
-        const diffRay = { origin, dir: bounceDir };
-        return trace(diffRay, scene, depth+1, nextThroughput);
+        return trace(diffRay, scene, depth+1, nextThroughput, specDepth);
     }
+
+    // Reflection ray
+    const reflDir = reflect(ray.dir, normal);
+    const specRay = { origin, dir: reflDir };
+    const specColor = trace(specRay, scene, depth+1, {
+        r: throughput.r * refl,
+        g: throughput.g * refl,
+        b: throughput.b * refl
+    }, specDepth+1);
+
+    // Diffuse ray
+    const diffRay = { origin, dir: bounceDir };
+    const diffColor = trace(diffRay, scene, depth+1, {
+        r: nextThroughput.r * (1 - refl),
+        g: nextThroughput.g * (1 - refl),
+        b: nextThroughput.b * (1 - refl)
+    }, specDepth);
+
+    // Blend them smoothly
+    return {
+        r: specColor.r + diffColor.r,
+        g: specColor.g + diffColor.g,
+        b: specColor.b + diffColor.b
+    };
 }
 
-const maxRayBounces = 3; // Max reflection bounces
-const maxDepth = 5;         // hard cap
-const rrStartDepth = 3;     // start Russian roulette
+const maxRayBounces = 10; // Max reflection bounces, diffuse and specular
+const rrStartDepth = 3; // start Russian roulette
 
 const SAMPLES_PER_FRAME = 4; // tweak live
 

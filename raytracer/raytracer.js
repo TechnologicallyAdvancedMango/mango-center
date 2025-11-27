@@ -84,27 +84,50 @@ function normalize(v) {
 // scene
 const scene = {
     spheres: [
-        { 
+        { // red sphere
             center:{x:0,y:0,z:-5}, radius:1,
-            color:{r:255,g:0,b:0}, reflectivity:0.2,
+            color:{r:255,g:0,b:0}, reflectivity:0.1,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
 
-        {
+        { // green matte sphere
+            center:{x:6,y:0,z:-5}, radius:1,
+            color:{r:0,g:255,b:0}, reflectivity:0.0,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+
+        { // mirror sphere
+            center:{x:3,y:0,z:-5}, radius:1,
+            color:{r:0,g:0,b:0}, reflectivity:1.0,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+
+        { // glowing cyan
+            center:{x:-3,y:0,z:-5}, radius:1,
+            color:{r:0,g:255,b:255}, reflectivity:0.0,
+            emission:{r:0,g:255,b:255}, emissionStrength:1
+        },
+
+        { // sun
             center:{x:3,y:15,z:-5}, radius:10,
-            color:{r:255,g:255,b:255}, reflectivity:0.2,
+            color:{r:255,g:255,b:255}, reflectivity:0,
             emission:{r:255,g:255,b:255}, emissionStrength:2
-        } // glowing white sphere
+        }
     ],
     triangles: [
         { // ground
             v0:{x:100,y:-5,z:-100}, v1:{x:-100,y:0,z:-100}, v2:{x:0,y:0,z:100}, 
-            color:{r:255,g:255,b:255}, reflectivity:0.8,
+            color:{r:255,g:255,b:255}, reflectivity:0.1,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         },
-        {
-            v0:{x:-1,y:-1,z:-3}, v1:{x:-3,y:-1,z:-3}, v2:{x:-2,y:1,z:-3},
-            color:{r:0,g:255,b:0}, reflectivity:0.0,
+        { // mirror 1
+            v0:{x:-1,y:-1,z:-6}, v1:{x:-3,y:-1,z:-6}, v2:{x:-2,y:1,z:-6},
+            color:{r:0,g:0,b:0}, reflectivity:0.9,
+            emission:{r:0,g:0,b:0}, emissionStrength:0.0
+        },
+        { // mirror 2
+            v0:{x:-1,y:-1,z:-7}, v1:{x:-3,y:-1,z:-7}, v2:{x:-2,y:1,z:-7},
+            color:{r:0,g:0,b:0}, reflectivity:0.9,
             emission:{r:0,g:0,b:0}, emissionStrength:0.0
         }
     ]
@@ -126,39 +149,40 @@ document.addEventListener("keydown", e => {
     if (e.key === "r" || e.key === "R") {
         manualPreview = !manualPreview;
 
-        // If we just turned preview OFF, reset accumulation so workers restart
         if (!manualPreview) {
-            needReset = true;
+            // just turned preview OFF, reset immediately
+            resetAccumulation();
         }
 
-        return; // stop here so R isn’t added to keys[]
+        return;
     }
 
-    if (!isPreviewMode()) return; // ignore other keys in render mode
+    // allow input in preview
+    if (!isPreviewMode()) return;
 
     keys[e.key] = true;
     lastInputAt = performance.now();
     needReset = true;
+    cameraChanged = true;
 });
 
 document.addEventListener("keyup", e => {
-    if (!isPreviewMode()) return;
+    if (!(isPreviewMode())) return;
 
     keys[e.key] = false;
     lastInputAt = performance.now();
     needReset = true;
+    cameraChanged = true;
 });
 
 document.addEventListener("mousemove", e => {
-    if (!isPreviewMode()) return;
-
+    if (!(isPreviewMode())) return;
     if (document.pointerLockElement === canvas) {
         camera.yaw   -= e.movementX * 0.002;
         camera.pitch += e.movementY * 0.002;
         const maxPitch = Math.PI/2 - 0.01;
         camera.pitch = Math.max(-maxPitch, Math.min(maxPitch, camera.pitch));
-        lastInputAt = performance.now();
-        needReset = true;
+        cameraChanged = true; // mark once
     }
 });
 
@@ -436,28 +460,14 @@ function requeueAll() {
 
 function tick() {
     if (isPreviewMode()) {
-        updateCamera(); // only move camera in preview mode
+        updateCamera();
     }
 
-    const now = performance.now();
-    // Decide whether to preview
-    previewing = autoPreview ? (now - lastInputAt) < 50 : manualPreview;
-
-    const keysActive = keys["w"] || keys["a"] || keys["s"] || keys["d"];
-
-    if (keysActive) {
-        lastInputAt = now;
-        cameraChanged = true;
-    }
-
-    if (cameraChanged) {
-        resetAccumulation();
-        cameraChanged = false;
-    }
+    previewing = autoPreview ? (performance.now() - lastInputAt) < 50 : manualPreview;
 
     if (previewing) {
         renderOneFrameNow();
-    } else if (needReset && (now - lastInputAt) > idleDelayMs) {
+    } else if (needReset) {
         resetAccumulation();
     } else {
         displayFrame();
