@@ -448,7 +448,7 @@ const light = new Material({
     roughness: 0.0,
     ior: null,
     emission: {r:255,g:255,b:255},
-    emissionStrength: 1
+    emissionStrength: 5
 });
 
 const sun = new Material({
@@ -473,9 +473,9 @@ const greenMat = new Material({
 });
 
 const whiteMat = new Material({
-    color:{r:255,g:255,b:255},
-    reflectivity:0.2,
-    roughness:0.0
+    color:{r:250,g:250,b:250},
+    reflectivity:0.1,
+    roughness:0.3
 });
 
 const mirrorMat = new Material({
@@ -506,22 +506,6 @@ const redGlow = new Material({
     roughness:0.3,
     emission:{r:255,g:0,b:0},
     emissionStrength:2
-});
-
-const red = new Material({
-    color:{r:255,g:0,b:0},
-    reflectivity:0.1,
-    roughness:0.5
-});
-const green = new Material({
-    color:{r:0,g:255,b:0},
-    reflectivity:0.1,
-    roughness:0.5
-});
-const blue = new Material({
-    color:{r:0,g:0,b:255},
-    reflectivity:0.1,
-    roughness:0.5
 });
 
 
@@ -572,12 +556,13 @@ const scene = {
         { center:{x:6,y:0,z:-5}, radius:1, material: greenMat },
         { center:{x:9,y:0,z:-5}, radius:1, material: whiteMat },
         { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat }, // mirror balls
-         { center:{x:3,y:0,z:-8}, radius:1, material: mirrorMat },
+        { center:{x:3,y:0,z:-8}, radius:1, material: mirrorMat },
+        { center:{x:1.5,y:4,z:-6.5}, radius:1, material: light }, // light above the four reflective ones
         { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
         { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
         { center:{x:12,y:0,z:-5}, radius:1, material: redGlow },
 
-        { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
+        // { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
     ],
     triangles: [
         { v0:{x:100,y:-1,z:-100}, v1:{x:-100,y:-1,z:-100}, v2:{x:0,y:-1,z:100}, material: ground } // ground
@@ -599,6 +584,7 @@ scene.triangles.push(...new RectangularPrism(
 ).triangles);
 
 const camera = new Camera(canvas.width, canvas.height);
+camera.position.y = 1; // move up on start
 
 const keys = {};
 
@@ -611,7 +597,7 @@ let isMoving = false;
 let cameraChanged = false;
 
 document.addEventListener("keydown", e => {
-    if (e.key === "r" || e.key === "R") {
+    if (e.code === "KeyR") {
         manualPreview = !manualPreview;
 
         if (!manualPreview) {
@@ -625,7 +611,7 @@ document.addEventListener("keydown", e => {
     // allow input in preview
     if (!isPreviewMode()) return;
 
-    keys[e.key] = true;
+    keys[e.code] = true;
     lastInputAt = performance.now();
     needReset = true;
     cameraChanged = true;
@@ -634,7 +620,7 @@ document.addEventListener("keydown", e => {
 document.addEventListener("keyup", e => {
     if (!(isPreviewMode())) return;
 
-    keys[e.key] = false;
+    keys[e.code] = false;
     lastInputAt = performance.now();
     needReset = true;
     cameraChanged = true;
@@ -661,33 +647,33 @@ function updateCamera() {
     const { forward, right, up } = getCameraBasis(camera);
     const speed = camera.speed;
 
-    if (keys["w"]) {
+    if (keys["KeyW"]) {
         camera.position.x += forward.x * speed;
         camera.position.y += forward.y * speed;
         camera.position.z += forward.z * speed;
     }
-    if (keys["s"]) {
+    if (keys["KeyS"]) {
         camera.position.x -= forward.x * speed;
         camera.position.y -= forward.y * speed;
         camera.position.z -= forward.z * speed;
     }
-    if (keys["a"]) {
+    if (keys["KeyA"]) {
         camera.position.x -= right.x * speed;
         camera.position.y -= right.y * speed;
         camera.position.z -= right.z * speed;
     }
-    if (keys["d"]) {
+    if (keys["KeyD"]) {
         camera.position.x += right.x * speed;
         camera.position.y += right.y * speed;
         camera.position.z += right.z * speed;
     }
     // vertical relative to camera up
-    if (keys[" "]) { // Space
+    if (keys["Space"]) { // Space
         camera.position.x -= up.x * speed;
         camera.position.y -= up.y * speed;
         camera.position.z -= up.z * speed;
     }
-    if (keys["Shift"]) { // Shift
+    if (keys["ShiftLeft"]) { // Shift
         camera.position.x += up.x * speed;
         camera.position.y += up.y * speed;
         camera.position.z += up.z * speed;
@@ -731,8 +717,10 @@ function renderOneFrameNow() {
 }
 
 function resetAccumulation() {
-    accumRGB.fill(0);
-    sampleCount.fill(0);
+    // ensure buffers match current canvas size
+    accumRGB = new Float32Array(canvas.width * canvas.height * 3);
+    sampleCount = new Uint32Array(canvas.width * canvas.height);
+
     currentGen++;
     needReset = false;
     requeueAll(); // workers start accumulating
@@ -745,8 +733,8 @@ let needReset = true; // initial reset at boot
 let previewing = false;
 const idleDelayMs = 60; // small debounce so movement doesn’t thrash
 
-const accumRGB = new Float32Array(canvas.width * canvas.height * 3);
-const sampleCount = new Uint32Array(canvas.width * canvas.height);
+let accumRGB = new Float32Array(canvas.width * canvas.height * 3);
+let sampleCount = new Uint32Array(canvas.width * canvas.height);
 
 const numWorkers = navigator.hardwareConcurrency || 4;
 const workers = [];
@@ -963,9 +951,9 @@ function requeueAll() {
 async function loadModelsAndBuildBVH() {
     // Load all async models
     const suzanne = await loadOBJ("objects/suzanne.obj", whiteMat, {
-        position: {x:-10, y:1, z:-10},
-        rotation: {x:0, y:135, z:0}, // degrees
-        scale: {x:2, y:2, z:2}
+        position: {x:-0.5, y:0, z:-13},
+        rotation: {x:0, y:0, z:0}, // degrees
+        scale: {x:1.5, y:1.5, z:1.5}
     })
     /*
     const teapot = await loadOBJ("objects/teapot.obj", whiteMat, {
@@ -1004,7 +992,14 @@ function tick() {
 
 let bvhRootPreview;
 loadModelsAndBuildBVH().then(() => {
-    startWorkers();
-    resetAccumulation();
+    // set render resolution before allocating buffers
+    canvas.width  = RENDER_WIDTH;
+    canvas.height = RENDER_HEIGHT;
+
+    // reallocate buffers to match
+    accumRGB = new Float32Array(canvas.width * canvas.height * 3);
+    sampleCount = new Uint32Array(canvas.width * canvas.height);
+
+    resetAccumulation(); // one clean reset
     tick();
 });
