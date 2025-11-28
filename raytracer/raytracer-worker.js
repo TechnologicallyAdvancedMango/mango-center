@@ -91,7 +91,6 @@ function intersectTriangle(ray, tri) {
     return null;
 }
 
-
 function reflect(dir, normal) {
     return normalize({
         x: dir.x - 2 * dot(dir, normal) * normal.x,
@@ -202,6 +201,105 @@ function perturbDirection(dir, roughness) {
 
 function cross(a,b){ return { x:a.y*b.z - a.z*b.y, y:a.z*b.x - a.x*b.z, z:a.x*b.y - a.y*b.x }; }
 
+class BVHNode {
+    constructor(triangles) {
+        this.triangles = triangles;
+        this.left = null;
+        this.right = null;
+        this.bounds = computeBounds(triangles);
+    }
+}
+
+function computeBounds(tris) {
+    const min = {x:Infinity,y:Infinity,z:Infinity};
+    const max = {x:-Infinity,y:-Infinity,z:-Infinity};
+    for (const t of tris) {
+        for (const v of [t.v0, t.v1, t.v2]) {
+            min.x = Math.min(min.x, v.x);
+            min.y = Math.min(min.y, v.y);
+            min.z = Math.min(min.z, v.z);
+            max.x = Math.max(max.x, v.x);
+            max.y = Math.max(max.y, v.y);
+            max.z = Math.max(max.z, v.z);
+        }
+    }
+    return {min, max};
+}
+
+function buildBVH(tris, depth=0) {
+    if (tris.length <= 4 || depth > 16) {
+        return new BVHNode(tris); // leaf
+    }
+
+    // choose split axis (longest)
+    const bounds = computeBounds(tris);
+    const size = {
+        x: bounds.max.x - bounds.min.x,
+        y: bounds.max.y - bounds.min.y,
+        z: bounds.max.z - bounds.min.z
+    };
+    const axis = size.x > size.y && size.x > size.z ? 'x' :
+                 size.y > size.z ? 'y' : 'z';
+
+    // sort and split
+    tris.sort((a,b) => {
+        const ca = (a.v0[axis]+a.v1[axis]+a.v2[axis])/3;
+        const cb = (b.v0[axis]+b.v1[axis]+b.v2[axis])/3;
+        return ca - cb;
+    });
+    const mid = Math.floor(tris.length/2);
+
+    const node = new BVHNode([]);
+    node.bounds = bounds;
+    node.left = buildBVH(tris.slice(0,mid), depth+1);
+    node.right = buildBVH(tris.slice(mid), depth+1);
+    return node;
+}
+
+function hitAABB(rayOrig, rayDir, bounds) {
+    let tmin = (bounds.min.x - rayOrig.x) / rayDir.x;
+    let tmax = (bounds.max.x - rayOrig.x) / rayDir.x;
+    if (tmin > tmax) [tmin, tmax] = [tmax, tmin];
+
+    let tymin = (bounds.min.y - rayOrig.y) / rayDir.y;
+    let tymax = (bounds.max.y - rayOrig.y) / rayDir.y;
+    if (tymin > tymax) [tymin, tymax] = [tymax, tymin];
+
+    if (tmin > tymax || tymin > tmax) return false;
+    if (tymin > tmin) tmin = tymin;
+    if (tymax < tmax) tmax = tymax;
+
+    let tzmin = (bounds.min.z - rayOrig.z) / rayDir.z;
+    let tzmax = (bounds.max.z - rayOrig.z) / rayDir.z;
+    if (tzmin > tzmax) [tzmin, tzmax] = [tzmax, tzmin];
+
+    if (tmin > tzmax || tzmin > tmax) return false;
+    return true;
+}
+
+function traverseBVH(node, rayOrig, rayDir, closestHit) {
+    if (!hitAABB(rayOrig, rayDir, node.bounds)) return closestHit;
+
+    let best = closestHit;
+
+    if (node.triangles.length) {
+        // leaf: test actual triangles
+        for (const tri of node.triangles) {
+            const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
+            if (res && (!best || res.t < best.t)) {
+                best = res;
+            }
+        }
+    } else {
+        const leftHit = traverseBVH(node.left, rayOrig, rayDir, best);
+        if (leftHit && (!best || leftHit.t < best.t)) best = leftHit;
+
+        const rightHit = traverseBVH(node.right, rayOrig, rayDir, best);
+        if (rightHit && (!best || rightHit.t < best.t)) best = rightHit;
+    }
+    return best;
+}
+
 function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     let closest = Infinity;
     let hitObj = null;
@@ -219,15 +317,13 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
         }
     }
 
-    // Triangle intersections
-    for (const tri of scene.triangles) {
-        const res = intersectTriangle(ray, tri);
-        if (res && res.t < closest) {
-            closest = res.t;
-            hitObj = tri;
-            hitPoint = res.hitPoint;
-            normal = res.normal;
-        }
+    // Triangle intersections via BVH
+    const resTri = traverseBVH(bvhRoot, ray.origin, ray.dir, null);
+    if (resTri && resTri.t < closest) {
+        closest = resTri.t;
+        hitObj = { material: resTri.material };
+        hitPoint = resTri.hitPoint;
+        normal = resTri.normal;
     }
 
     // Miss → black
@@ -381,10 +477,16 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
 const maxRayBounces = 10; // Max reflection bounces, diffuse and specular
 const rrStartDepth = 3; // start Russian roulette
 
-const SAMPLES_PER_FRAME = 4; // tweak live
+const SAMPLES_PER_FRAME = 1;
+
+let bvhRoot = null;
 
 onmessage = function(e) {
     const { scene, camera, x, y, width, height, frameId, samplesPerPixel } = e.data;
+
+    if (!bvhRoot) {
+        bvhRoot = buildBVH(scene.triangles);
+    }
 
     // Use provided samplesPerPixel if present; otherwise fall back to SAMPLES_PER_FRAME
     const SPP = (typeof samplesPerPixel === 'number' && samplesPerPixel > 0) ? samplesPerPixel : SAMPLES_PER_FRAME;

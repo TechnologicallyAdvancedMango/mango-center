@@ -6,17 +6,17 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 // Preview resolution (fast, interactive)
-const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
-const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
+const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 12);
+const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 12);
 
 // Render resolution (higher quality)
 const RENDER_WIDTH  = Math.floor(canvas.clientWidth / 2);
 const RENDER_HEIGHT = Math.floor(canvas.clientHeight / 2);
 
 // how many samples each worker computes per pixel, per batch
-const samplesPerPixel = 2; // 1–4 for speed, higher for quality
+const samplesPerPixel = 1; // 1–4 for speed, higher for quality
 
-let autoPreview = false;     // automatic preview on movement
+let autoPreview = false;    // automatic preview on movement
 let manualPreview = true;   // manual toggle when autoPreview is false
 
 function isPreviewMode() {
@@ -50,18 +50,272 @@ class Camera {
     }
 }
 
+function translationMatrix(tx, ty, tz) {
+    return [1,0,0,0,
+            0,1,0,0,
+            0,0,1,0,
+            tx,ty,tz,1];
+}
+
+function rotationY(angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return [ c,0,-s,0,
+             0,1, 0,0,
+             s,0, c,0,
+             0,0, 0,1];
+}
+
+function applyMatrix(v, m) {
+    return {
+        x: v.x*m[0] + v.y*m[4] + v.z*m[8]  + m[12],
+        y: v.x*m[1] + v.y*m[5] + v.z*m[9]  + m[13],
+        z: v.x*m[2] + v.y*m[6] + v.z*m[10] + m[14]
+    };
+}
+
+function applyTransform(v, pos, rot, scale) {
+    // scale first
+    let x = v.x * scale.x;
+    let y = v.y * scale.y;
+    let z = v.z * scale.z;
+
+    // rotation (Euler XYZ)
+    const cx = Math.cos(degToRad(rot.x)), sx = Math.sin(degToRad(rot.x));
+    const cy = Math.cos(degToRad(rot.y)), sy = Math.sin(degToRad(rot.y));
+    const cz = Math.cos(degToRad(rot.z)), sz = Math.sin(degToRad(rot.z));
+
+    // rotate around X
+    let y1 = y * cx - z * sx;
+    let z1 = y * sx + z * cx;
+    y = y1; z = z1;
+
+    // rotate around Y
+    let x2 = x * cy + z * sy;
+    let z2 = -x * sy + z * cy;
+    x = x2; z = z2;
+
+    // rotate around Z
+    let x3 = x * cz - y * sz;
+    let y3 = x * sz + y * cz;
+    x = x3; y = y3;
+
+    // translate
+    return { x: x + pos.x, y: y + pos.y, z: z + pos.z };
+}
+
 class Mesh {
-    constructor(vertices = [], faces = [], material = null) {
+    constructor(vertices = [], faces = [], material = null, transform = null) {
+        // apply transform if provided
+        const verts = transform
+            ? vertices.map(v => applyMatrix(v, transform))
+            : vertices;
+
         this.triangles = faces.map(face => {
             const [i0, i1, i2] = face;
             return {
-                v0: vertices[i0],
-                v1: vertices[i1],
-                v2: vertices[i2],
+                v0: verts[i0],
+                v1: verts[i1],
+                v2: verts[i2],
                 material
             };
         });
     }
+}
+
+// Same as in raytracer-worker.js
+class BVHNode {
+    constructor(triangles) {
+        this.triangles = triangles;
+        this.left = null;
+        this.right = null;
+        this.bounds = computeBounds(triangles);
+    }
+}
+
+function computeBounds(tris) {
+    const min = {x:Infinity,y:Infinity,z:Infinity};
+    const max = {x:-Infinity,y:-Infinity,z:-Infinity};
+    for (const t of tris) {
+        for (const v of [t.v0, t.v1, t.v2]) {
+            min.x = Math.min(min.x, v.x);
+            min.y = Math.min(min.y, v.y);
+            min.z = Math.min(min.z, v.z);
+            max.x = Math.max(max.x, v.x);
+            max.y = Math.max(max.y, v.y);
+            max.z = Math.max(max.z, v.z);
+        }
+    }
+    return {min, max};
+}
+
+function buildBVH(tris, depth=0) {
+    if (tris.length <= 4 || depth > 16) {
+        return new BVHNode(tris); // leaf
+    }
+
+    // choose split axis (longest)
+    const bounds = computeBounds(tris);
+    const size = {
+        x: bounds.max.x - bounds.min.x,
+        y: bounds.max.y - bounds.min.y,
+        z: bounds.max.z - bounds.min.z
+    };
+    const axis = size.x > size.y && size.x > size.z ? 'x' :
+                 size.y > size.z ? 'y' : 'z';
+
+    // sort and split
+    tris.sort((a,b) => {
+        const ca = (a.v0[axis]+a.v1[axis]+a.v2[axis])/3;
+        const cb = (b.v0[axis]+b.v1[axis]+b.v2[axis])/3;
+        return ca - cb;
+    });
+    const mid = Math.floor(tris.length/2);
+
+    const node = new BVHNode([]);
+    node.bounds = bounds;
+    node.left = buildBVH(tris.slice(0,mid), depth+1);
+    node.right = buildBVH(tris.slice(mid), depth+1);
+    return node;
+}
+
+function hitAABB(rayOrig, rayDir, bounds) {
+    let tmin = (bounds.min.x - rayOrig.x) / rayDir.x;
+    let tmax = (bounds.max.x - rayOrig.x) / rayDir.x;
+    if (tmin > tmax) [tmin, tmax] = [tmax, tmin];
+
+    let tymin = (bounds.min.y - rayOrig.y) / rayDir.y;
+    let tymax = (bounds.max.y - rayOrig.y) / rayDir.y;
+    if (tymin > tymax) [tymin, tymax] = [tymax, tymin];
+
+    if (tmin > tymax || tymin > tmax) return false;
+    if (tymin > tmin) tmin = tymin;
+    if (tymax < tmax) tmax = tymax;
+
+    let tzmin = (bounds.min.z - rayOrig.z) / rayDir.z;
+    let tzmax = (bounds.max.z - rayOrig.z) / rayDir.z;
+    if (tzmin > tzmax) [tzmin, tzmax] = [tzmax, tzmin];
+
+    if (tmin > tzmax || tzmin > tmax) return false;
+    return true;
+}
+
+function traverseBVH(node, rayOrig, rayDir, closestHit) {
+    if (!hitAABB(rayOrig, rayDir, node.bounds)) return closestHit;
+
+    let best = closestHit;
+
+    if (node.triangles.length) {
+        // leaf: test actual triangles
+        for (const tri of node.triangles) {
+            const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
+            if (res && (!best || res.t < best.t)) {
+                best = res;
+            }
+        }
+    } else {
+        const leftHit = traverseBVH(node.left, rayOrig, rayDir, best);
+        if (leftHit && (!best || leftHit.t < best.t)) best = leftHit;
+
+        const rightHit = traverseBVH(node.right, rayOrig, rayDir, best);
+        if (rightHit && (!best || rightHit.t < best.t)) best = rightHit;
+    }
+    return best;
+}
+
+function intersectTriangle(ray, tri) {
+    const EPS = 1e-6;
+    const edge1 = sub(tri.v1, tri.v0);
+    const edge2 = sub(tri.v2, tri.v0);
+
+    // Möller–Trumbore
+    const h = {
+        x: ray.dir.y*edge2.z - ray.dir.z*edge2.y,
+        y: ray.dir.z*edge2.x - ray.dir.x*edge2.z,
+        z: ray.dir.x*edge2.y - ray.dir.y*edge2.x
+    };
+    const a = dot(edge1, h);
+    if (Math.abs(a) < EPS) return null;
+
+    const f = 1.0 / a;
+    const s = sub(ray.origin, tri.v0);
+    const u = f * dot(s, h);
+    if (u < 0 || u > 1) return null;
+
+    const q = {
+        x: s.y*edge1.z - s.z*edge1.y,
+        y: s.z*edge1.x - s.x*edge1.z,
+        z: s.x*edge1.y - s.y*edge1.x
+    };
+    const v = f * dot(ray.dir, q);
+    if (v < 0 || u + v > 1) return null;
+
+    const t = f * dot(edge2, q);
+    if (t > EPS) {
+        const hitPoint = {
+            x: ray.origin.x + ray.dir.x * t,
+            y: ray.origin.y + ray.dir.y * t,
+            z: ray.origin.z + ray.dir.z * t
+        };
+
+        // Geometric normal
+        let normal = normalize({
+            x: edge1.y*edge2.z - edge1.z*edge2.y,
+            y: edge1.z*edge2.x - edge1.x*edge2.z,
+            z: edge1.x*edge2.y - edge1.y*edge2.x
+        });
+
+        // Determine front vs back
+        const frontFace = dot(ray.dir, normal) < 0;
+        if (!frontFace && !tri.material.doubleSided) {
+            return null; // cull backfaces if not double-sided
+        }
+
+        // Flip normal so it always opposes the ray (for consistent shading)
+        if (!frontFace) {
+            normal = { x:-normal.x, y:-normal.y, z:-normal.z };
+        }
+
+        return { t, hitPoint, normal, material: tri.material, frontFace };
+    }
+    return null;
+}
+
+function traceRayPreview(origin, dir, scene) {
+    let closest = Infinity;
+    let hitColor = {r:0,g:0,b:0};
+
+    // spheres (keep brute force for now)
+    for (const s of scene.spheres) {
+        const oc = sub(origin, s.center);
+        const a = dot(dir, dir);
+        const b = 2 * dot(oc, dir);
+        const c = dot(oc, oc) - s.radius * s.radius;
+        const disc = b*b - 4*a*c;
+        if (disc > 0) {
+            const t = (-b - Math.sqrt(disc)) / (2*a);
+            if (t > 0.001 && t < closest) {
+                closest = t;
+                hitColor = {
+                    r: s.material.color.r/255,
+                    g: s.material.color.g/255,
+                    b: s.material.color.b/255
+                };
+            }
+        }
+    }
+
+    // triangles via BVH
+    const resTri = traverseBVH(bvhRootPreview, origin, dir, null);
+    if (resTri && resTri.t < closest) {
+        closest = resTri.t;
+        hitColor = {
+            r: resTri.material.color.r/255,
+            g: resTri.material.color.g/255,
+            b: resTri.material.color.b/255
+        };
+    }
+
+    return hitColor;
 }
 
 class RectangularPrism {
@@ -111,7 +365,11 @@ class RectangularPrism {
     }
 }
 
-async function loadOBJ(url, material) {
+async function loadOBJ(url, material, {
+    position = {x:0,y:0,z:0},
+    rotation = {x:0,y:0,z:0}, // degrees
+    scale = {x:1,y:1,z:1}
+} = {}) {
     const text = await fetch(url).then(r => r.text());
     const lines = text.split('\n');
     const vertices = [];
@@ -126,18 +384,19 @@ async function loadOBJ(url, material) {
                 z: parseFloat(parts[3])
             });
         } else if (parts[0] === 'f') {
-            // OBJ indices are 1-based
             const idx = parts.slice(1).map(p => parseInt(p.split('/')[0], 10) - 1);
             if (idx.length === 3) faces.push(idx);
             else if (idx.length === 4) {
-                // split quad into two triangles
                 faces.push([idx[0], idx[1], idx[2]]);
                 faces.push([idx[0], idx[2], idx[3]]);
             }
         }
     }
 
-    return new Mesh(vertices, faces, material);
+    // apply transform
+    const transformed = vertices.map(v => applyTransform(v, position, rotation, scale));
+
+    return new Mesh(transformed, faces, material);
 }
 
 class Material {
@@ -197,7 +456,7 @@ const sun = new Material({
     roughness: 0.0,
     ior: null,
     emission: {r:255,g:255,b:255},
-    emissionStrength: 1
+    emissionStrength: 2
 });
 
 const redMat = new Material({
@@ -295,6 +554,7 @@ function getCameraBasis(camera) {
 }
 
 // Utility math
+function degToRad(deg) { return deg * Math.PI / 180; }
 function dot(a, b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
 function sub(a, b) { return {x:a.x-b.x, y:a.y-b.y, z:a.z-b.z}; }
 function normalize(v) {
@@ -336,14 +596,6 @@ scene.triangles.push(...new RectangularPrism(
     {x:18,y:2,z:-1},  // max corner
     cyanGlow
 ).triangles);
-
-// test model (laggy)
-/*
-loadOBJ("objects/suzanne.obj", greenMat).then(suzanne => {
-    scene.triangles.push(...suzanne.triangles);
-});
-*/
-
 
 const camera = new Camera(canvas.width, canvas.height);
 
@@ -457,7 +709,7 @@ function renderOneFrameNow() {
             const v = (2 * (y + 0.5) / PREVIEW_HEIGHT - 1);
 
             const dir = previewCam.getDirection(u, v);
-            const color = traceRay(previewCam.position, dir, scene);
+            const color = traceRayPreview(previewCam.position, dir, scene);
 
             const idx = (y * PREVIEW_WIDTH + x) * 4;
             img[idx]   = Math.pow(color.r, 1/2.2) * 255 | 0;
@@ -475,69 +727,6 @@ function renderOneFrameNow() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
-}
-
-function traceRay(origin, dir, scene) {
-    let closest = Infinity;
-    let hitColor = {r:0, g:0, b:0};
-
-    // sphere intersection
-    for (const s of scene.spheres) {
-        const oc = sub(origin, s.center);
-        const a = dot(dir, dir);
-        const b = 2 * dot(oc, dir);
-        const c = dot(oc, oc) - s.radius * s.radius;
-        const discriminant = b*b - 4*a*c;
-        if (discriminant > 0) {
-            const t = (-b - Math.sqrt(discriminant)) / (2*a);
-            if (t > 0.001 && t < closest) {
-                closest = t;
-                hitColor = {
-                    r: s.material.color.r/255,
-                    g: s.material.color.g/255,
-                    b: s.material.color.b/255
-                };
-            }
-        }
-    }
-
-    // triangle intersection (very simple, no shading)
-    for (const tri of scene.triangles) {
-        const edge1 = sub(tri.v1, tri.v0);
-        const edge2 = sub(tri.v2, tri.v0);
-        const h = {
-            x: dir.y*edge2.z - dir.z*edge2.y,
-            y: dir.z*edge2.x - dir.x*edge2.z,
-            z: dir.x*edge2.y - dir.y*edge2.x
-        };
-        const a = dot(edge1, h);
-        if (Math.abs(a) > 1e-6) {
-            const f = 1/a;
-            const s = sub(origin, tri.v0);
-            const u = f * dot(s, h);
-            if (u >= 0 && u <= 1) {
-                const q = {
-                    x: s.y*edge1.z - s.z*edge1.y,
-                    y: s.z*edge1.x - s.x*edge1.z,
-                    z: s.x*edge1.y - s.y*edge1.x
-                };
-                const v = f * dot(dir, q);
-                if (v >= 0 && u+v <= 1) {
-                    const t = f * dot(edge2, q);
-                    if (t > 0.001 && t < closest) {
-                        closest = t;
-                        hitColor = {
-                            r: tri.material.color.r/255,
-                            g: tri.material.color.g/255,
-                            b: tri.material.color.b/255
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    return hitColor; // black if nothing hit
 }
 
 function resetAccumulation() {
@@ -770,6 +959,31 @@ function requeueAll() {
     }
 }
 
+async function loadModelsAndBuildBVH() {
+    // Load all async models
+    const suzanne = await loadOBJ("objects/suzanne.obj", whiteMat, {
+        position: {x:-10, y:1, z:-10},
+        rotation: {x:0, y:135, z:0}, // degrees
+        scale: {x:2, y:2, z:2}
+    })
+    /*
+    const teapot = await loadOBJ("objects/teapot.obj", whiteMat, {
+        position: {x:10, y:1, z:-10},
+        rotation: {x:0, y:0, z:0}, // degrees
+        scale: {x:0.05, y:0.05, z:0.05}
+    })
+    */
+
+    // Push them into the scene
+    scene.triangles.push(...suzanne.triangles);
+    /*
+    scene.triangles.push(...teapot.triangles);
+    */
+
+    // Rebuild BVH once all models are loaded
+    bvhRootPreview = buildBVH(scene.triangles);
+}
+
 function tick() {
     if (isPreviewMode()) {
         updateCamera();
@@ -788,6 +1002,9 @@ function tick() {
     requestAnimationFrame(tick);
 }
 
-startWorkers();
-resetAccumulation(); // start accumulation immediately
-tick();
+let bvhRootPreview;
+loadModelsAndBuildBVH().then(() => {
+    startWorkers();
+    resetAccumulation();
+    tick();
+});
