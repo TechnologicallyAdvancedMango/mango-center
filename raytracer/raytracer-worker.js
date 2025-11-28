@@ -227,7 +227,7 @@ function computeBounds(tris) {
 }
 
 function buildBVH(tris, depth=0) {
-    if (tris.length <= 4 || depth > 16) {
+    if (tris.length <= 8 || depth > 16) {
         return new BVHNode(tris); // leaf
     }
 
@@ -277,25 +277,26 @@ function hitAABB(rayOrig, rayDir, bounds) {
     return true;
 }
 
-function traverseBVH(node, rayOrig, rayDir, closestHit) {
-    if (!hitAABB(rayOrig, rayDir, node.bounds)) return closestHit;
+function traverseBVH(node, rayOrig, rayDir) {
+    const stack = [node];
+    let best = null;
 
-    let best = closestHit;
+    while (stack.length) {
+        const current = stack.pop();
+        if (!hitAABB(rayOrig, rayDir, current.bounds)) continue;
 
-    if (node.triangles.length) {
-        // leaf: test actual triangles
-        for (const tri of node.triangles) {
-            const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
-            if (res && (!best || res.t < best.t)) {
-                best = res;
+        if (current.triangles.length) {
+            // leaf: test triangles
+            for (const tri of current.triangles) {
+                const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
+                if (res && (!best || res.t < best.t)) {
+                    best = res;
+                }
             }
+        } else {
+            if (current.left) stack.push(current.left);
+            if (current.right) stack.push(current.right);
         }
-    } else {
-        const leftHit = traverseBVH(node.left, rayOrig, rayDir, best);
-        if (leftHit && (!best || leftHit.t < best.t)) best = leftHit;
-
-        const rightHit = traverseBVH(node.right, rayOrig, rayDir, best);
-        if (rightHit && (!best || rightHit.t < best.t)) best = rightHit;
     }
     return best;
 }
@@ -318,7 +319,7 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     }
 
     // Triangle intersections via BVH
-    const resTri = traverseBVH(bvhRoot, ray.origin, ray.dir, null);
+    const resTri = traverseBVH(bvhRoot, ray.origin, ray.dir);
     if (resTri && resTri.t < closest) {
         closest = resTri.t;
         hitObj = { material: resTri.material };
@@ -480,6 +481,7 @@ const rrStartDepth = 3; // start Russian roulette
 const SAMPLES_PER_FRAME = 1;
 
 let bvhRoot = null;
+let accum = null;
 
 onmessage = function(e) {
     const { scene, camera, x, y, width, height, frameId, samplesPerPixel } = e.data;
@@ -492,7 +494,11 @@ onmessage = function(e) {
     const SPP = (typeof samplesPerPixel === 'number' && samplesPerPixel > 0) ? samplesPerPixel : SAMPLES_PER_FRAME;
 
     // Float32 accumulation buffer (RGB)
-    const accum = new Float32Array(width * height * 3);
+    if (!accum || accum.length !== width * height * 3) {
+        accum = new Float32Array(width * height * 3);
+    }
+    // clear it before reuse
+    accum.fill(0);
 
     const aspect = camera.width / camera.height;
     const fovScale = Math.tan((camera.fov || 60) * 0.5 * Math.PI / 180);

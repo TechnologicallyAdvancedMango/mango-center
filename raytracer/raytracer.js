@@ -199,25 +199,26 @@ function hitAABB(rayOrig, rayDir, bounds) {
     return true;
 }
 
-function traverseBVH(node, rayOrig, rayDir, closestHit) {
-    if (!hitAABB(rayOrig, rayDir, node.bounds)) return closestHit;
+function traverseBVH(node, rayOrig, rayDir) {
+    const stack = [node];
+    let best = null;
 
-    let best = closestHit;
+    while (stack.length) {
+        const current = stack.pop();
+        if (!hitAABB(rayOrig, rayDir, current.bounds)) continue;
 
-    if (node.triangles.length) {
-        // leaf: test actual triangles
-        for (const tri of node.triangles) {
-            const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
-            if (res && (!best || res.t < best.t)) {
-                best = res;
+        if (current.triangles.length) {
+            // leaf: test triangles
+            for (const tri of current.triangles) {
+                const res = intersectTriangle({ origin: rayOrig, dir: rayDir }, tri);
+                if (res && (!best || res.t < best.t)) {
+                    best = res;
+                }
             }
+        } else {
+            if (current.left) stack.push(current.left);
+            if (current.right) stack.push(current.right);
         }
-    } else {
-        const leftHit = traverseBVH(node.left, rayOrig, rayDir, best);
-        if (leftHit && (!best || leftHit.t < best.t)) best = leftHit;
-
-        const rightHit = traverseBVH(node.right, rayOrig, rayDir, best);
-        if (rightHit && (!best || rightHit.t < best.t)) best = rightHit;
     }
     return best;
 }
@@ -305,7 +306,7 @@ function traceRayPreview(origin, dir, scene) {
     }
 
     // triangles via BVH
-    const resTri = traverseBVH(bvhRootPreview, origin, dir, null);
+    const resTri = traverseBVH(bvhRootPreview, origin, dir);
     if (resTri && resTri.t < closest) {
         closest = resTri.t;
         hitColor = {
@@ -976,9 +977,8 @@ async function loadModelsAndBuildBVH() {
 
     // Push them into the scene
     scene.triangles.push(...suzanne.triangles);
-    /*
-    scene.triangles.push(...teapot.triangles);
-    */
+    //scene.triangles.push(...teapot.triangles);
+    
 
     // Rebuild BVH once all models are loaded
     bvhRootPreview = buildBVH(scene.triangles);
