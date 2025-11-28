@@ -330,7 +330,7 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     // Miss → background color
     if (!hitObj) {
         return {
-            r: 0.0 * throughput.r, // to add background color
+            r: 0.0 * throughput.r, // to add background
             g: 0.0 * throughput.g,
             b: 0.0 * throughput.b
         };

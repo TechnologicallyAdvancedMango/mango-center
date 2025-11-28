@@ -951,7 +951,7 @@ function requeueAll() {
 async function loadModelsAndBuildBVH() {
     // Load all async models
     const suzanne = await loadOBJ("objects/suzanne.obj", whiteMat, {
-        position: {x:-0.5, y:0, z:-13},
+        position: {x:-0.5, y:0, z:-14},
         rotation: {x:0, y:0, z:0}, // degrees
         scale: {x:1.5, y:1.5, z:1.5}
     })
