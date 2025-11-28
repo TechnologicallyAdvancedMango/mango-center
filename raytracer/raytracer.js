@@ -22,6 +22,8 @@ const RENDER_HEIGHT = Math.floor(canvas.clientHeight / resDiv);
 let autoPreview = false;    // automatic preview on movement
 let manualPreview = true;   // manual toggle when autoPreview is false
 
+if (params.get("autoRender") === "true") manualPreview = false; // Render immediately
+
 function isPreviewMode() {
     return autoPreview ? true : manualPreview;
 }
