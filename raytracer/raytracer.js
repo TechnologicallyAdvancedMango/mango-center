@@ -400,6 +400,58 @@ async function loadOBJ(url, material, {
     return new Mesh(transformed, faces, material);
 }
 
+function parseOBJ(objText, materialsDict) {
+    const positions = [];
+    const normals = [];
+    const uvs = [];
+    const triangles = [];
+    let currentMtl = null;
+
+    function resolveIndex(idx, arr) {
+        let i = parseInt(idx, 10);
+        if (i < 0) i = arr.length + i + 1;
+        return arr[i - 1];
+    }
+
+    for (const raw of objText.split('\n')) {
+        const line = raw.trim();
+        if (!line || line.startsWith('#')) continue;
+        const parts = line.split(/\s+/);
+        const tag = parts[0];
+
+        if (tag === 'v') {
+            positions.push({x:+parts[1], y:+parts[2], z:+parts[3]});
+        } else if (tag === 'vn') {
+            normals.push({x:+parts[1], y:+parts[2], z:+parts[3]});
+        } else if (tag === 'vt') {
+            uvs.push({u:parseFloat(parts[1]), v:parseFloat(parts[2])});
+        } else if (tag === 'usemtl') {
+            currentMtl = parts[1];
+        } else if (tag === 'f') {
+            const verts = parts.slice(1).map(tok => {
+                const [vi, vti, vni] = tok.split('/');
+                return {
+                    pos: resolveIndex(vi, positions),
+                    uv: vti ? resolveIndex(vti, uvs) : {u:0, v:0},  // default UV
+                    nrm: vni ? resolveIndex(vni, normals) : null
+                };
+            });
+            for (let i=1; i<verts.length-1; i++) {
+                triangles.push({
+                    v0: verts[0].pos,
+                    v1: verts[i].pos,
+                    v2: verts[i+1].pos,
+                    uv0: verts[0].uv,
+                    uv1: verts[i].uv,
+                    uv2: verts[i+1].uv,
+                    material: materialsDict[currentMtl] || new Material()
+                });
+            }
+        }
+    }
+    return { triangles };
+}
+
 class Material {
     constructor({
         color = {r:255,g:255,b:255},
@@ -418,6 +470,55 @@ class Material {
         this.emissionStrength = emissionStrength;
         this.doubleSided = doubleSided;
     }
+}
+
+function parseMTL(mtlText) {
+    const materials = {};
+    let current = null;
+
+    for (const raw of mtlText.split('\n')) {
+        const line = raw.trim();
+        if (!line || line.startsWith('#')) continue;
+        const parts = line.split(/\s+/);
+        const tag = parts[0];
+
+        if (tag === 'newmtl') {
+            current = new Material(); // use your Material class defaults
+            current.name = parts[1];
+            materials[current.name] = current;
+        } else if (!current) {
+            continue;
+        } else if (tag === 'Kd') {
+            current.color = {
+                r: Math.round(parseFloat(parts[1]) * 255),
+                g: Math.round(parseFloat(parts[2]) * 255),
+                b: Math.round(parseFloat(parts[3]) * 255)
+            };
+        } else if (tag === 'Ks') {
+            const ks = parts.slice(1).map(parseFloat);
+            current.reflectivity = Math.max(...ks);
+        } else if (tag === 'Ns') {
+            const ns = parseFloat(parts[1]);
+            current.roughness = Math.max(0, Math.min(1, 1 - ns/1000));
+        } else if (tag === 'Ni') {
+            const ni = parseFloat(parts[1]);
+            current.ior = (ni === 1.0) ? null : ni;
+        } else if (tag === 'd') {
+            const alpha = parseFloat(parts[1]);
+            current.opacity = alpha;
+            if (alpha < 1 && current.ior == null) current.ior = 1.5;
+        } else if (tag === 'Ke') {
+            current.emission = {
+                r: Math.round(parseFloat(parts[1]) * 255),
+                g: Math.round(parseFloat(parts[2]) * 255),
+                b: Math.round(parseFloat(parts[3]) * 255)
+            };
+            current.emissionStrength = Math.max(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
+        } else if (tag === 'map_Kd') {
+            current.map_Kd = parts[1]; // store texture filename
+        }
+    }
+    return materials;
 }
 
 const ground = new Material({
@@ -448,7 +549,7 @@ const light = new Material({
     roughness: 0.0,
     ior: null,
     emission: {r:255,g:255,b:255},
-    emissionStrength: 5
+    emissionStrength: 4
 });
 
 const sun = new Material({
@@ -500,11 +601,35 @@ const magentaGlow = new Material({
     emissionStrength:2
 });
 
+const yellowGlow = new Material({
+    color:{r:255,g:255,b:0},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:255,g:255,b:0},
+    emissionStrength:2
+});
+
 const redGlow = new Material({
     color:{r:255,g:0,b:0},
     reflectivity:0.0,
     roughness:0.3,
     emission:{r:255,g:0,b:0},
+    emissionStrength:2
+});
+
+const greenGlow = new Material({
+    color:{r:0,g:255,b:0},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:0,g:255,b:0},
+    emissionStrength:2
+});
+
+const blueGlow = new Material({
+    color:{r:0,g:0,b:255},
+    reflectivity:0.0,
+    roughness:0.3,
+    emission:{r:0,g:0,b:255},
     emissionStrength:2
 });
 
@@ -557,7 +682,8 @@ const scene = {
         { center:{x:9,y:0,z:-5}, radius:1, material: whiteMat },
         { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat }, // mirror balls
         { center:{x:3,y:0,z:-8}, radius:1, material: mirrorMat },
-        { center:{x:1.5,y:4,z:-6.5}, radius:1, material: light }, // light above the four reflective ones
+        { center:{x:1.5,y:5,z:-6.5}, radius:1, material: light }, // light above the four reflective ones
+        { center:{x:-10,y:10,z:10}, radius:3, material: light }, // light above rock
         { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
         { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
         { center:{x:12,y:0,z:-5}, radius:1, material: redGlow },
@@ -565,22 +691,51 @@ const scene = {
         // { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
     ],
     triangles: [
-        { v0:{x:100,y:-1,z:-100}, v1:{x:-100,y:-1,z:-100}, v2:{x:0,y:-1,z:100}, material: ground } // ground
+        { v0:{x:1000,y:-1,z:-1000}, v1:{x:-1000,y:-1,z:-1000}, v2:{x:0,y:-1,z:1000}, material: ground } // ground
     ]
 };
 
 // Glass wall
-const box = new RectangularPrism(
+const wall = new RectangularPrism(
     {x:10,y:-1,z:-2}, // min corner
     {x:15,y:2,z:-1},  // max corner
     glass
 );
-scene.triangles.push(...box.triangles);
+scene.triangles.push(...wall.triangles);
 
+// Glowing cyan pillar
 scene.triangles.push(...new RectangularPrism(
     {x:17,y:-1,z:-2}, // min corner
     {x:18,y:2,z:-1},  // max corner
     cyanGlow
+).triangles);
+
+// Glowing red cube
+scene.triangles.push(...new RectangularPrism(
+    {x:9,y:1,z:9}, // min corner
+    {x:10,y:2,z:10},  // max corner
+    redGlow
+).triangles);
+
+// Glass cube
+scene.triangles.push(...new RectangularPrism(
+    {x:9,y:1,z:7}, // min corner
+    {x:10,y:2,z:8},  // max corner
+    glass
+).triangles);
+
+// Glowing green cube
+scene.triangles.push(...new RectangularPrism(
+    {x:11,y:1,z:7}, // min corner
+    {x:12,y:2,z:8},  // max corner
+    greenGlow
+).triangles);
+
+// Glowing blue cube
+scene.triangles.push(...new RectangularPrism(
+    {x:9,y:-1,z:7}, // min corner
+    {x:10,y:0,z:8},  // max corner
+    blueGlow
 ).triangles);
 
 const camera = new Camera(canvas.width, canvas.height);
@@ -986,28 +1141,71 @@ function requeueAll() {
     }
 }
 
-async function loadModelsAndBuildBVH() {
-    // Load all async models
-    const suzanne = await loadOBJ("objects/suzanne.obj", whiteMat, {
-        position: {x:-0.5, y:0, z:-14},
-        rotation: {x:0, y:0, z:0}, // degrees
-        scale: {x:1.5, y:1.5, z:1.5}
-    })
-    /*
-    const teapot = await loadOBJ("objects/teapot.obj", whiteMat, {
-        position: {x:10, y:1, z:-10},
-        rotation: {x:0, y:0, z:0}, // degrees
-        scale: {x:0.05, y:0.05, z:0.05}
-    })
-    */
+// models = [
+//   { obj:"path/to.obj", mtl:"path/to.mtl", transform:{...}, material: customMaterial },
+//   { obj:"...", mtl:"...", ... }
+// ]
+async function loadModelsAndBuildBVH(models) {
+    const allTriangles = [];
 
-    // Push them into the scene
-    scene.triangles.push(...suzanne.triangles);
-    //scene.triangles.push(...teapot.triangles);
-    
+    for (const m of models) {
+        // Load files
+        const [objText, mtlText] = await Promise.all([
+            fetch(m.obj).then(r => r.text()),
+            m.mtl ? fetch(m.mtl).then(r => r.text()) : Promise.resolve("")
+        ]);
 
-    // Rebuild BVH once all models are loaded
+        // Parse materials from MTL (if any)
+        const materials = mtlText ? parseMTL(mtlText) : {};
+
+        // Load textures
+        for (const name in materials) {
+            const mat = materials[name];
+            if (mat.map_Kd) {
+                mat.textureImage = await loadTexture("objects/" + mat.map_Kd);
+            }
+        }
+
+        // Parse OBJ with materials
+        const { triangles } = parseOBJ(objText, materials);
+
+        // If a custom material override was provided, apply it
+        if (m.material) {
+            for (const tri of triangles) {
+                tri.material = m.material;
+            }
+        }
+
+        // Apply optional transform
+        if (m.transform) {
+            for (const tri of triangles) {
+                tri.v0 = applyTransform(tri.v0, m.transform.position, m.transform.rotation, m.transform.scale);
+                tri.v1 = applyTransform(tri.v1, m.transform.position, m.transform.rotation, m.transform.scale);
+                tri.v2 = applyTransform(tri.v2, m.transform.position, m.transform.rotation, m.transform.scale);
+            }
+        }
+
+        allTriangles.push(...triangles);
+    }
+
+    // Merge into scene
+    scene.triangles.push(...allTriangles);
+
+    // Build BVH once for all imported geometry
     bvhRootPreview = buildBVH(scene.triangles);
+}
+
+async function loadTexture(url) {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    console.log("Loaded", url, img.width, img.height)
+    return ctx.getImageData(0, 0, img.width, img.height);
 }
 
 function tick() {
@@ -1029,7 +1227,17 @@ function tick() {
 }
 
 let bvhRootPreview;
-loadModelsAndBuildBVH().then(() => {
+loadModelsAndBuildBVH([
+    { obj: "objects/Rock1.obj", mtl: "objects/Rock1.mtl", transform: { 
+        position:{x:-15,y:0,z:5}, rotation:{x:0,y:90,z:0}, scale:{x:2,y:2,z:2} 
+    }},
+    { obj: "objects/Earth2K.obj", mtl: "objects/Earth2K.mtl", transform: { 
+        position:{x:0,y:2,z:5}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} 
+    }},
+    { obj: "objects/suzanne.obj", material: whiteMat, transform: { 
+        position:{x:-0.5,y:0,z:-14}, rotation:{x:0,y:0,z:0}, scale:{x:1.5,y:1.5,z:1.5},
+    }}
+]).then(() => {
     // set render resolution before allocating buffers
     canvas.width  = RENDER_WIDTH;
     canvas.height = RENDER_HEIGHT;

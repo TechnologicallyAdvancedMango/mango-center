@@ -86,7 +86,7 @@ function intersectTriangle(ray, tri) {
             normal = { x:-normal.x, y:-normal.y, z:-normal.z };
         }
 
-        return { t, hitPoint, normal, material: tri.material, frontFace };
+        return { t, hitPoint, normal, material: tri.material, frontFace, tri };
     }
     return null;
 }
@@ -301,6 +301,41 @@ function traverseBVH(node, rayOrig, rayDir) {
     return best;
 }
 
+function sampleTexture(material, uv) {
+    if (!material.textureImage) return material.color;
+
+    // bilinear sample from loaded ImageData
+    const x = Math.floor(uv.u * material.textureImage.width) % material.textureImage.width;
+    const y = Math.floor((1 - uv.v) * material.textureImage.height) % material.textureImage.height;
+    const idx = (y * material.textureImage.width + x) * 4;
+    return {
+        r: material.textureImage.data[idx],
+        g: material.textureImage.data[idx+1],
+        b: material.textureImage.data[idx+2]
+    };
+}
+
+function interpolateUV(tri, p) {
+    // compute barycentric coordinates
+    const v0 = sub(tri.v1, tri.v0);
+    const v1 = sub(tri.v2, tri.v0);
+    const v2 = sub(p, tri.v0);
+    const d00 = dot(v0,v0);
+    const d01 = dot(v0,v1);
+    const d11 = dot(v1,v1);
+    const d20 = dot(v2,v0);
+    const d21 = dot(v2,v1);
+    const denom = d00 * d11 - d01 * d01;
+    const v = (d11 * d20 - d01 * d21) / denom;
+    const w = (d00 * d21 - d01 * d20) / denom;
+    const u = 1 - v - w;
+
+    return {
+        u: tri.uv0.u * u + tri.uv1.u * v + tri.uv2.u * w,
+        v: tri.uv0.v * u + tri.uv1.v * v + tri.uv2.v * w
+    };
+}
+
 function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     let closest = Infinity;
     let hitObj = null;
@@ -381,12 +416,23 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
         z: hitPoint.z + normal.z * EPS
     };
 
-    // Albedo
-    const albedo = {
-        r: (mat.color.r || 0) / 255,
-        g: (mat.color.g || 0) / 255,
-        b: (mat.color.b || 0) / 255
-    };
+    // Albedo uses textures if they're there
+    let albedo;
+    if (mat.textureImage && resTri.tri && resTri.tri.uv0 && resTri.tri.uv1 && resTri.tri.uv2) {
+        const uv = interpolateUV(resTri.tri, hitPoint);
+        const texColor = sampleTexture(mat, uv);
+        albedo = {
+            r: texColor.r / 255,
+            g: texColor.g / 255,
+            b: texColor.b / 255
+        };
+    } else {
+        albedo = {
+            r: (mat.color.r || 0) / 255,
+            g: (mat.color.g || 0) / 255,
+            b: (mat.color.b || 0) / 255
+        };
+    }
 
     const cosTheta = Math.max(0.0, dot(bounceDir, normal));
     let nextThroughput = {
