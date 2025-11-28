@@ -756,22 +756,41 @@ function startWorkers() {
         up: basis.up
     };
 
-    const sliceHeight = Math.floor(canvas.height / numWorkers);
-
-    for (let i = 0; i < numWorkers; i++) {
-        const yStart = i * sliceHeight;
-        const h = (i === numWorkers-1) ? canvas.height - yStart : sliceHeight;
-
-        workers[i].postMessage({
-            scene,
-            camera: camPayload,
-            x: 0,
-            y: yStart,
-            width: canvas.width,
-            height: h,
-            frameId: currentGen,
-            samplesPerPixel
-        });
+    // decide whether to split horizontally or vertically
+    if (canvas.width >= canvas.height) {
+        // split along X (vertical strips)
+        const sliceWidth = Math.floor(canvas.width / numWorkers);
+        for (let i = 0; i < numWorkers; i++) {
+            const xStart = i * sliceWidth;
+            const w = (i === numWorkers - 1) ? canvas.width - xStart : sliceWidth;
+            workers[i].postMessage({
+                scene,
+                camera: camPayload,
+                x: xStart,
+                y: 0,
+                width: w,
+                height: canvas.height,
+                frameId: currentGen,
+                samplesPerPixel
+            });
+        }
+    } else {
+        // split along Y (horizontal strips)
+        const sliceHeight = Math.floor(canvas.height / numWorkers);
+        for (let i = 0; i < numWorkers; i++) {
+            const yStart = i * sliceHeight;
+            const h = (i === numWorkers - 1) ? canvas.height - yStart : sliceHeight;
+            workers[i].postMessage({
+                scene,
+                camera: camPayload,
+                x: 0,
+                y: yStart,
+                width: canvas.width,
+                height: h,
+                frameId: currentGen,
+                samplesPerPixel
+            });
+        }
     }
 }
 
@@ -929,22 +948,41 @@ function requeueAll() {
         up: basis.up
     };
 
-    const sliceHeight = Math.floor(canvas.height / numWorkers);
-
-    for (let i = 0; i < numWorkers; i++) {
-        const yStart = i * sliceHeight;
-        const h = (i === numWorkers - 1) ? canvas.height - yStart : sliceHeight;
-
-        workers[i].postMessage({
-            scene,
-            camera: camPayload,
-            x: 0,
-            y: yStart,
-            width: canvas.width,
-            height: h,
-            frameId: currentGen,
-            samplesPerPixel
-        });
+    // Decide whether to split horizontally or vertically
+    if (canvas.width >= canvas.height) {
+        // split along X (vertical strips)
+        const sliceWidth = Math.floor(canvas.width / numWorkers);
+        for (let i = 0; i < numWorkers; i++) {
+            const xStart = i * sliceWidth;
+            const w = (i === numWorkers - 1) ? canvas.width - xStart : sliceWidth;
+            workers[i].postMessage({
+                scene,
+                camera: camPayload,
+                x: xStart,
+                y: 0,
+                width: w,
+                height: canvas.height,
+                frameId: currentGen,
+                samplesPerPixel
+            });
+        }
+    } else {
+        // split along Y (horizontal strips)
+        const sliceHeight = Math.floor(canvas.height / numWorkers);
+        for (let i = 0; i < numWorkers; i++) {
+            const yStart = i * sliceHeight;
+            const h = (i === numWorkers - 1) ? canvas.height - yStart : sliceHeight;
+            workers[i].postMessage({
+                scene,
+                camera: camPayload,
+                x: 0,
+                y: yStart,
+                width: canvas.width,
+                height: h,
+                frameId: currentGen,
+                samplesPerPixel
+            });
+        }
     }
 }
 
