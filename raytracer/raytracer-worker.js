@@ -528,7 +528,7 @@ function trace(ray, scene, depth=0, throughput={r:1,g:1,b:1}, specDepth=0) {
     };
 }
 
-const maxRayBounces = 10; // Max reflection bounces, diffuse and specular
+const maxRayBounces = 10; // Max reflection bounces, both diffuse and specular
 const rrStartDepth = 3; // start Russian roulette
 
 const SAMPLES_PER_FRAME = 1;

@@ -1,6 +1,12 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext('2d');
 
+// Read URL parameters
+const params = new URLSearchParams(window.location.search);
+
+const resDiv = parseInt(params.get("resDiv")) || 2;
+samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–2 for speed, higher for quality
+
 // Match internal resolution to CSS size
 canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
@@ -10,11 +16,8 @@ const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 12);
 const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 12);
 
 // Render resolution (higher quality)
-const RENDER_WIDTH  = Math.floor(canvas.clientWidth / 2);
-const RENDER_HEIGHT = Math.floor(canvas.clientHeight / 2);
-
-// how many samples each worker computes per pixel, per batch
-const samplesPerPixel = 1; // 1–4 for speed, higher for quality
+const RENDER_WIDTH  = Math.floor(canvas.clientWidth / resDiv);
+const RENDER_HEIGHT = Math.floor(canvas.clientHeight / resDiv);
 
 let autoPreview = false;    // automatic preview on movement
 let manualPreview = true;   // manual toggle when autoPreview is false
@@ -508,12 +511,13 @@ function parseMTL(mtlText) {
             current.opacity = alpha;
             if (alpha < 1 && current.ior == null) current.ior = 1.5;
         } else if (tag === 'Ke') {
+            const r = parseFloat(parts[1]);
+            const g = parseFloat(parts[2]);
+            const b = parseFloat(parts[3]);
             current.emission = {
-                r: Math.round(parseFloat(parts[1]) * 255),
-                g: Math.round(parseFloat(parts[2]) * 255),
-                b: Math.round(parseFloat(parts[3]) * 255)
+                r: r, g: g, b: b
             };
-            current.emissionStrength = Math.max(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
+            current.emissionStrength = Math.max(r,g,b); // intensity
         } else if (tag === 'map_Kd') {
             current.map_Kd = parts[1]; // store texture filename
         }
@@ -561,10 +565,20 @@ const sun = new Material({
     emissionStrength: 2
 });
 
-const redMat = new Material({
+const redWall = new Material({
     color:{r:255,g:0,b:0},
-    reflectivity:0.2,
-    roughness:0.2
+    reflectivity:0,
+    roughness:0.8
+});
+const greenWall = new Material({
+    color:{r:0,g:255,b:0},
+    reflectivity:0,
+    roughness:0.8
+});
+const whiteWall = new Material({
+    color:{r:255,g:255,b:255},
+    reflectivity:0,
+    roughness:0.8
 });
 
 const greenMat = new Material({
@@ -1231,12 +1245,10 @@ loadModelsAndBuildBVH([
     { obj: "objects/Rock1.obj", mtl: "objects/Rock1.mtl", transform: { 
         position:{x:-15,y:0,z:5}, rotation:{x:0,y:90,z:0}, scale:{x:2,y:2,z:2} 
     }},
-    { obj: "objects/Earth2K.obj", mtl: "objects/Earth2K.mtl", transform: { 
-        position:{x:0,y:2,z:5}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} 
-    }},
     { obj: "objects/suzanne.obj", material: whiteMat, transform: { 
         position:{x:-0.5,y:0,z:-14}, rotation:{x:0,y:0,z:0}, scale:{x:1.5,y:1.5,z:1.5},
-    }}
+    }},
+    // { obj:"objects/cornellBox.obj", mtl:"objects/cornellBox.mtl" }
 ]).then(() => {
     // set render resolution before allocating buffers
     canvas.width  = RENDER_WIDTH;
