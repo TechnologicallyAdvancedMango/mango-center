@@ -36,7 +36,7 @@ class Camera {
         this.yaw = 0;   // left/right rotation
         this.pitch = 0; // up/down rotation
         this.speed = 0.1;
-        this.fov = 60; // also set in workers
+        this.fov = 60;
     }
 
     getDirection(u, v) {
@@ -698,8 +698,8 @@ const scene = {
         { center:{x:9,y:0,z:-5}, radius:1, material: whiteMat },
         { center:{x:3,y:0,z:-5}, radius:1, material: mirrorMat }, // mirror balls
         { center:{x:3,y:0,z:-8}, radius:1, material: mirrorMat },
-        { center:{x:1.5,y:5,z:-6.5}, radius:1, material: light }, // light above the four reflective ones
-        { center:{x:-10,y:10,z:10}, radius:3, material: light }, // light above rock
+        // { center:{x:1.5,y:5,z:-6.5}, radius:1, material: light }, // light above the four reflective ones
+        // { center:{x:-10,y:10,z:10}, radius:3, material: light }, // light above rock
         { center:{x:-3,y:0,z:-5}, radius:1, material: cyanGlow },
         { center:{x:-5.5,y:0,z:-5}, radius:1, material: magentaGlow },
         { center:{x:12,y:0,z:-5}, radius:1, material: redGlow },
@@ -707,9 +707,17 @@ const scene = {
         // { center:{x:30,y:40,z:-70}, radius:30, material: sun } // sun
     ],
     triangles: [
-        { v0:{x:1000,y:-1,z:-1000}, v1:{x:-1000,y:-1,z:-1000}, v2:{x:0,y:-1,z:1000}, material: ground } // ground
+        { v0:{x:10000,y:-1,z:-10000}, v1:{x:-10000,y:-1,z:-10000}, v2:{x:0,y:-1,z:10000}, material: ground } // ground
     ]
 };
+
+// Light above everything
+const skyLight = new RectangularPrism(
+    {x:-50,y:50,z:-50}, // min corner
+    {x:-20,y:51,z:-20},  // max corner
+    light
+);
+scene.triangles.push(...skyLight.triangles);
 
 // Glass wall
 const wall = new RectangularPrism(
@@ -797,8 +805,28 @@ document.addEventListener("keyup", e => {
     cameraChanged = true;
 });
 
+
+window.addEventListener('wheel', (event) => {
+    if (!isPreviewMode()) return;
+    if (document.pointerLockElement === canvas) {
+        // Check the scroll direction
+        if (event.deltaY > 0) {
+            // down: zoom out
+            camera.fov *= 1.1; // higher fov
+            // limit to 180
+            if (camera.fov > 180) camera.fov = 180;
+        } else if (event.deltaY < 0) {
+            // up: zoom in
+            camera.fov *= 0.9; // lower fov
+        }
+
+        // prevent default browser scrolling behavior
+        event.preventDefault(); 
+    }
+});
+
 document.addEventListener("mousemove", e => {
-    if (!(isPreviewMode())) return;
+    if (!isPreviewMode()) return;
     if (document.pointerLockElement === canvas) {
         camera.yaw   -= e.movementX * 0.002;
         camera.pitch += e.movementY * 0.002;
@@ -921,7 +949,7 @@ function startWorkers() {
         position: { ...camera.position },
         width: RENDER_WIDTH,
         height: RENDER_HEIGHT,
-        fov: 60,
+        fov: camera.fov,
         forward: basis.forward,
         right: basis.right,
         up: basis.up
@@ -1113,7 +1141,7 @@ function requeueAll() {
         position: { ...camera.position },
         width: RENDER_WIDTH,
         height: RENDER_HEIGHT,
-        fov: 60,
+        fov: camera.fov,
         forward: basis.forward,
         right: basis.right,
         up: basis.up
