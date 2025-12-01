@@ -399,6 +399,8 @@ function parseOBJ(objText, materialsDict) {
     return { triangles };
 }
 
+let materials = [];
+
 class Material {
     constructor({
         color = {r:255,g:255,b:255},
@@ -416,6 +418,8 @@ class Material {
         this.emission = emission;
         this.emissionStrength = emissionStrength;
         this.doubleSided = doubleSided;
+
+        materials.push(this);
     }
 }
 
@@ -591,6 +595,7 @@ const blueGlow = new Material({
     emissionStrength:2
 });
 
+materials.forEach((mat, i) => mat.id = i);
 
 function getCameraBasis(camera) {
     const cosYaw = Math.cos(camera.yaw), sinYaw = Math.sin(camera.yaw);
@@ -712,7 +717,7 @@ const sphereData = new Float32Array(scene.spheres.length * 8);
 scene.spheres.forEach((s, i) => {
     sphereData.set([
         s.center.x, s.center.y, s.center.z, s.radius,
-        s.materialId || 0, 0, 0, 0
+        s.material.id, 0, 0, 0
     ], i * 8);
 });
 
@@ -723,7 +728,7 @@ scene.triangles.forEach((t, i) => {
         t.v0.x, t.v0.y, t.v0.z, 0,
         t.v1.x, t.v1.y, t.v1.z, 0,
         t.v2.x, t.v2.y, t.v2.z, 0,
-        t.materialId || 0, 0, 0, 0
+        t.material.id, 0, 0, 0
     ], i * 16);
 });
 
@@ -737,6 +742,19 @@ const camData = new Float32Array([
     samplesPerPixel, 0, 0, 0
 ]);
 
+const matData = new Float32Array(materials.length * 12); // 12 floats per Material
+materials.forEach((m, i) => {
+    matData.set([
+        m.color.r/255, m.color.g/255, m.color.b/255, 1.0,
+        m.reflectivity,
+        m.roughness,
+        m.ior || 0.0,
+        m.emission.r/255, m.emission.g/255, m.emission.b/255,
+        m.emissionStrength,
+        0 // padding
+    ], i * 12);
+});
+
 const sphereBuffer = device.createBuffer({
     size: sphereData.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
@@ -749,6 +767,17 @@ const cameraBuffer = device.createBuffer({
     size: camData.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 });
+
+const materialBuffer = device.createBuffer({
+    size: matData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+});
+
+device.queue.writeBuffer(sphereBuffer,   0, sphereData.buffer, sphereData.byteOffset, sphereData.byteLength);
+device.queue.writeBuffer(triangleBuffer, 0, triData.buffer,     triData.byteOffset,   triData.byteLength);
+device.queue.writeBuffer(cameraBuffer,   0, camData.buffer,     camData.byteOffset,   camData.byteLength);
+device.queue.writeBuffer(materialBuffer, 0, matData.buffer);
+
 
 const keys = {};
 
@@ -909,7 +938,8 @@ function initPipelines() {
             { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
             { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
             { binding: 3, visibility: GPUShaderStage.COMPUTE,
-            storageTexture: { access: "write-only", format: "rgba16float" } }
+            storageTexture: { access: "write-only", format: "rgba16float" } },
+            { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }
         ]
     });
 
@@ -945,12 +975,13 @@ function rebuildBindGroups() {
     // binding(2): camera    (uniform buffer)
     // binding(3): accumTex  (write-only storage texture rgba16float)
     computeBindGroup = device.createBindGroup({
-    layout: computePipeline.getBindGroupLayout(0),
+        layout: computePipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: sphereBuffer } },
             { binding: 1, resource: { buffer: triangleBuffer } },
             { binding: 2, resource: { buffer: cameraBuffer } },
-            { binding: 3, resource: accumTex.createView() }
+            { binding: 3, resource: accumTex.createView() },
+            { binding: 4, resource: { buffer: materialBuffer } }
         ]
     });
 

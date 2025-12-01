@@ -10,6 +10,15 @@ struct Triangle {
     mat : vec4<u32>,            // x = materialId
 };
 
+struct Material {
+    color           : vec4<f32>,   // rgb in 0–1, a unused
+    reflectivity    : f32,
+    roughness       : f32,
+    ior             : f32,        // 0 = opaque
+    emission        : vec3<f32>,
+    emissionStrength: f32,
+};
+
 struct CameraData {
     pos_fov : vec4<f32>,        // xyz = position, w = fov
     forward : vec4<f32>,
@@ -22,6 +31,7 @@ struct CameraData {
 @group(0) @binding(1) var<storage, read> triangles : array<Triangle>;
 @group(0) @binding(2) var<uniform>       camera    : CameraData;
 @group(0) @binding(3) var                 outImage  : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(4) var<storage, read> materials : array<Material>;
 
 // -----------------------------
 // Math helpers
@@ -189,6 +199,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
 
         // Miss → background
         if (closestT == 1e9) {
+            color = color + throughput * vec3<f32>(0.2, 0.3, 0.5);
             break;
         }
 
@@ -199,27 +210,33 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         if (hitIsSphere) {
             let s = spheres[hitSphereIdx];
             normal = normalize(hitPoint - s.center_radius.xyz);
-            matId  = s.material.x;
+            matId  = u32(s.material.x);
         } else {
             let tri = triangles[hitTriIdx];
             let e1  = tri.v1.xyz - tri.v0.xyz;
             let e2  = tri.v2.xyz - tri.v0.xyz;
             normal  = normalize(cross(e1, e2));
             if (dot(normal, rayDir) > 0.0) { normal = -normal; }
-            matId   = tri.mat.x;
+            matId   = u32(tri.mat.x);
         }
 
+        // Fetch material from buffer
+        let mat = materials[matId];
+        let albedo      = mat.color.rgb;
+        let refl        = mat.reflectivity;
+        let rough       = mat.roughness;
+        let ior         = mat.ior;
+        let emRGB       = mat.emission;
+        let emStrength  = mat.emissionStrength;
+
         // Emissive
-        let emStrength = get_emission_strength(matId);
         if (emStrength > 0.0) {
-            let emRGB = get_emission_rgb(matId);
             color = color + throughput * (emRGB * emStrength);
             break;
         }
 
         // Depth cap
         if (depth >= MAX_RAY_BOUNCES) {
-            let albedo = get_albedo(matId);
             color = color + throughput * albedo;
             break;
         }
@@ -234,13 +251,11 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
 
         // Cosine diffuse bounce
         let bounceDir = cosineSampleHemisphere(normal, seed * 73u + depth * 97u);
-        let albedo   = get_albedo(matId);
-        let cosTheta = max(0.0, dot(normal, vec3<f32>(0.0,1.0,0.0))); // light from above
+        let cosTheta  = max(0.0, dot(normal, vec3<f32>(0.0,1.0,0.0))); // light from above
         color = color + throughput * albedo * cosTheta;
         var nextThroughput = throughput * albedo * cosTheta;
 
-        var refl = get_reflectivity(matId);
-        refl = clamp(refl, 0.0, 1.0);
+        var reflClamped = clamp(refl, 0.0, 1.0);
 
         // Reflection only if specDepth not saturated
         if (specDepth >= MAX_RAY_BOUNCES) {
@@ -250,13 +265,11 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             continue;
         }
 
-        let ior = get_ior(matId);
         if (ior > 0.0) {
             let entering = dot(rayDir, normal) < 0.0;
             let etai = select(ior, 1.0, entering);
             let etat = select(1.0, ior, entering);
             let kr   = fresnel_schlick(rayDir, normal, ior);
-            let rough = get_roughness(matId);
 
             var reflDir = normalize(reflect3(rayDir, normal));
             reflDir = normalize(mix(reflDir,
@@ -276,14 +289,13 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         }
 
         // Specular + diffuse blend
-        let rough = get_roughness(matId);
         var specDir = normalize(reflect3(rayDir, normal));
         specDir = normalize(mix(specDir,
             cosineSampleHemisphere(normal, seed * 997u + depth * 883u),
             rough));
 
-        let specShare = refl;
-        let diffShare = 1.0 - refl;
+        let specShare = reflClamped;
+        let diffShare = 1.0 - reflClamped;
 
         rayOrig    = hitPoint + normal * 1e-4;
         rayDir     = specDir;
