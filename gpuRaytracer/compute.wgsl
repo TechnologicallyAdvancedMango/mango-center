@@ -11,12 +11,9 @@ struct Triangle {
 };
 
 struct Material {
-    color           : vec4<f32>,   // rgb in 0–1, a unused
-    reflectivity    : f32,
-    roughness       : f32,
-    ior             : f32,        // 0 = opaque
-    emission        : vec3<f32>,
-    emissionStrength: f32,
+    color    : vec4<f32>,   // rgb, a unused
+    params   : vec4<f32>,   // x=reflectivity, y=roughness, z=ior, w unused
+    emissive : vec4<f32>,   // rgb, w=strength
 };
 
 struct CameraData {
@@ -27,11 +24,18 @@ struct CameraData {
     spp     : vec4<u32>,        // x = samplesPerPixel
 };
 
+struct FrameData {
+    frameIndex : u32,
+};
+
 @group(0) @binding(0) var<storage, read> spheres   : array<Sphere>;
 @group(0) @binding(1) var<storage, read> triangles : array<Triangle>;
 @group(0) @binding(2) var<uniform>       camera    : CameraData;
-@group(0) @binding(3) var                 outImage  : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var outImage : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(4) var<storage, read> materials : array<Material>;
+@group(0) @binding(5) var<uniform> frame : FrameData;
+@group(0) @binding(6) var prevImage : texture_2d<f32>;
+@group(0) @binding(7) var samp : sampler;
 
 // -----------------------------
 // Math helpers
@@ -68,12 +72,22 @@ fn fresnel_schlick(d: vec3<f32>, n: vec3<f32>, ior: f32) -> f32 {
     return (Rs*Rs + Rp*Rp)*0.5;
 }
 
+fn radians(deg: f32) -> f32 {
+    return deg * 0.017453292519943295; // pi/180
+}
+
 fn hash(u: u32) -> f32 {
     var x = u;
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
     return f32(x & 0x00FFFFFFu) / f32(0x00FFFFFFu);
+}
+
+fn hash2(u: u32, v: u32, frame: u32, sample: u32) -> u32 {
+    var x = u * 374761393u + v * 668265263u + frame * 982451653u + sample * 2654435761u;
+    x = (x ^ (x >> 13)) * 1274126177u;
+    return x;
 }
 
 fn cosineSampleHemisphere(n: vec3<f32>, seed: u32) -> vec3<f32> {
@@ -177,7 +191,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         var hitSphereIdx = 0u;
         var hitTriIdx    = 0u;
 
-        // Sphere intersections
+        // Intersect
         for (var i = 0u; i < arrayLength(&spheres); i = i + 1u) {
             let t = intersectSphere(rayOrig, rayDir, spheres[i]);
             if (t > 0.0 && t < closestT) {
@@ -186,8 +200,6 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
                 hitSphereIdx = i;
             }
         }
-
-        // Triangle intersections
         for (var j = 0u; j < arrayLength(&triangles); j = j + 1u) {
             let t = intersectTriangle(rayOrig, rayDir, triangles[j]);
             if (t > 0.0 && t < closestT) {
@@ -197,9 +209,9 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             }
         }
 
-        // Miss → background
+        // Miss → background (black)
         if (closestT == 1e9) {
-            color = color + throughput * vec3<f32>(0.2, 0.3, 0.5);
+            color = color + throughput * vec3<f32>(0, 0, 0);
             break;
         }
 
@@ -220,14 +232,14 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             matId   = u32(tri.mat.x);
         }
 
-        // Fetch material from buffer
-        let mat = materials[matId];
-        let albedo      = mat.color.rgb;
-        let refl        = mat.reflectivity;
-        let rough       = mat.roughness;
-        let ior         = mat.ior;
-        let emRGB       = mat.emission;
-        let emStrength  = mat.emissionStrength;
+        // Material
+        let mat        = materials[matId];
+        let albedo     = mat.color.rgb;
+        let refl       = mat.params.x;
+        let rough      = mat.params.y;
+        let ior        = mat.params.z;
+        let emRGB      = mat.emissive.rgb;
+        let emStrength = mat.emissive.w;
 
         // Emissive
         if (emStrength > 0.0) {
@@ -249,60 +261,54 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             throughput = throughput / p;
         }
 
-        // Cosine diffuse bounce
-        let bounceDir = cosineSampleHemisphere(normal, seed * 73u + depth * 97u);
-        let cosTheta  = max(0.0, dot(normal, vec3<f32>(0.0,1.0,0.0))); // light from above
-        color = color + throughput * albedo * cosTheta;
-        var nextThroughput = throughput * albedo * cosTheta;
-
-        var reflClamped = clamp(refl, 0.0, 1.0);
-
-        // Reflection only if specDepth not saturated
-        if (specDepth >= MAX_RAY_BOUNCES) {
-            rayOrig    = hitPoint + normal * 1e-4;
-            rayDir     = normalize(bounceDir);
-            throughput = nextThroughput;
-            continue;
-        }
-
+        // Dielectric (glass): Fresnel split only (no diffuse)
         if (ior > 0.0) {
             let entering = dot(rayDir, normal) < 0.0;
-            let etai = select(ior, 1.0, entering);
-            let etat = select(1.0, ior, entering);
-            let kr   = fresnel_schlick(rayDir, normal, ior);
+            let etai = select(ior, 1.0, entering); // returns 1.0 if entering==true, else ior
+            let etat = select(1.0, ior, entering); // returns ior if entering==true, else 1.0
 
-            var reflDir = normalize(reflect3(rayDir, normal));
-            reflDir = normalize(mix(reflDir,
-                cosineSampleHemisphere(normal, seed * 313u + depth * 271u),
-                rough));
+            // Fresnel reflectance at interface
+            let kr = fresnel_schlick(rayDir, normal, ior);
 
-            rayOrig    = hitPoint + normal * 1e-4;
-            rayDir     = reflDir;
-            throughput = throughput * kr;
-            specDepth  = specDepth + 1u;
-
+            let reflDir = normalize(reflect3(rayDir, normal));
             let refrDir = refract3(rayDir, normal, etai, etat);
-            if (length(refrDir) > 0.0) {
-                nextThroughput = nextThroughput + throughput * (1.0 - kr);
+            let doReflect = (hash(seed * 313u + depth) < kr) || (length(refrDir) == 0.0);
+
+            if (doReflect) {
+                rayOrig    = hitPoint + normal * 1e-4;
+                rayDir     = reflDir;
+                // For clear glass, do NOT tint reflection by albedo; use spec multiplier if desired
+                throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
+                specDepth  = specDepth + 1u;
+            } else {
+                // Step slightly inside when refracting
+                rayOrig    = hitPoint - normal * 1e-4;
+                rayDir     = refrDir;
+                // Transmission: for clear glass, leave throughput unchanged (or apply Beer-Lambert absorption later)
+                throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
             }
             continue;
         }
 
-        // Specular + diffuse blend
+        // Non‑dielectric: specular + diffuse blend
+        let nextThroughput = throughput * albedo;
+
         var specDir = normalize(reflect3(rayDir, normal));
         specDir = normalize(mix(specDir,
             cosineSampleHemisphere(normal, seed * 997u + depth * 883u),
             rough));
 
-        let specShare = reflClamped;
-        let diffShare = 1.0 - reflClamped;
+        let specShare = clamp(refl, 0.0, 1.0);
+        let diffShare = 1.0 - specShare;
 
+        // Take specular direction as the next ray
         rayOrig    = hitPoint + normal * 1e-4;
         rayDir     = specDir;
         throughput = throughput * specShare;
         specDepth  = specDepth + 1u;
 
-        throughput = throughput + nextThroughput * diffShare;
+        // Accumulate diffuse energy into throughput budget
+        throughput = throughput + (nextThroughput * diffShare);
     }
 
     return color;
@@ -316,8 +322,17 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let dims = textureDimensions(outImage);
     if (gid.x >= dims.x || gid.y >= dims.y) { return; }
 
-    let u = (f32(gid.x) / f32(dims.x)) * 2.0 - 1.0;
-    let v = (f32(gid.y) / f32(dims.y)) * 2.0 - 1.0;
+    // Pixel-centered NDC
+    let ndc_x = (f32(gid.x) + 0.5) / f32(dims.x) * 2.0 - 1.0;
+    let ndc_y = (f32(gid.y) + 0.5) / f32(dims.y) * 2.0 - 1.0;
+
+    // Aspect and vertical scale from FOV
+    let aspect = f32(dims.x) / f32(dims.y);
+    let tanHalfFov = tan(radians(camera.pos_fov.w) * 0.5);
+
+    // Scale image plane: horizontal gets aspect * tanHalfFov, vertical gets tanHalfFov
+    let u = ndc_x * aspect * tanHalfFov;
+    let v = ndc_y * tanHalfFov;
 
     let rayOrig = camera.pos_fov.xyz;
     let rayDir  = normalize(
@@ -326,8 +341,20 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
         v * camera.up.xyz
     );
 
-    let seed = gid.x * 131u + gid.y * 911u + camera.spp.x;
-    let col  = trace(rayOrig, rayDir, seed);
+    let spp = camera.spp.x;
+    var col = vec3<f32>(0.0);
+    for (var i = 0u; i < spp; i = i + 1u) {
+        let seed = hash2(gid.x, gid.y, frame.frameIndex, i);
+        col = col + trace(rayOrig, rayDir, seed);
+    }
+    col = col / f32(spp);
 
-    textureStore(outImage, vec2<i32>(gid.xy), vec4<f32>(col, 1.0));
+    // Progressive accumulation
+    let uv = vec2<f32>(f32(gid.x) / f32(dims.x), f32(gid.y) / f32(dims.y));
+    let prev = textureSampleLevel(prevImage, samp, uv, 0).rgb;
+
+    let fi = f32(frame.frameIndex);
+    let accum = (prev * fi + col) / (fi + 1.0);
+
+    textureStore(outImage, vec2<i32>(gid.xy), vec4<f32>(accum, 1.0));
 }

@@ -13,16 +13,16 @@ context.configure({
 // Read URL parameters
 const params = new URLSearchParams(window.location.search);
 
-const resDiv = parseInt(params.get("resDiv")) || 2;
-const samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–2 for speed, higher for quality
+const resDiv = parseInt(params.get("resDiv")) || 1;
+const samplesPerPixel = parseInt(params.get("spp")) || 2; // 1–4 for speed, higher for quality
 
 // Match internal resolution to CSS size
 canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 // Preview resolution (fast, interactive)
-const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 12);
-const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 12);
+const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 4);
+const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 4);
 
 // Render resolution (higher quality)
 const RENDER_WIDTH  = Math.floor(canvas.clientWidth / resDiv);
@@ -31,7 +31,12 @@ const RENDER_HEIGHT = Math.floor(canvas.clientHeight / resDiv);
 let autoPreview = false;    // automatic preview on movement
 let manualPreview = true;   // manual toggle when autoPreview is false
 
+const WORKGROUP_SIZE_X = 8;
+const WORKGROUP_SIZE_Y = 8;
+
 if (params.get("autoRender") === "true") manualPreview = false; // Render immediately
+
+let frameIndex = 0;
 
 function isPreviewMode() {
     return autoPreview ? true : manualPreview;
@@ -43,6 +48,7 @@ async function loadShaderModule(device, url) {
 }
 
 let accumTex;
+let prevTex;
 let computePipeline, renderPipeline;
 let computeBindGroup, renderBindGroup;
 let sampler;
@@ -481,10 +487,10 @@ const ground = new Material({
 });
 
 const glass = new Material({
-    color: {r:200,g:200,b:200},
-    reflectivity: 0.05,
+    color: { r:255, g:255, b:255 },   // no tint
+    reflectivity: 0.0,                // let Fresnel govern specular; this value is for metals
     roughness: 0.0,
-    ior: 1.5, // glass
+    ior: 1.5,
     doubleSided: true
 });
 
@@ -733,38 +739,145 @@ scene.triangles.forEach((t, i) => {
 });
 
 // Camera buffer: 20 floats
+let width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+let height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+
 const basis = getCameraBasis(camera);
 const camData = new Float32Array([
     camera.position.x, camera.position.y, camera.position.z, camera.fov,
     basis.forward.x, basis.forward.y, basis.forward.z, 0,
     basis.right.x, basis.right.y, basis.right.z, 0,
     basis.up.x, basis.up.y, basis.up.z, 0,
-    samplesPerPixel, 0, 0, 0
+    samplesPerPixel, width, height, 0 // width/height of accumTex
 ]);
 
-const matData = new Float32Array(materials.length * 12); // 12 floats per Material
+const matData = new Float32Array(materials.length * 12);
 materials.forEach((m, i) => {
-    matData.set([
-        m.color.r/255, m.color.g/255, m.color.b/255, 1.0,
-        m.reflectivity,
-        m.roughness,
-        m.ior || 0.0,
-        m.emission.r/255, m.emission.g/255, m.emission.b/255,
-        m.emissionStrength,
-        0 // padding
-    ], i * 12);
+    const base = i * 12;
+
+    // color
+    matData[base + 0]  = (m.color.r ?? 255) / 255;
+    matData[base + 1]  = (m.color.g ?? 255) / 255;
+    matData[base + 2]  = (m.color.b ?? 255) / 255;
+    matData[base + 3]  = 1.0;
+
+    // params: reflectivity, roughness, ior, unused
+    matData[base + 4]  = m.reflectivity ?? 0.0;
+    matData[base + 5]  = m.roughness ?? 0.0;
+    matData[base + 6]  = m.ior ?? 0.0;
+    matData[base + 7]  = 0.0;
+
+    // emissive: rgb + strength
+    matData[base + 8]  = (m.emission?.r ?? 0) / 255;
+    matData[base + 9]  = (m.emission?.g ?? 0) / 255;
+    matData[base + 10] = (m.emission?.b ?? 0) / 255;
+    matData[base + 11] = m.emissionStrength ?? 0.0;
 });
 
+// Always 16-byte slots for each vec4
+function packSpheres(spheres) {
+    const strideBytes = 32; // center_radius (vec4<f32>) + material (vec4<u32>)
+    const buf = new ArrayBuffer(spheres.length * strideBytes);
+    const f32 = new Float32Array(buf);
+    const u32 = new Uint32Array(buf);
+    for (let i = 0; i < spheres.length; i++) {
+        const s = spheres[i];
+        const base = (i * strideBytes) >>> 2; // float/u32 index
+        // center_radius at base + 0..3
+        f32[base + 0] = s.center.x;
+        f32[base + 1] = s.center.y;
+        f32[base + 2] = s.center.z;
+        f32[base + 3] = s.radius;
+        // material vec4<u32> at base + 4..7
+        u32[base + 4] = s.material.id >>> 0;
+        u32[base + 5] = 0;
+        u32[base + 6] = 0;
+        u32[base + 7] = 0;
+    }
+    return buf;
+}
+
+function packTriangles(tris) {
+    const strideBytes = 64; // v0,v1,v2 (vec4<f32> each) + mat (vec4<u32>)
+    const buf = new ArrayBuffer(tris.length * strideBytes);
+    const f32 = new Float32Array(buf);
+    const u32 = new Uint32Array(buf);
+    for (let i = 0; i < tris.length; i++) {
+        const t = tris[i];
+        const base = (i * strideBytes) >>> 2;
+        // v0
+        f32[base + 0] = t.v0.x;
+        f32[base + 1] = t.v0.y;
+        f32[base + 2] = t.v0.z;
+        f32[base + 3] = 0;
+        // v1
+        f32[base + 4] = t.v1.x;
+        f32[base + 5] = t.v1.y;
+        f32[base + 6] = t.v1.z;
+        f32[base + 7] = 0;
+        // v2
+        f32[base + 8]  = t.v2.x;
+        f32[base + 9]  = t.v2.y;
+        f32[base + 10] = t.v2.z;
+        f32[base + 11] = 0;
+        // mat
+        u32[base + 12] = t.material.id >>> 0;
+        u32[base + 13] = 0;
+        u32[base + 14] = 0;
+        u32[base + 15] = 0;
+    }
+    return buf;
+}
+
+function packCamera(camera, basis, samplesPerPixel) {
+    // CameraData: pos_fov, forward, right, up (vec4<f32>) + spp (vec4<u32>)
+    const strideBytes = 6 * 16; // 6 vec4s = 96 bytes
+    const buf = new ArrayBuffer(strideBytes);
+    const f32 = new Float32Array(buf);
+    const u32 = new Uint32Array(buf);
+    // pos_fov
+    f32[0] = camera.position.x;
+    f32[1] = camera.position.y;
+    f32[2] = camera.position.z;
+    f32[3] = camera.fov;
+    // forward
+    f32[4] = basis.forward.x;
+    f32[5] = basis.forward.y;
+    f32[6] = basis.forward.z;
+    f32[7] = 0;
+    // right
+    f32[8]  = basis.right.x;
+    f32[9]  = basis.right.y;
+    f32[10] = basis.right.z;
+    f32[11] = 0;
+    // up
+    f32[12] = basis.up.x;
+    f32[13] = basis.up.y;
+    f32[14] = basis.up.z;
+    f32[15] = 0;
+    // spp vec4<u32>
+    u32[16] = samplesPerPixel >>> 0;
+    u32[17] = 0;
+    u32[18] = 0;
+    u32[19] = 0;
+    return buf;
+}
+
+// Create GPU buffers using packed ArrayBuffers
+const sphereBufPacked = packSpheres(scene.spheres);
+const triBufPacked    = packTriangles(scene.triangles);
+const camBufPacked    = packCamera(camera, basis, samplesPerPixel);
+
 const sphereBuffer = device.createBuffer({
-    size: sphereData.byteLength,
+    size: sphereBufPacked.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 });
 const triangleBuffer = device.createBuffer({
-    size: triData.byteLength,
+    size: triBufPacked.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 });
 const cameraBuffer = device.createBuffer({
-    size: camData.byteLength,
+    size: camBufPacked.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 });
 
@@ -773,10 +886,15 @@ const materialBuffer = device.createBuffer({
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 });
 
-device.queue.writeBuffer(sphereBuffer,   0, sphereData.buffer, sphereData.byteOffset, sphereData.byteLength);
-device.queue.writeBuffer(triangleBuffer, 0, triData.buffer,     triData.byteOffset,   triData.byteLength);
-device.queue.writeBuffer(cameraBuffer,   0, camData.buffer,     camData.byteOffset,   camData.byteLength);
-device.queue.writeBuffer(materialBuffer, 0, matData.buffer);
+const screenBuffer = device.createBuffer({
+    size: 16, // alignment requirement
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+});
+
+device.queue.writeBuffer(sphereBuffer, 0, sphereBufPacked);
+device.queue.writeBuffer(triangleBuffer, 0, triBufPacked);
+device.queue.writeBuffer(cameraBuffer, 0, camBufPacked);
+device.queue.writeBuffer(materialBuffer, 0, matData);
 
 
 const keys = {};
@@ -793,19 +911,12 @@ document.addEventListener("keydown", e => {
     if (e.code === "KeyR") {
         manualPreview = !manualPreview;
 
-        if (!manualPreview) {
-            // just turned preview OFF, reset immediately
-            resetAccumulation();
-        }
-
-        if (!previewing && needReset) {
-            resetAccumulation(); // ensures compute/render bind groups match the new texture
-        }
-
+        // Always reset accumulation immediately when toggling
+        resetAccumulation();
+        updateCameraUniform();
         return;
     }
 
-    // allow input in preview
     if (!isPreviewMode()) return;
 
     keys[e.code] = true;
@@ -822,7 +933,6 @@ document.addEventListener("keyup", e => {
     needReset = true;
     cameraChanged = true;
 });
-
 
 window.addEventListener('wheel', (event) => {
     if (!isPreviewMode()) return;
@@ -895,18 +1005,59 @@ function updateCamera() {
         camera.position.y += up.y * speed;
         camera.position.z += up.z * speed;
     }
+
+    if (cameraChanged) {
+        resetAccumulation();       // clear prevTex, reset frameIndex
+        updateCameraUniform();     // rewrite cameraBuffer with new basis
+        cameraChanged = false;     // consume the flag
+    }
 }
 
 function updateCameraUniform() {
     const basis = getCameraBasis(camera);
-    const camData = new Float32Array([
-        camera.position.x, camera.position.y, camera.position.z, camera.fov,
-        basis.forward.x, basis.forward.y, basis.forward.z, 0,
-        basis.right.x, basis.right.y, basis.right.z, 0,
-        basis.up.x, basis.up.y, basis.up.z, 0,
-        samplesPerPixel, 0, 0, 0
-    ]);
-    device.queue.writeBuffer(cameraBuffer, 0, camData);
+    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+
+    // Force spp=1 in preview mode
+    const sppValue = isPreviewMode() ? 1 : samplesPerPixel;
+
+    // 6 vec4s = 96 bytes
+    const strideBytes = 6 * 16;
+    const buf = new ArrayBuffer(strideBytes);
+    const f32 = new Float32Array(buf);
+    const u32 = new Uint32Array(buf);
+
+    // pos_fov
+    f32[0] = camera.position.x;
+    f32[1] = camera.position.y;
+    f32[2] = camera.position.z;
+    f32[3] = camera.fov;
+
+    // forward
+    f32[4] = basis.forward.x;
+    f32[5] = basis.forward.y;
+    f32[6] = basis.forward.z;
+    f32[7] = 0;
+
+    // right
+    f32[8]  = basis.right.x;
+    f32[9]  = basis.right.y;
+    f32[10] = basis.right.z;
+    f32[11] = 0;
+
+    // up
+    f32[12] = basis.up.x;
+    f32[13] = basis.up.y;
+    f32[14] = basis.up.z;
+    f32[15] = 0;
+
+    // spp vec4<u32>
+    u32[16] = sppValue >>> 0;   // x = samplesPerPixel
+    u32[17] = width >>> 0;      // y = width
+    u32[18] = height >>> 0;     // z = height
+    u32[19] = 0;                // padding
+
+    device.queue.writeBuffer(cameraBuffer, 0, buf);
 }
 
 function renderOneFrameNow() {
@@ -914,15 +1065,38 @@ function renderOneFrameNow() {
 }
 
 function resetAccumulation() {
+    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+
+    // Update before rendering
+    const screenData = new Float32Array([canvas.clientWidth, canvas.clientHeight]);
+    device.queue.writeBuffer(screenBuffer, 0, screenData);
+
+    // Recreate accumulation texture (clears it)
     accumTex = device.createTexture({
-        size: [canvas.width, canvas.height],
+        size: [width, height],
         format: "rgba16float",
         usage: GPUTextureUsage.STORAGE_BINDING |
             GPUTextureUsage.TEXTURE_BINDING |
-            GPUTextureUsage.RENDER_ATTACHMENT
+            GPUTextureUsage.COPY_SRC |
+            GPUTextureUsage.COPY_DST
     });
-    // Bind groups depend on accumTex; rebuild if pipelines are ready
+
+    prevTex = device.createTexture({
+        size: [width, height],
+        format: "rgba16float",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+    sampler = device.createSampler({
+        magFilter: "nearest",
+        minFilter: "nearest"
+    });
+
+
     rebuildBindGroups();
+
+    // Reset frame counter
+    frameIndex = 0;
     currentGen = 0;
     needReset = false;
     return accumTex;
@@ -934,12 +1108,14 @@ function initPipelines() {
 
     const computeLayout = device.createBindGroupLayout({
         entries: [
-            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-            { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-            { binding: 3, visibility: GPUShaderStage.COMPUTE,
-            storageTexture: { access: "write-only", format: "rgba16float" } },
-            { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }
+            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },  // spheres
+            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },  // triangles
+            { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },                // camera
+            { binding: 3, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: "write-only", format: "rgba16float" } },    // outImage
+            { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },  // materials
+            { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },                // frame (frameIndex)
+            { binding: 6, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } },           // prevImage
+            { binding: 7, visibility: GPUShaderStage.COMPUTE, sampler: {} }                             // samp
         ]
     });
 
@@ -948,32 +1124,26 @@ function initPipelines() {
         compute: { module: computeModule, entryPoint: "cs_main" }
     });
 
-
-
     renderPipeline = device.createRenderPipeline({
         layout: "auto",
         vertex: { module: vertexModule, entryPoint: "vs_main" },
         fragment: {
-        module: fragmentModule,
-        entryPoint: "fs_main",
-        targets: [{ format: presentationFormat }]
+            module: fragmentModule,
+            entryPoint: "fs_main",
+            targets: [{ format: presentationFormat }]
         },
         primitive: { topology: "triangle-list" }
     });
 
-    // Now that both pipelines exist, build bind groups
     rebuildBindGroups();
 }
 
 // Build or rebuild bind groups whenever accumTex changes
 function rebuildBindGroups() {
-    if (!accumTex || !computePipeline || !renderPipeline) return;
+    if (!computePipeline || !renderPipeline || !accumTex) {
+        return; // pipelines not ready yet
+    }
 
-    // compute.wgsl expected layout:
-    // binding(0): spheres  (storage buffer)
-    // binding(1): triangles (storage buffer)
-    // binding(2): camera    (uniform buffer)
-    // binding(3): accumTex  (write-only storage texture rgba16float)
     computeBindGroup = device.createBindGroup({
         layout: computePipeline.getBindGroupLayout(0),
         entries: [
@@ -981,17 +1151,19 @@ function rebuildBindGroups() {
             { binding: 1, resource: { buffer: triangleBuffer } },
             { binding: 2, resource: { buffer: cameraBuffer } },
             { binding: 3, resource: accumTex.createView() },
-            { binding: 4, resource: { buffer: materialBuffer } }
+            { binding: 4, resource: { buffer: materialBuffer } },
+            { binding: 5, resource: { buffer: frameBuffer } },
+            { binding: 6, resource: prevTex.createView() },
+            { binding: 7, resource: sampler }
         ]
     });
 
-
-    // Fragment post-pass samples the same accumTex
     renderBindGroup = device.createBindGroup({
         layout: renderPipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: accumTex.createView() },
-            { binding: 1, resource: sampler }
+            { binding: 1, resource: sampler },
+            { binding: 2, resource: { buffer: screenBuffer } }
         ]
     });
 }
@@ -1003,20 +1175,22 @@ let previewing = false;
 const idleDelayMs = 60; // small debounce so movement doesn’t thrash
 
 function startComputePass() {
-    const commandEncoder = device.createCommandEncoder();
+    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+
+    const encoder = device.createCommandEncoder();
 
     // Compute
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = encoder.beginComputePass();
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(
-        Math.ceil(canvas.width / 8),
-        Math.ceil(canvas.height / 8)
-    );
+    const groupsX = Math.ceil(width / WORKGROUP_SIZE_X);
+    const groupsY = Math.ceil(height / WORKGROUP_SIZE_Y);
+    computePass.dispatchWorkgroups(groupsX, groupsY);
     computePass.end();
 
     // Render
-    const renderPass = commandEncoder.beginRenderPass({
+    const renderPass = encoder.beginRenderPass({
         colorAttachments: [{
             view: context.getCurrentTexture().createView(),
             loadOp: "clear",
@@ -1026,10 +1200,17 @@ function startComputePass() {
     });
     renderPass.setPipeline(renderPipeline);
     renderPass.setBindGroup(0, renderBindGroup);
-    renderPass.draw(3, 1, 0, 0);
+    renderPass.draw(3);
     renderPass.end();
 
-    device.queue.submit([commandEncoder.finish()]);
+    // Accum → prev for progressive averaging
+    encoder.copyTextureToTexture(
+        { texture: accumTex },
+        { texture: prevTex },
+        [width, height, 1]
+    );
+
+    device.queue.submit([encoder.finish()]);
 }
 
 function boxBlur(src, width, height, radius=1) {
@@ -1114,15 +1295,13 @@ function requeueAll() {
     const basis = getCameraBasis(camera);
     camPayload = {
         position: { ...camera.position },
-        width: RENDER_WIDTH,
-        height: RENDER_HEIGHT,
+        width: canvas.width,
+        height: canvas.height,
         fov: camera.fov,
         forward: basis.forward,
         right: basis.right,
         up: basis.up
     };
-
-    
 }
 
 // models = [
@@ -1183,31 +1362,46 @@ async function loadTexture(url) {
     const img = new Image();
     img.src = url;
     await img.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
+
+    // Use a temporary canvas just to extract pixels
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = img.width;
+    tempCanvas.height = img.height;
+
+    const ctx = tempCanvas.getContext('2d');
     ctx.drawImage(img, 0, 0);
-    console.log("Loaded", url, img.width, img.height)
+
+    console.log("Loaded", url, img.width, img.height);
     return ctx.getImageData(0, 0, img.width, img.height);
 }
 
+// Frame buffer: pad to 256 bytes
+const frameBuffer = device.createBuffer({
+    size: 256,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+});
+
 function tick() {
-    if (isPreviewMode()) {
+    // write current frame index
+    // frameIndex write
+    device.queue.writeBuffer(frameBuffer, 0, new Uint32Array([frameIndex]));
+    frameIndex++;
+
+    // Update camera only when previewing (auto or manual)
+    const isAuto = autoPreview && (performance.now() - lastInputAt) < 50;
+    const previewActive = isAuto || manualPreview;
+
+    if (previewActive) {
         updateCamera();
-        updateCameraUniform(); // keep uniforms consistent with camera movement
+        updateCameraUniform();
     }
 
-    previewing = autoPreview ? (performance.now() - lastInputAt) < 50 : manualPreview;
-
-    if (previewing) {
-        startComputePass();
-    } else if (needReset) {
-        resetAccumulation(); // will rebuild bind groups safely
-    }
+    // Always render
+    startComputePass();
 
     requestAnimationFrame(tick);
 }
+
 
 let bvhRootPreview;
 loadModelsAndBuildBVH([
@@ -1221,10 +1415,7 @@ loadModelsAndBuildBVH([
     */
     // { obj:"objects/cornellBox.obj", mtl:"objects/cornellBox.mtl" }
 ]).then(() => {
-    canvas.width  = RENDER_WIDTH;
-    canvas.height = RENDER_HEIGHT;
-
-    resetAccumulation();  // creates accumTex and bind groups
     initPipelines();      // creates pipelines and (re)bind groups safely
+    resetAccumulation();  // creates accumTex and bind groups
     tick();               // now the loop can call renderOneFrameNow safely
 });
