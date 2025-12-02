@@ -135,24 +135,32 @@ fn intersectSphere(rayOrig: vec3<f32>, rayDir: vec3<f32>, s: Sphere) -> f32 {
 }
 
 fn intersectTriangle(rayOrig: vec3<f32>, rayDir: vec3<f32>, tri: Triangle) -> f32 {
-    let EPS = 1e-6;
+    let EPS = 1e-5;
     let v0 = tri.v0.xyz;
     let v1 = tri.v1.xyz;
     let v2 = tri.v2.xyz;
-    let e1 = v1-v0;
-    let e2 = v2-v0;
-    let h = cross(rayDir,e2);
-    let a = dot(e1,h);
-    if (abs(a)<EPS) { return -1.0; }
-    let f = 1.0/a;
-    let s = rayOrig-v0;
-    let u = f*dot(s,h);
-    if (u<0.0 || u>1.0) { return -1.0; }
-    let q = cross(s,e1);
-    let v = f*dot(rayDir,q);
-    if (v<0.0 || u+v>1.0) { return -1.0; }
-    let t = f*dot(e2,q);
-    return select(-1.0,t,t>EPS);
+
+    let e1 = v1 - v0;
+    let e2 = v2 - v0;
+    let h  = cross(rayDir, e2);
+    let a  = dot(e1, h);
+
+    if (abs(a) < EPS) { return -1.0; } // ray parallel to triangle
+
+    let f = 1.0 / a;
+    let s = rayOrig - v0;
+    let u = f * dot(s, h);
+    if (u < 0.0 || u > 1.0) { return -1.0; }
+
+    let q = cross(s, e1);
+    let v = f * dot(rayDir, q);
+    if (v < 0.0 || u + v > 1.0) { return -1.0; }
+
+    let t = f * dot(e2, q);
+    if (t > EPS) {
+        return t;
+    }
+    return -1.0;
 }
 
 fn offsetOrigin(p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
@@ -170,27 +178,133 @@ fn invSafe(x: f32) -> f32 {
     return 1.0 / x;
 }
 
+fn project_to_pixel(p: vec3<f32>, dims: vec2<f32>) -> vec2<f32> {
+    // Camera basis from uniforms
+    let pos = camera.pos_fov.xyz;
+    let fov = camera.pos_fov.w;
+    let fwd = camera.forward.xyz;
+    let right = camera.right.xyz;
+    let up = camera.up.xyz;
+
+    // Relative position
+    let rel = p - pos;
+
+    // Camera-space coords
+    let fx = dot(rel, right);
+    let fy = dot(rel, up);
+    let fz = dot(rel, fwd);
+
+    // Behind camera? Return off-screen sentinel (negative coords)
+    if (fz <= 0.0001) {
+        return vec2<f32>(-1.0, -1.0);
+    }
+
+    // Pinhole projection (same scale as your ray setup)
+    let tanHalfFov = tan(radians(fov) * 0.5);
+    let scale = 1.0 / tanHalfFov;
+
+    // NDC (assumes symmetric frustum; aspect applied by your compute ray gen)
+    let ndc_x = (fx / fz) * scale;
+    let ndc_y = (fy / fz) * scale;
+
+    // To pixel coords
+    let px = (ndc_x * 0.5 + 0.5) * dims.x;
+    let py = (ndc_y * 0.5 + 0.5) * dims.y;
+    return vec2<f32>(px, py);
+}
+
+fn segment_dist_px(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+    // If either endpoint is off-screen sentinel, treat as far
+    if (a.x < 0.0 || a.y < 0.0 || b.x < 0.0 || b.y < 0.0) {
+        return 1e9;
+    }
+    let ab = b - a;
+    let ap = p - a;
+    let ab2 = dot(ab, ab);
+    if (ab2 <= 1e-8) {
+        return length(ap); // degenerate
+    }
+    let t = clamp(dot(ap, ab) / ab2, 0.0, 1.0);
+    let closest = a + t * ab;
+    return length(p - closest);
+}
+
+fn draw_bvh_wireframe(gid: vec2<u32>) -> vec3<f32> {
+    let dims_i = textureDimensions(outImage);
+    let dims = vec2<f32>(f32(dims_i.x), f32(dims_i.y));
+    let pix = vec2<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5);
+
+    let bvhCount = arrayLength(&bvhNodes);
+
+    // Edge indices for a box (12 segments)
+    var edges: array<vec2<u32>, 12>;
+    edges[0]  = vec2<u32>(0u,1u); edges[1]  = vec2<u32>(1u,2u); edges[2]  = vec2<u32>(2u,3u); edges[3]  = vec2<u32>(3u,0u);
+    edges[4]  = vec2<u32>(4u,5u); edges[5]  = vec2<u32>(5u,6u); edges[6]  = vec2<u32>(6u,7u); edges[7]  = vec2<u32>(7u,4u);
+    edges[8]  = vec2<u32>(0u,4u); edges[9]  = vec2<u32>(1u,5u); edges[10] = vec2<u32>(2u,6u); edges[11] = vec2<u32>(3u,7u);
+
+    var col = vec3<f32>(0.0);
+    let threshold_px = 1.5; // line thickness
+
+    for (var idx = 0u; idx < bvhCount; idx = idx + 1u) {
+        let node = bvhNodes[idx];
+        // Skip invalid bounds
+        if (!isFinite(node.min) || !isFinite(node.max)) { continue; }
+
+        // 8 corners in world space
+        var c: array<vec3<f32>, 8>;
+        let mn = node.min;
+        let mx = node.max;
+        c[0] = vec3<f32>(mn.x, mn.y, mn.z);
+        c[1] = vec3<f32>(mx.x, mn.y, mn.z);
+        c[2] = vec3<f32>(mx.x, mx.y, mn.z);
+        c[3] = vec3<f32>(mn.x, mx.y, mn.z);
+        c[4] = vec3<f32>(mn.x, mn.y, mx.z);
+        c[5] = vec3<f32>(mx.x, mn.y, mx.z);
+        c[6] = vec3<f32>(mx.x, mx.y, mx.z);
+        c[7] = vec3<f32>(mn.x, mx.y, mx.z);
+
+        // Project to pixel coords
+        var p2: array<vec2<f32>, 8>;
+        for (var i = 0u; i < 8u; i = i + 1u) {
+            p2[i] = project_to_pixel(c[i], dims);
+        }
+
+        // Wireframe color: cyan for leaves, orange for internals
+        let isLeaf = node.triCount > 0u;
+        let base = select(vec3<f32>(1.0, 0.5, 0.0), vec3<f32>(0.0, 1.0, 1.0), isLeaf);
+
+        // Accumulate if near any edge
+        for (var e = 0u; e < 12u; e = e + 1u) {
+            let a = p2[edges[e].x];
+            let b = p2[edges[e].y];
+            let d = segment_dist_px(pix, a, b);
+            if (d <= threshold_px) {
+                // Blend with minor falloff
+                let w = clamp((threshold_px - d) / threshold_px, 0.0, 1.0);
+                col = col + base * w;
+            }
+        }
+    }
+
+    // Clamp final color to [0,1]
+    return clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 fn hitAABB(rayOrig: vec3<f32>, rayDir: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) -> bool {
-    let invX = invSafe(rayDir.x);
-    let invY = invSafe(rayDir.y);
-    let invZ = invSafe(rayDir.z);
-
-    var tx1 = (bmin.x - rayOrig.x) * invX;
-    var tx2 = (bmax.x - rayOrig.x) * invX;
-    var tmin = min(tx1, tx2);
-    var tmax = max(tx1, tx2);
-
-    var ty1 = (bmin.y - rayOrig.y) * invY;
-    var ty2 = (bmax.y - rayOrig.y) * invY;
-    tmin = max(tmin, min(ty1, ty2));
-    tmax = min(tmax, max(ty1, ty2));
-
-    var tz1 = (bmin.z - rayOrig.z) * invZ;
-    var tz2 = (bmax.z - rayOrig.z) * invZ;
-    tmin = max(tmin, min(tz1, tz2));
-    tmax = min(tmax, max(tz1, tz2));
-
-    return tmax >= max(tmin, 0.0);
+    var tmin = -1e9;
+    var tmax =  1e9;
+    for (var i = 0; i < 3; i = i + 1) {
+        let invD = 1.0 / rayDir[i];
+        var t0 = (bmin[i] - rayOrig[i]) * invD;
+        var t1 = (bmax[i] - rayOrig[i]) * invD;
+        if (invD < 0.0) {
+            let tmp = t0; t0 = t1; t1 = tmp;
+        }
+        tmin = max(tmin, t0);
+        tmax = min(tmax, t1);
+        if (tmax <= tmin) { return false; }
+    }
+    return true;
 }
 
 fn isFinite1(x: f32) -> bool {
@@ -202,65 +316,90 @@ fn isFinite(v: vec3<f32>) -> bool {
     return isFinite1(v.x) && isFinite1(v.y) && isFinite1(v.z);
 }
 
+fn scanLeavesNoTraversal(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
+    var closestT = 1e9;
+    var hitId    = 0xFFFFFFFFu;
+
+    let bvhCount      = arrayLength(&bvhNodes);
+    let triCountTotal = arrayLength(&triangles);
+
+    for (var idx = 0u; idx < bvhCount; idx = idx + 1u) {
+        let node = bvhNodes[idx];
+        if (node.triCount == 0u) { continue; }
+        if (node.firstTri >= triCountTotal) { continue; }
+
+        let end = min(node.firstTri + node.triCount, triCountTotal);
+        for (var i = node.firstTri; i < end; i = i + 1u) {
+            let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
+            if (t > 0.0 && t < closestT) {
+                closestT = t;
+                hitId    = i;
+            }
+        }
+    }
+    return Hit(closestT, select(0u, hitId, hitId != 0xFFFFFFFFu));
+}
 
 fn traverseBVH(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
     var stack: array<u32, 64>;
-    var sp: i32 = 0;
-    stack[0] = 0u;
+    var sp: u32 = 0u;
+
+    // push root
+    stack[sp] = 0u;
+    sp = sp + 1u;
 
     var closestT = 1e9;
     var hitId    = 0u;
 
-    let bvhCount = arrayLength(&bvhNodes);
+    let bvhCount      = arrayLength(&bvhNodes);
     let triCountTotal = arrayLength(&triangles);
 
     var visits: u32 = 0u;
-    let maxVisits: u32 = 1024u;
+    let maxVisits: u32 = 4096u; // much smaller cap
 
-    // debug counters
-    var triTests: u32 = 0u;
-    var anyAABBPass: bool = false;
-
-    while (sp >= 0) {
+    while (sp > 0u) {
         if (visits >= maxVisits) { break; }
         visits = visits + 1u;
 
+        // pop
+        sp = sp - 1u;
         let idx = stack[sp];
-        sp = sp - 1;
 
         if (idx >= bvhCount) { continue; }
         let node = bvhNodes[idx];
-
-        // bounds sanity
         if (!isFinite(node.min) || !isFinite(node.max)) { continue; }
 
-        // AABB
-        let eps = 1e-5;
+        // AABB test
+        let eps  = 1e-5;
         let bmin = node.min - vec3<f32>(eps);
         let bmax = node.max + vec3<f32>(eps);
         if (!hitAABB(rayOrig, rayDir, bmin, bmax)) { continue; }
 
-        anyAABBPass = true;
-
         if (node.triCount > 0u) {
             let first = node.firstTri;
-            let end = min(first + node.triCount, triCountTotal);
+            var end   = first + node.triCount;
+
+            // strict guards
+            if (first >= triCountTotal) { continue; }
+            if (end > triCountTotal) { end = triCountTotal; }
+
             for (var i = first; i < end; i = i + 1u) {
-                triTests = triTests + 1u;
                 let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
                 if (t > 0.0 && t < closestT) {
                     closestT = t;
-                    hitId = i;
+                    hitId    = i;
                 }
             }
         } else {
-            if (node.left  != 0xFFFFFFFFu && node.left  < bvhCount) { if (sp < 63) { sp = sp + 1; stack[sp] = node.left; } }
-            if (node.right != 0xFFFFFFFFu && node.right < bvhCount) { if (sp < 63) { sp = sp + 1; stack[sp] = node.right; } }
+            if (node.left  != 0xFFFFFFFFu && node.left  < bvhCount && sp < 64u) {
+                stack[sp] = node.left;  sp = sp + 1u;
+            }
+            if (node.right != 0xFFFFFFFFu && node.right < bvhCount && sp < 64u) {
+                stack[sp] = node.right; sp = sp + 1u;
+            }
         }
     }
 
-    // encode debug if needed (e.g., for gid==0,0 at the call site):
-    // triTests > 0 means leaves were tested; anyAABBPass means at least one node passed AABB.
     return Hit(closestT, hitId);
 }
 
@@ -280,6 +419,74 @@ fn bruteForceTriangles(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
 
     return Hit(closestT, hitId);
 }
+
+fn debug_totals_color() -> vec3<f32> {
+    let triTotal = arrayLength(&triangles);
+    let nodeTotal = arrayLength(&bvhNodes);
+    if (triTotal == 0u) { return vec3<f32>(1.0, 0.0, 0.0); }  // red: triangles buffer empty
+    if (nodeTotal == 0u) { return vec3<f32>(1.0, 0.5, 0.0); } // orange: BVH buffer empty
+    return vec3<f32>(0.0, 1.0, 0.0);                           // green: both nonzero
+}
+
+fn debug_leaf_ranges_color() -> vec3<f32> {
+    let triTotal = arrayLength(&triangles);
+    let nodeTotal = arrayLength(&bvhNodes);
+
+    var hasLeaf: bool = false;
+    var hasValidRange: bool = false;
+
+    for (var i = 0u; i < nodeTotal; i = i + 1u) {
+        let n = bvhNodes[i];
+        if (n.triCount > 0u) {
+            hasLeaf = true;
+            if (n.firstTri < triTotal && (n.firstTri + n.triCount) <= triTotal) {
+                hasValidRange = true;
+                break;
+            }
+        }
+    }
+
+    if (!hasLeaf)        { return vec3<f32>(1.0, 1.0, 0.0); } // yellow: no leaves in BVH
+    if (!hasValidRange)  { return vec3<f32>(1.0, 0.0, 1.0); } // magenta: all leaves OOB
+    return vec3<f32>(0.0, 1.0, 1.0);                          // cyan: at least one valid leaf range
+}
+
+fn debug_valid_leaf_count() -> vec3<f32> {
+    let triTotal = arrayLength(&triangles);
+    let nodeTotal = arrayLength(&bvhNodes);
+    var validLeaves: u32 = 0u;
+
+    for (var i = 0u; i < nodeTotal; i = i + 1u) {
+        let n = bvhNodes[i];
+        if (n.triCount > 0u &&
+            n.firstTri < triTotal &&
+            (n.firstTri + n.triCount) <= triTotal) {
+            validLeaves = validLeaves + 1u;
+        }
+    }
+    let g = clamp(f32(min(validLeaves, 255u)) / 255.0, 0.0, 1.0);
+    return vec3<f32>(g, g, g);
+}
+
+fn debug_scan_count(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> vec3<f32> {
+    var tested: u32 = 0u;
+    let bvhCount = arrayLength(&bvhNodes);
+    let triTotal = arrayLength(&triangles);
+
+    for (var idx = 0u; idx < bvhCount; idx = idx + 1u) {
+        let n = bvhNodes[idx];
+        if (n.triCount == 0u) { continue; }
+        if (n.firstTri >= triTotal) { continue; }
+        let end = min(n.firstTri + n.triCount, triTotal);
+        for (var i = n.firstTri; i < end; i = i + 1u) {
+            tested = tested + 1u;
+            _ = intersectTriangle(rayOrig, rayDir, triangles[i]);
+        }
+    }
+    let g = clamp(f32(min(tested, 255u)) / 255.0, 0.0, 1.0);
+    return vec3<f32>(g,g,g);
+}
+
 
 // -----------------------------
 // Material stubs
@@ -344,9 +551,9 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         }
 
         // --- Triangle intersection via BVH
-        // Brute-force triangle intersection (skip BVH for debugging)
         let hit = bruteForceTriangles(rayOrig, rayDir);
         //let hit = traverseBVH(rayOrig, rayDir);
+        //let hit = scanLeavesNoTraversal(rayOrig, rayDir);
         if (hit.t > 0.0 && hit.t < closestT) {
             closestT = hit.t;
             hitIsSphere = false;
@@ -483,11 +690,9 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let ndc_x = (f32(gid.x) + 0.5) / f32(dims.x) * 2.0 - 1.0;
     let ndc_y = (f32(gid.y) + 0.5) / f32(dims.y) * 2.0 - 1.0;
 
-    // Aspect and vertical scale from FOV
     let aspect = f32(dims.x) / f32(dims.y);
     let tanHalfFov = tan(radians(camera.pos_fov.w) * 0.5);
 
-    // Scale image plane: horizontal gets aspect * tanHalfFov, vertical gets tanHalfFov
     let u = ndc_x * aspect * tanHalfFov;
     let v = ndc_y * tanHalfFov;
 
@@ -498,8 +703,28 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
         v * camera.up.xyz
     );
 
-    let spp = camera.spp.x;
+    // Use the same variable name for both modes
     var col = vec3<f32>(0.0);
+
+    let showBVH = false; // toggle debug overlay
+    if (showBVH) {
+        col = draw_bvh_wireframe(gid.xy);
+    }
+
+    if (gid.x == dims.x/2u && gid.y == dims.y/2u) {
+        var c = vec3<f32>(0.0, 0.0, 0.0);
+        // pick one at a time to read a clear result
+        // let c = debug_totals_color();
+        // let c = debug_leaf_ranges_color();
+        // let c = debug_valid_leaf_count();
+        if (any(c != vec3<f32>(0.0))) { 
+            textureStore(outImage, vec2<i32>(gid.xy), vec4<f32>(c,1.0));
+            return;
+        }
+    }
+
+
+    let spp = camera.spp.x;
     for (var i = 0u; i < spp; i = i + 1u) {
         let seed = hash2(gid.x, gid.y, frame.frameIndex, i);
         col = col + trace(rayOrig, rayDir, seed);
@@ -509,8 +734,6 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Progressive accumulation
     let uv = vec2<f32>((f32(gid.x) + 0.5) / f32(dims.x),
                        (f32(gid.y) + 0.5) / f32(dims.y));
-    let prev = textureSampleLevel(prevImage, samp, uv, 0).rgb;
-
     let fi = f32(frame.frameIndex);
     var accum = col;
     if (fi > 0.0) {

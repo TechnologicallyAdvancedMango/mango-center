@@ -221,7 +221,7 @@ function computeBounds(tris) {
 }
 
 function buildBVH(tris, depth=0) {
-    if (tris.length <= 4 || depth > 16) {
+    if (tris.length <= 32 || depth > 16) {
         return new BVHNode(tris); // leaf
     }
 
@@ -778,17 +778,6 @@ scene.spheres.forEach((s, i) => {
     ], i * 8);
 });
 
-// Triangle buffer: 16 floats per triangle
-const triData = new Float32Array(scene.triangles.length * 16);
-scene.triangles.forEach((t, i) => {
-    triData.set([
-        t.v0.x, t.v0.y, t.v0.z, 0,
-        t.v1.x, t.v1.y, t.v1.z, 0,
-        t.v2.x, t.v2.y, t.v2.z, 0,
-        t.material.id, 0, 0, 0
-    ], i * 16);
-});
-
 // Camera buffer: 20 floats
 
 const basis = getCameraBasis(camera);
@@ -878,7 +867,7 @@ function packTriangles(tris) {
     return buf;
 }
 
-function packCamera(camera, basis, samplesPerPixel) {
+function packCamera(camera, basis, spp, triCount, sphereCount, materialCount) {
     const strideBytes = 6 * 16; // 96 bytes
     const buf = new ArrayBuffer(strideBytes);
     const f32 = new Float32Array(buf);
@@ -909,10 +898,11 @@ function packCamera(camera, basis, samplesPerPixel) {
     f32[15] = 0;
 
     // spp + counts
-    u32[16] = samplesPerPixel >>> 0;              // x = spp
-    u32[17] = scene.triangles.length >>> 0;       // y = triCount
-    u32[18] = scene.spheres.length >>> 0;         // z = sphereCount
-    u32[19] = materials.length >>> 0;             // w = materialCount
+    u32[16] = (spp >>> 0);
+    u32[17] = (triCount >>> 0);
+    u32[18] = (sphereCount >>> 0);
+    u32[19] = (materialCount >>> 0);
+
     return buf;
 }
 
@@ -924,12 +914,18 @@ let screenBuffer;
 let bvhBuffer;
 
 function rebuildBuffers() {
-    const bvhTree   = buildBVHIndices(scene.triangles);
+    // Build BVH against the current scene
+    const bvhTree = buildBVHIndices(scene.triangles);
     const { nodes, reordered } = flattenBVHWithRanges(bvhTree, scene.triangles);
 
+    // keep scene.triangles consistent with GPU upload
+    // so future counts, logs, etc. match BVH ranges.
+    scene.triangles = reordered;
+
     console.log("BVH nodes count:", nodes.length);
-    nodes.forEach((n,i) => {
-        if (n.left === 0xFFFFFFFF && n.right === 0xFFFFFFFF) {
+    nodes.forEach((n, i) => {
+        const isLeaf = (n.left === 0xFFFFFFFF && n.right === 0xFFFFFFFF);
+        if (isLeaf) {
             if (n.triCount === 0) {
                 console.warn("Leaf node with zero triangles!", i, n);
             }
@@ -939,13 +935,25 @@ function rebuildBuffers() {
         }
     });
 
-
-    // Pack data using globals
+    // Pack buffers against the reordered array
     const sphereBufPacked = packSpheres(scene.spheres);
-    const triBufPacked = packTriangles(reordered);
-    const camBufPacked    = packCamera(camera, getCameraBasis(camera), samplesPerPixel);
-    const bvhBufPacked = packBVH(nodes);
-    const matData         = new Float32Array(materials.length * 12);
+    const triBufPacked    = packTriangles(reordered);
+    const bvhBufPacked    = packBVH(nodes);
+
+    // Camera uses counts that match what’s on GPU
+    const basis = getCameraBasis(camera);
+    const sppValue = isPreviewMode() ? 1 : samplesPerPixel;
+    const camBufPacked = packCamera(
+        camera,
+        basis,
+        sppValue,
+        reordered.length,
+        scene.spheres.length,
+        materials.length
+    );
+
+    // Materials
+    const matData = new Float32Array(materials.length * 12);
     materials.forEach((m, i) => {
         const base = i * 12;
         matData[base + 0]  = (m.color.r ?? 255) / 255;
@@ -962,7 +970,7 @@ function rebuildBuffers() {
         matData[base + 11] = m.emissionStrength ?? 0.0;
     });
 
-    // Recreate buffers
+    // Create GPU buffers
     sphereBuffer = device.createBuffer({
         size: sphereBufPacked.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
@@ -972,7 +980,7 @@ function rebuildBuffers() {
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
     cameraBuffer = device.createBuffer({
-        size: 256, // uniform buffer must be padded
+        size: 256, // uniform buffer padding
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     materialBuffer = device.createBuffer({
@@ -988,29 +996,14 @@ function rebuildBuffers() {
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
 
-    // Write data
+    // Upload
     device.queue.writeBuffer(sphereBuffer, 0, sphereBufPacked);
     device.queue.writeBuffer(triangleBuffer, 0, triBufPacked);
     device.queue.writeBuffer(cameraBuffer, 0, camBufPacked);
     device.queue.writeBuffer(materialBuffer, 0, matData);
     device.queue.writeBuffer(bvhBuffer, 0, bvhBufPacked);
 
-    // Debug logs
-    console.log("sphereBuffer size:", sphereBufPacked.byteLength);
-    console.log("triangleBuffer size:", triBufPacked.byteLength);
-    console.log("cameraBuffer size:", 256);
-    console.log("materialBuffer size:", matData.byteLength);
-    console.log("screenBuffer size:", 256);
-    console.log("bvhBuffer size:", bvhBufPacked.byteLength);
-
-    console.log("sphereBuffer object:", sphereBuffer);
-    console.log("triangleBuffer object:", triangleBuffer);
-    console.log("cameraBuffer object:", cameraBuffer);
-    console.log("materialBuffer object:", materialBuffer);
-    console.log("screenBuffer object:", screenBuffer);
-    console.log("bvhBuffer object:", bvhBuffer);
-
-    // Rebuild bind groups so they point to the new buffers
+    // Rebuild bind groups to point to the new buffers
     initPipelines();
 }
 
@@ -1429,89 +1422,107 @@ function requeueAll() {
     };
 }
 
-function flattenBVH(root) {
-    const nodes = [];
-    function recurse(node) {
-        const idx = nodes.length;
-        const flat = {
-            min: node.bounds.min,
-            max: node.bounds.max,
-            left: 0xFFFFFFFF,
-            right: 0xFFFFFFFF,
-            firstTri: 0,
-            triCount: 0
-        };
-        nodes.push(flat);
-        if (node.left) flat.left = recurse(node.left);
-        if (node.right) flat.right = recurse(node.right);
-        return idx;
-    }
-    recurse(root);
-    return nodes;
-}
-
 function flattenBVHWithRanges(root, tris) {
     const nodes = [];
     const reordered = [];
+
     function emitLeaf(leafIdxs) {
         const start = reordered.length;
-        for (const i of leafIdxs) reordered.push(tris[i]);
-        return { firstTri:start, triCount:leafIdxs.length };
+        for (const i of leafIdxs) {
+            // Guard index before pushing
+            if (i < 0 || i >= tris.length) {
+                throw new Error(`BVH leaf index out of bounds: i=${i} tris.length=${tris.length}`);
+            }
+            reordered.push(tris[i]);
+        }
+        return { firstTri: start, triCount: leafIdxs.length };
     }
+
     function recurse(node) {
         const idx = nodes.length;
-        const flat = {
+        nodes.push({
             min: node.bounds.min,
             max: node.bounds.max,
             left: 0xFFFFFFFF,
             right: 0xFFFFFFFF,
             firstTri: 0,
             triCount: 0
-        };
-        nodes.push(flat);
+        });
+
         if (node.triangles.length) {
             const range = emitLeaf(node.triangles);
-            flat.firstTri = range.firstTri;
-            flat.triCount = range.triCount;
+            nodes[idx].firstTri = range.firstTri;
+            nodes[idx].triCount = range.triCount;
         } else {
-            flat.left  = recurse(node.left);
-            flat.right = recurse(node.right);
+            const leftIdx  = recurse(node.left);
+            const rightIdx = recurse(node.right);
+            nodes[idx].left  = leftIdx;
+            nodes[idx].right = rightIdx;
         }
         return idx;
     }
+
     recurse(root);
+
+    // Final pass: clamp ranges to reordered length and log any corrections
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (n.left === 0xFFFFFFFF && n.right === 0xFFFFFFFF) { // leaf
+            if (n.triCount <= 0) {
+                console.warn("Leaf with zero triCount", i, n);
+                continue;
+            }
+            if (n.firstTri < 0) {
+                console.error("Leaf firstTri negative", i, n);
+                n.firstTri = 0;
+            }
+            if (n.firstTri >= reordered.length) {
+                console.error("Leaf firstTri OOB", { i, firstTri: n.firstTri, len: reordered.length });
+                n.firstTri = Math.max(0, reordered.length - 1);
+                n.triCount = 1;
+            }
+            const end = n.firstTri + n.triCount;
+            if (end > reordered.length) {
+                console.error("Leaf end OOB", { i, firstTri: n.firstTri, triCount: n.triCount, len: reordered.length });
+                n.triCount = Math.max(0, reordered.length - n.firstTri);
+            }
+        }
+    }
+
     return { nodes, reordered };
 }
 
 function packBVH(nodes) {
-    const stride = 48;
-    const buf = new ArrayBuffer(nodes.length * stride);
-    const dv = new DataView(buf);
+    const strideBytes = 48; // WGSL alignment
+    const buf = new ArrayBuffer(nodes.length * strideBytes);
+    const f32 = new Float32Array(buf);
+    const u32 = new Uint32Array(buf);
 
     for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
-        const base = i * stride;
+        const base = (i * strideBytes) >>> 2;
 
-        // min vec3<f32> (16 bytes slot)
-        dv.setFloat32(base + 0,  n.min.x, true);
-        dv.setFloat32(base + 4,  n.min.y, true);
-        dv.setFloat32(base + 8,  n.min.z, true);
-        // pad at base+12
+        // min (vec3 padded to vec4)
+        f32[base + 0] = n.min.x;
+        f32[base + 1] = n.min.y;
+        f32[base + 2] = n.min.z;
+        f32[base + 3] = 0.0;
 
-        // max vec3<f32> (16 bytes slot)
-        dv.setFloat32(base + 16, n.max.x, true);
-        dv.setFloat32(base + 20, n.max.y, true);
-        dv.setFloat32(base + 24, n.max.z, true);
-        // pad at base+28
+        // max (vec3 padded to vec4)
+        f32[base + 4] = n.max.x;
+        f32[base + 5] = n.max.y;
+        f32[base + 6] = n.max.z;
+        f32[base + 7] = 0.0;
 
-        // children + tri info
-        dv.setUint32(base + 32, n.left >>> 0, true);
-        dv.setUint32(base + 36, n.right >>> 0, true);
-        dv.setUint32(base + 40, n.firstTri >>> 0, true);
-        dv.setUint32(base + 44, n.triCount >>> 0, true);
+        // children + range
+        u32[base + 8]  = n.left >>> 0;
+        u32[base + 9]  = n.right >>> 0;
+        u32[base + 10] = n.firstTri >>> 0;
+        u32[base + 11] = n.triCount >>> 0;
     }
     return buf;
 }
+
 
 // models = [
 //   { obj:"path/to.obj", mtl:"path/to.mtl", transform:{...}, material: customMaterial },
