@@ -28,6 +28,21 @@ struct FrameData {
     frameIndex : u32,
 };
 
+// Each node: min/max bounds (vec3<f32> each), child indices, triangle range
+struct BVHNode {
+    min : vec3<f32>,
+    max : vec3<f32>,
+    left : u32,
+    right : u32,
+    firstTri : u32,
+    triCount : u32,
+};
+
+struct Hit {
+    t : f32,
+    triIdx : u32,
+};
+
 @group(0) @binding(0) var<storage, read> spheres   : array<Sphere>;
 @group(0) @binding(1) var<storage, read> triangles : array<Triangle>;
 @group(0) @binding(2) var<uniform>       camera    : CameraData;
@@ -36,6 +51,7 @@ struct FrameData {
 @group(0) @binding(5) var<uniform> frame : FrameData;
 @group(0) @binding(6) var prevImage : texture_2d<f32>;
 @group(0) @binding(7) var samp : sampler;
+@group(0) @binding(8) var<storage, read> bvhNodes : array<BVHNode>;
 
 // -----------------------------
 // Math helpers
@@ -139,6 +155,108 @@ fn intersectTriangle(rayOrig: vec3<f32>, rayDir: vec3<f32>, tri: Triangle) -> f3
     return select(-1.0,t,t>EPS);
 }
 
+fn invSafe(x: f32) -> f32 {
+    if (abs(x) < 1e-8) {
+        // treat as "no intersection" by returning a huge number
+        return 1e30;
+    }
+    return 1.0 / x;
+}
+
+fn hitAABB(rayOrig: vec3<f32>, rayDir: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) -> bool {
+    let invX = invSafe(rayDir.x);
+    let invY = invSafe(rayDir.y);
+    let invZ = invSafe(rayDir.z);
+
+    var tx1 = (bmin.x - rayOrig.x) * invX;
+    var tx2 = (bmax.x - rayOrig.x) * invX;
+    var tmin = min(tx1, tx2);
+    var tmax = max(tx1, tx2);
+
+    var ty1 = (bmin.y - rayOrig.y) * invY;
+    var ty2 = (bmax.y - rayOrig.y) * invY;
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+
+    var tz1 = (bmin.z - rayOrig.z) * invZ;
+    var tz2 = (bmax.z - rayOrig.z) * invZ;
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+
+    return tmax >= max(tmin, 0.0);
+}
+
+fn isFinite1(x: f32) -> bool {
+    // treat values with huge magnitude as invalid
+    return abs(x) < 1e30;
+}
+
+fn isFinite(v: vec3<f32>) -> bool {
+    return isFinite1(v.x) && isFinite1(v.y) && isFinite1(v.z);
+}
+
+
+fn traverseBVH(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
+    var stack: array<u32, 64>;
+    var sp: i32 = 0;
+    stack[0] = 0u;
+
+    var closestT = 1e9;
+    var hitId    = 0u;
+
+    let bvhCount = arrayLength(&bvhNodes);
+    let triCountTotal = arrayLength(&triangles);
+
+    var visits: u32 = 0u;
+    let maxVisits: u32 = 1024u;
+
+    // debug counters
+    var triTests: u32 = 0u;
+    var anyAABBPass: bool = false;
+
+    while (sp >= 0) {
+        if (visits >= maxVisits) { break; }
+        visits = visits + 1u;
+
+        let idx = stack[sp];
+        sp = sp - 1;
+
+        if (idx >= bvhCount) { continue; }
+        let node = bvhNodes[idx];
+
+        // bounds sanity
+        if (!isFinite(node.min) || !isFinite(node.max)) { continue; }
+
+        // AABB
+        let eps = 1e-5;
+        let bmin = node.min - vec3<f32>(eps);
+        let bmax = node.max + vec3<f32>(eps);
+        if (!hitAABB(rayOrig, rayDir, bmin, bmax)) { continue; }
+
+        anyAABBPass = true;
+
+        if (node.triCount > 0u) {
+            let first = node.firstTri;
+            let end = min(first + node.triCount, triCountTotal);
+            for (var i = first; i < end; i = i + 1u) {
+                triTests = triTests + 1u;
+                let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
+                if (t > 0.0 && t < closestT) {
+                    closestT = t;
+                    hitId = i;
+                }
+            }
+        } else {
+            if (node.left  != 0xFFFFFFFFu && node.left  < bvhCount) { if (sp < 63) { sp = sp + 1; stack[sp] = node.left; } }
+            if (node.right != 0xFFFFFFFFu && node.right < bvhCount) { if (sp < 63) { sp = sp + 1; stack[sp] = node.right; } }
+        }
+    }
+
+    // encode debug if needed (e.g., for gid==0,0 at the call site):
+    // triTests > 0 means leaves were tested; anyAABBPass means at least one node passed AABB.
+    return Hit(closestT, hitId);
+}
+
 // -----------------------------
 // Material stubs
 // -----------------------------
@@ -179,19 +297,19 @@ const MAX_RAY_BOUNCES : u32 = 10u;
 const RR_START_DEPTH  : u32 = 3u;
 
 fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
-    var rayOrig     = rayOrig_in;
-    var rayDir      = normalize(rayDir_in);
-    var throughput  = vec3<f32>(1.0, 1.0, 1.0);
-    var specDepth   = 0u;
-    var color       = vec3<f32>(0.0, 0.0, 0.0);
+    var rayOrig    = rayOrig_in;
+    var rayDir     = normalize(rayDir_in);
+    var throughput = vec3<f32>(1.0);
+    var color      = vec3<f32>(0.0);
+    var specDepth  = 0u;
 
     for (var depth = 0u; depth <= MAX_RAY_BOUNCES; depth = depth + 1u) {
-        var closestT     = 1e9;
-        var hitIsSphere  = false;
+        var closestT   = 1e9;
+        var hitIsSphere = false;
         var hitSphereIdx = 0u;
         var hitTriIdx    = 0u;
 
-        // Intersect
+        // --- Sphere intersection (still brute force)
         for (var i = 0u; i < arrayLength(&spheres); i = i + 1u) {
             let t = intersectSphere(rayOrig, rayDir, spheres[i]);
             if (t > 0.0 && t < closestT) {
@@ -200,23 +318,41 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
                 hitSphereIdx = i;
             }
         }
-        for (var j = 0u; j < arrayLength(&triangles); j = j + 1u) {
-            let t = intersectTriangle(rayOrig, rayDir, triangles[j]);
-            if (t > 0.0 && t < closestT) {
-                closestT   = t;
-                hitIsSphere = false;
-                hitTriIdx   = j;
+
+        // --- Triangle intersection via BVH
+        /*
+        // Brute-force triangle intersection (skip BVH for debugging)
+        var hitT = 1e9;
+        var hitIdx = 0u;
+
+        for (var i = 0u; i < camera.spp.y; i = i + 1u) { // y = triCount passed from JS
+            let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
+            if (t > 0.0 && t < hitT) {
+                hitT = t;
+                hitIdx = i;
             }
         }
 
-        // Miss → background (black)
+        // Construct a Hit struct manually
+        let hit = Hit(hitT, hitIdx);
+        */
+
+        let hit = traverseBVH(rayOrig, rayDir);
+        if (hit.t > 0.0 && hit.t < closestT) {
+            closestT = hit.t;
+            hitIsSphere = false;
+            hitTriIdx = hit.triIdx;
+        }
+
+        // --- Miss
         if (closestT == 1e9) {
-            color = color + throughput * vec3<f32>(0, 0, 0);
+            color = color + throughput * vec3<f32>(0.0);
             break;
         }
 
+        // --- Hit point and material
         let hitPoint = rayOrig + rayDir * closestT;
-        var normal   = vec3<f32>(0.0, 1.0, 0.0);
+        var normal   = vec3<f32>(0.0);
         var matId    = 0u;
 
         if (hitIsSphere) {
@@ -232,7 +368,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             matId   = u32(tri.mat.x);
         }
 
-        // Material
+        // --- Shading (same as your current code)
         let mat        = materials[matId];
         let albedo     = mat.color.rgb;
         let refl       = mat.params.x;
@@ -241,7 +377,6 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         let emRGB      = mat.emissive.rgb;
         let emStrength = mat.emissive.w;
 
-        // Emissive
         if (emStrength > 0.0) {
             color = color + throughput * (emRGB * emStrength);
             break;
@@ -354,7 +489,10 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let prev = textureSampleLevel(prevImage, samp, uv, 0).rgb;
 
     let fi = f32(frame.frameIndex);
-    let accum = (prev * fi + col) / (fi + 1.0);
-
+    var accum = col;
+    if (fi > 0.0) {
+        let prev = textureSampleLevel(prevImage, samp, uv, 0).rgb;
+        accum = (prev * fi + col) / (fi + 1.0);
+    }
     textureStore(outImage, vec2<i32>(gid.xy), vec4<f32>(accum, 1.0));
 }

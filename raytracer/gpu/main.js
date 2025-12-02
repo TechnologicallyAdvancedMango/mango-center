@@ -227,6 +227,34 @@ function buildBVH(tris, depth=0) {
     return node;
 }
 
+function buildBVHIndices(tris, depth=0) {
+    const idxs = tris.map((_, i) => i);
+    function split(indices, depth) {
+        const node = { triangles:[], left:null, right:null, bounds:computeBounds(indices.map(i=>tris[i])) };
+        if (indices.length <= 4 || depth > 16) {
+            node.triangles = indices.slice();
+            return node;
+        }
+        const size = {
+            x: node.bounds.max.x - node.bounds.min.x,
+            y: node.bounds.max.y - node.bounds.min.y,
+            z: node.bounds.max.z - node.bounds.min.z
+        };
+        const axis = size.x > size.y && size.x > size.z ? 'x' : (size.y > size.z ? 'y' : 'z');
+        indices.sort((a,b) => {
+            const ta = tris[a], tb = tris[b];
+            const ca = (ta.v0[axis]+ta.v1[axis]+ta.v2[axis])/3;
+            const cb = (tb.v0[axis]+tb.v1[axis]+tb.v2[axis])/3;
+            return ca - cb;
+        });
+        const mid = Math.floor(indices.length/2);
+        node.left  = split(indices.slice(0, mid), depth+1);
+        node.right = split(indices.slice(mid),     depth+1);
+        return node;
+    }
+    return split(idxs, depth);
+}
+
 function hitAABB(rayOrig, rayDir, bounds) {
     let tmin = (bounds.min.x - rayOrig.x) / rayDir.x;
     let tmax = (bounds.max.x - rayOrig.x) / rayDir.x;
@@ -830,71 +858,140 @@ function packTriangles(tris) {
 }
 
 function packCamera(camera, basis, samplesPerPixel) {
-    // CameraData: pos_fov, forward, right, up (vec4<f32>) + spp (vec4<u32>)
-    const strideBytes = 6 * 16; // 6 vec4s = 96 bytes
+    const strideBytes = 6 * 16; // 96 bytes
     const buf = new ArrayBuffer(strideBytes);
     const f32 = new Float32Array(buf);
     const u32 = new Uint32Array(buf);
+
     // pos_fov
     f32[0] = camera.position.x;
     f32[1] = camera.position.y;
     f32[2] = camera.position.z;
     f32[3] = camera.fov;
+
     // forward
     f32[4] = basis.forward.x;
     f32[5] = basis.forward.y;
     f32[6] = basis.forward.z;
     f32[7] = 0;
+
     // right
     f32[8]  = basis.right.x;
     f32[9]  = basis.right.y;
     f32[10] = basis.right.z;
     f32[11] = 0;
+
     // up
     f32[12] = basis.up.x;
     f32[13] = basis.up.y;
     f32[14] = basis.up.z;
     f32[15] = 0;
-    // spp vec4<u32>
-    u32[16] = samplesPerPixel >>> 0;
-    u32[17] = 0;
-    u32[18] = 0;
-    u32[19] = 0;
+
+    // spp + counts
+    u32[16] = samplesPerPixel >>> 0;              // x = spp
+    u32[17] = scene.triangles.length >>> 0;       // y = triCount
+    u32[18] = scene.spheres.length >>> 0;         // z = sphereCount
+    u32[19] = materials.length >>> 0;             // w = materialCount
     return buf;
 }
 
-// Create GPU buffers using packed ArrayBuffers
-const sphereBufPacked = packSpheres(scene.spheres);
-const triBufPacked    = packTriangles(scene.triangles);
-const camBufPacked    = packCamera(camera, basis, samplesPerPixel);
+let sphereBuffer;
+let triangleBuffer;
+let cameraBuffer;
+let materialBuffer
+let screenBuffer;
+let bvhBuffer;
 
-const sphereBuffer = device.createBuffer({
-    size: sphereBufPacked.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-});
-const triangleBuffer = device.createBuffer({
-    size: triBufPacked.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-});
-const cameraBuffer = device.createBuffer({
-    size: camBufPacked.byteLength,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-});
+function rebuildBuffers() {
+    const bvhTree   = buildBVHIndices(scene.triangles);
+    const { nodes, reordered } = flattenBVHWithRanges(bvhTree, scene.triangles);
 
-const materialBuffer = device.createBuffer({
-    size: matData.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-});
+    console.log("BVH nodes count:", nodes.length);
+    nodes.forEach((n,i) => {
+        if (n.left === 0xFFFFFFFF && n.right === 0xFFFFFFFF) {
+            if (n.triCount === 0) {
+                console.warn("Leaf node with zero triangles!", i, n);
+            }
+            if (n.firstTri + n.triCount > reordered.length) {
+                console.error("Leaf node points past triangle array!", i, n);
+            }
+        }
+    });
 
-const screenBuffer = device.createBuffer({
-    size: 16, // alignment requirement
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-});
 
-device.queue.writeBuffer(sphereBuffer, 0, sphereBufPacked);
-device.queue.writeBuffer(triangleBuffer, 0, triBufPacked);
-device.queue.writeBuffer(cameraBuffer, 0, camBufPacked);
-device.queue.writeBuffer(materialBuffer, 0, matData);
+    // Pack data using globals
+    const sphereBufPacked = packSpheres(scene.spheres);
+    const triBufPacked = packTriangles(reordered);
+    const camBufPacked    = packCamera(camera, getCameraBasis(camera), samplesPerPixel);
+    const bvhBufPacked = packBVH(nodes);
+    const matData         = new Float32Array(materials.length * 12);
+    materials.forEach((m, i) => {
+        const base = i * 12;
+        matData[base + 0]  = (m.color.r ?? 255) / 255;
+        matData[base + 1]  = (m.color.g ?? 255) / 255;
+        matData[base + 2]  = (m.color.b ?? 255) / 255;
+        matData[base + 3]  = 1.0;
+        matData[base + 4]  = m.reflectivity ?? 0.0;
+        matData[base + 5]  = m.roughness ?? 0.0;
+        matData[base + 6]  = m.ior ?? 0.0;
+        matData[base + 7]  = 0.0;
+        matData[base + 8]  = (m.emission?.r ?? 0) / 255;
+        matData[base + 9]  = (m.emission?.g ?? 0) / 255;
+        matData[base + 10] = (m.emission?.b ?? 0) / 255;
+        matData[base + 11] = m.emissionStrength ?? 0.0;
+    });
+
+    // Recreate buffers
+    sphereBuffer = device.createBuffer({
+        size: sphereBufPacked.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    triangleBuffer = device.createBuffer({
+        size: triBufPacked.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    cameraBuffer = device.createBuffer({
+        size: 256, // uniform buffer must be padded
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    materialBuffer = device.createBuffer({
+        size: matData.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    screenBuffer = device.createBuffer({
+        size: 256,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    bvhBuffer = device.createBuffer({
+        size: bvhBufPacked.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+
+    // Write data
+    device.queue.writeBuffer(sphereBuffer, 0, sphereBufPacked);
+    device.queue.writeBuffer(triangleBuffer, 0, triBufPacked);
+    device.queue.writeBuffer(cameraBuffer, 0, camBufPacked);
+    device.queue.writeBuffer(materialBuffer, 0, matData);
+    device.queue.writeBuffer(bvhBuffer, 0, bvhBufPacked);
+
+    // Debug logs
+    console.log("sphereBuffer size:", sphereBufPacked.byteLength);
+    console.log("triangleBuffer size:", triBufPacked.byteLength);
+    console.log("cameraBuffer size:", 256);
+    console.log("materialBuffer size:", matData.byteLength);
+    console.log("screenBuffer size:", 256);
+    console.log("bvhBuffer size:", bvhBufPacked.byteLength);
+
+    console.log("sphereBuffer object:", sphereBuffer);
+    console.log("triangleBuffer object:", triangleBuffer);
+    console.log("cameraBuffer object:", cameraBuffer);
+    console.log("materialBuffer object:", materialBuffer);
+    console.log("screenBuffer object:", screenBuffer);
+    console.log("bvhBuffer object:", bvhBuffer);
+
+    // Rebuild bind groups so they point to the new buffers
+    initPipelines();
+}
 
 
 const keys = {};
@@ -1015,14 +1112,12 @@ function updateCamera() {
 
 function updateCameraUniform() {
     const basis = getCameraBasis(camera);
-    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
-    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
 
     // Force spp=1 in preview mode
     const sppValue = isPreviewMode() ? 1 : samplesPerPixel;
 
-    // 6 vec4s = 96 bytes
-    const strideBytes = 6 * 16;
+    // CameraData = 5 vec4s = 80 bytes
+    const strideBytes = 5 * 16;
     const buf = new ArrayBuffer(strideBytes);
     const f32 = new Float32Array(buf);
     const u32 = new Uint32Array(buf);
@@ -1052,10 +1147,10 @@ function updateCameraUniform() {
     f32[15] = 0;
 
     // spp vec4<u32>
-    u32[16] = sppValue >>> 0;   // x = samplesPerPixel
-    u32[17] = width >>> 0;      // y = width
-    u32[18] = height >>> 0;     // z = height
-    u32[19] = 0;                // padding
+    u32[16] = sppValue >>> 0;
+    u32[17] = 0;
+    u32[18] = 0;
+    u32[19] = 0;
 
     device.queue.writeBuffer(cameraBuffer, 0, buf);
 }
@@ -1115,7 +1210,8 @@ function initPipelines() {
             { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },  // materials
             { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },                // frame (frameIndex)
             { binding: 6, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } },           // prevImage
-            { binding: 7, visibility: GPUShaderStage.COMPUTE, sampler: {} }                             // samp
+            { binding: 7, visibility: GPUShaderStage.COMPUTE, sampler: {} },                             // samp
+            { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } } // BVH
         ]
     });
 
@@ -1154,7 +1250,8 @@ function rebuildBindGroups() {
             { binding: 4, resource: { buffer: materialBuffer } },
             { binding: 5, resource: { buffer: frameBuffer } },
             { binding: 6, resource: prevTex.createView() },
-            { binding: 7, resource: sampler }
+            { binding: 7, resource: sampler },
+            { binding: 8, resource: { buffer: bvhBuffer } }
         ]
     });
 
@@ -1304,6 +1401,90 @@ function requeueAll() {
     };
 }
 
+function flattenBVH(root) {
+    const nodes = [];
+    function recurse(node) {
+        const idx = nodes.length;
+        const flat = {
+            min: node.bounds.min,
+            max: node.bounds.max,
+            left: 0xFFFFFFFF,
+            right: 0xFFFFFFFF,
+            firstTri: 0,
+            triCount: 0
+        };
+        nodes.push(flat);
+        if (node.left) flat.left = recurse(node.left);
+        if (node.right) flat.right = recurse(node.right);
+        return idx;
+    }
+    recurse(root);
+    return nodes;
+}
+
+function flattenBVHWithRanges(root, tris) {
+    const nodes = [];
+    const reordered = [];
+    function emitLeaf(leafIdxs) {
+        const start = reordered.length;
+        for (const i of leafIdxs) reordered.push(tris[i]);
+        return { firstTri:start, triCount:leafIdxs.length };
+    }
+    function recurse(node) {
+        const idx = nodes.length;
+        const flat = {
+            min: node.bounds.min,
+            max: node.bounds.max,
+            left: 0xFFFFFFFF,
+            right: 0xFFFFFFFF,
+            firstTri: 0,
+            triCount: 0
+        };
+        nodes.push(flat);
+        if (node.triangles.length) {
+            const range = emitLeaf(node.triangles);
+            flat.firstTri = range.firstTri;
+            flat.triCount = range.triCount;
+        } else {
+            flat.left  = recurse(node.left);
+            flat.right = recurse(node.right);
+        }
+        return idx;
+    }
+    recurse(root);
+    return { nodes, reordered };
+}
+
+function packBVH(nodes) {
+    const stride = 48;
+    const buf = new ArrayBuffer(nodes.length * stride);
+    const dv = new DataView(buf);
+
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        const base = i * stride;
+
+        // min vec3<f32> (16 bytes slot)
+        dv.setFloat32(base + 0,  n.min.x, true);
+        dv.setFloat32(base + 4,  n.min.y, true);
+        dv.setFloat32(base + 8,  n.min.z, true);
+        // pad at base+12
+
+        // max vec3<f32> (16 bytes slot)
+        dv.setFloat32(base + 16, n.max.x, true);
+        dv.setFloat32(base + 20, n.max.y, true);
+        dv.setFloat32(base + 24, n.max.z, true);
+        // pad at base+28
+
+        // children + tri info
+        dv.setUint32(base + 32, n.left >>> 0, true);
+        dv.setUint32(base + 36, n.right >>> 0, true);
+        dv.setUint32(base + 40, n.firstTri >>> 0, true);
+        dv.setUint32(base + 44, n.triCount >>> 0, true);
+    }
+    return buf;
+}
+
 // models = [
 //   { obj:"path/to.obj", mtl:"path/to.mtl", transform:{...}, material: customMaterial },
 //   { obj:"...", mtl:"...", ... }
@@ -1312,34 +1493,28 @@ async function loadModelsAndBuildBVH(models) {
     const allTriangles = [];
 
     for (const m of models) {
-        // Load files
         const [objText, mtlText] = await Promise.all([
             fetch(m.obj).then(r => r.text()),
             m.mtl ? fetch(m.mtl).then(r => r.text()) : Promise.resolve("")
         ]);
 
-        // Parse materials from MTL (if any)
         const materials = mtlText ? parseMTL(mtlText) : {};
 
-        // Load textures
         for (const name in materials) {
             const mat = materials[name];
             if (mat.map_Kd) {
-                mat.textureImage = await loadTexture("objects/" + mat.map_Kd);
+                mat.textureImage = await loadTexture("../objects/" + mat.map_Kd);
             }
         }
 
-        // Parse OBJ with materials
         const { triangles } = parseOBJ(objText, materials);
 
-        // If a custom material override was provided, apply it
         if (m.material) {
             for (const tri of triangles) {
                 tri.material = m.material;
             }
         }
 
-        // Apply optional transform
         if (m.transform) {
             for (const tri of triangles) {
                 tri.v0 = applyTransform(tri.v0, m.transform.position, m.transform.rotation, m.transform.scale);
@@ -1354,8 +1529,11 @@ async function loadModelsAndBuildBVH(models) {
     // Merge into scene
     scene.triangles.push(...allTriangles);
 
-    // Build BVH once for all imported geometry
+    // Build BVH
     bvhRootPreview = buildBVH(scene.triangles);
+
+    // Rebuild buffers
+    rebuildBuffers();
 }
 
 async function loadTexture(url) {
@@ -1381,6 +1559,10 @@ const frameBuffer = device.createBuffer({
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 });
 
+function drawUI() {
+    
+}
+
 function tick() {
     // write current frame index
     // frameIndex write
@@ -1399,21 +1581,21 @@ function tick() {
     // Always render
     startComputePass();
 
+    drawUI();
+
     requestAnimationFrame(tick);
 }
 
 
 let bvhRootPreview;
 loadModelsAndBuildBVH([
-    /*
-    { obj: "objects/Rock1.obj", mtl: "objects/Rock1.mtl", transform: { 
+    { obj: "../objects/Rock1.obj", mtl: "../objects/Rock1.mtl", transform: { 
         position:{x:-15,y:0,z:5}, rotation:{x:0,y:90,z:0}, scale:{x:2,y:2,z:2} 
     }},
-    { obj: "objects/suzanne.obj", material: whiteMat, transform: { 
+    { obj: "../objects/suzanne.obj", material: whiteMat, transform: { 
         position:{x:-0.5,y:0,z:-14}, rotation:{x:0,y:0,z:0}, scale:{x:1.5,y:1.5,z:1.5},
     }},
-    */
-    // { obj:"objects/cornellBox.obj", mtl:"objects/cornellBox.mtl" }
+    // { obj:"../objects/cornellBox.obj", mtl:"../objects/cornellBox.mtl" }
 ]).then(() => {
     initPipelines();      // creates pipelines and (re)bind groups safely
     resetAccumulation();  // creates accumTex and bind groups
