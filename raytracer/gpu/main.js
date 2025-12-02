@@ -52,6 +52,17 @@ function updateDimensions() {
     height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
     width = Math.floor(width);
     height = Math.floor(height);
+
+    accumTex = device.createTexture({
+        size: [width, height],
+        format: 'rgba16float',
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+    });
+    prevTex = device.createTexture({
+        size: [width, height],
+        format: 'rgba16float',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
 }
 
 async function loadShaderModule(device, url) {
@@ -1011,7 +1022,6 @@ function markInput() {
     needReset = true;
 }
 
-let isMoving = false;
 let cameraChanged = false;
 
 let stopRequested = false;
@@ -1087,6 +1097,12 @@ canvas.addEventListener("click", () => {
 function updateCamera() {
     const { forward, right, up } = getCameraBasis(camera);
     const speed = camera.speed;
+
+    if (keys["KeyW"] || keys["KeyA"] || keys["KeyS"] || keys["KeyD"] || keys["Space"] || keys["ShiftLeft"]) {
+        lastInputAt = performance.now();
+        needReset = true;
+        cameraChanged = true;
+    }
 
     if (keys["KeyW"]) {
         camera.position.x += forward.x * speed;

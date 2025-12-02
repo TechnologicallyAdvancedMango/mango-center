@@ -405,24 +405,33 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             throughput = throughput / p;
         }
 
-        // Dielectric (glass): Fresnel split only (no diffuse)
+        // Dielectric (glass): Fresnel split with roughness scattering
         if (ior > 0.0) {
             let entering = dot(rayDir, normal) < 0.0;
-            let etai = select(ior, 1.0, entering); // returns 1.0 if entering==true, else ior
-            let etat = select(1.0, ior, entering); // returns ior if entering==true, else 1.0
+            let etai = select(ior, 1.0, entering); // 1.0 if entering, else ior
+            let etat = select(1.0, ior, entering); // ior if entering, else 1.0
 
             // Fresnel reflectance at interface
             let kr = fresnel_schlick(rayDir, normal, ior);
 
-            let reflDir = normalize(reflect3(rayDir, normal));
-            let refrDir = refract3(rayDir, normal, etai, etat);
+            // Base reflection/refraction directions
+            var reflDir = normalize(reflect3(rayDir, normal));
+            var refrDir = refract3(rayDir, normal, etai, etat);
+
+            // If rough > 0, blend reflection with diffuse sample for frosted glass
+            if (rough > 0.0) {
+                let diffuseDir = cosineSampleHemisphere(normal, seed * 997u + depth * 883u);
+                reflDir = normalize(mix(reflDir, diffuseDir, rough));
+            }
+
             let doReflect = (hash(seed * 313u + depth) < kr) || (length(refrDir) == 0.0);
 
             if (doReflect) {
                 // reflection ray: offset outward
                 rayOrig = offsetOrigin(hitPoint, normal);
                 rayDir  = reflDir;
-                throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
+                // tint reflection by albedo if desired
+                throughput = throughput * albedo;
                 specDepth  = specDepth + 1u;
             } else {
                 // refraction ray: offset inward if entering, outward if exiting
@@ -432,11 +441,11 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
                     rayOrig = offsetOrigin(hitPoint, normal);
                 }
                 rayDir  = refrDir;
-                throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
+                // tint transmission by albedo if desired
+                throughput = throughput * albedo;
             }
             continue;
         }
-
 
         // Non‑dielectric: specular + diffuse blend
         let nextThroughput = throughput * albedo;
@@ -498,7 +507,8 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     col = col / f32(spp);
 
     // Progressive accumulation
-    let uv = vec2<f32>(f32(gid.x) / f32(dims.x), f32(gid.y) / f32(dims.y));
+    let uv = vec2<f32>((f32(gid.x) + 0.5) / f32(dims.x),
+                       (f32(gid.y) + 0.5) / f32(dims.y));
     let prev = textureSampleLevel(prevImage, samp, uv, 0).rgb;
 
     let fi = f32(frame.frameIndex);
