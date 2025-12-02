@@ -17,11 +17,12 @@ struct Material {
 };
 
 struct CameraData {
-    pos_fov : vec4<f32>,        // xyz = position, w = fov
+    pos_fov : vec4<f32>, // xyz = position, w = fov in degrees
     forward : vec4<f32>,
     right   : vec4<f32>,
     up      : vec4<f32>,
-    spp     : vec4<u32>,        // x = samplesPerPixel
+    spp     : vec4<u32>, // x = samplesPerPixel
+    maxDepth: vec4<u32>, // x = max bounce depth
 };
 
 struct FrameData {
@@ -524,7 +525,6 @@ fn get_emission_rgb(matId:u32)->vec3<f32>{
 // -----------------------------
 // Trace loop
 // -----------------------------
-const MAX_RAY_BOUNCES : u32 = 15u;
 const RR_START_DEPTH  : u32 = 3u;
 
 fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
@@ -533,6 +533,8 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
     var throughput = vec3<f32>(1.0);
     var color      = vec3<f32>(0.0);
     var specDepth  = 0u;
+    
+    let MAX_RAY_BOUNCES: u32 = camera.maxDepth.x;
 
     for (var depth = 0u; depth <= MAX_RAY_BOUNCES; depth = depth + 1u) {
         var closestT   = 1e9;

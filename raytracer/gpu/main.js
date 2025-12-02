@@ -2,7 +2,12 @@ const canvas = document.getElementById("canvas");
 const context = canvas.getContext("webgpu");
 
 const adapter = await navigator.gpu.requestAdapter();
-const device = await adapter.requestDevice();
+const device = await adapter.requestDevice({
+    requiredLimits: { // request higher limits if needed
+        maxBufferSize: adapter.limits.maxBufferSize,
+        maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize
+    }
+});
 
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 context.configure({
@@ -15,6 +20,7 @@ const params = new URLSearchParams(window.location.search);
 
 let resDiv = parseInt(params.get("resDiv")) || 3; // breaks below 3 on chromebooks
 let samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–4 for speed, higher for quality
+let maxRayBounces = 20;
 
 // Match internal resolution to CSS size
 canvas.width  = Math.floor(canvas.clientWidth);
@@ -36,6 +42,11 @@ function updateDimensions() {
 
     width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
     height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+
+    // Clamp to device limits
+    const maxDim = device.limits.maxTextureDimension2D;
+    width = Math.min(width, maxDim);
+    height = Math.min(height, maxDim);
 
     accumTex = device.createTexture({
         size: [width, height],
@@ -75,10 +86,12 @@ icon.addEventListener("click", () => {
 document.getElementById("applySettings").addEventListener("click", () => {
     resDiv = parseInt(document.getElementById("resDivInput").value, 10);
     samplesPerPixel = parseInt(document.getElementById("sppInput").value, 10);
+    maxRayBounces = parseInt(document.getElementById("maxDepthInput").value, 10);
 
+    menu.style.display = "none";
+    rebuildBuffers();
     updateDimensions();
 });
-
 
 const WORKGROUP_SIZE_X = 8;
 const WORKGROUP_SIZE_Y = 8;
@@ -792,6 +805,33 @@ scene.triangles.push(...new RectangularPrism(
     blueGlow
 ).triangles);
 
+// shadow demonstration pillars
+scene.triangles.push(...new RectangularPrism(
+    {x:-7,y:-1,z:4}, // min corner
+    {x:-6,y:3,z:5},  // max corner
+    whiteMat
+).triangles);
+scene.triangles.push(...new RectangularPrism(
+    {x:-9,y:-1,z:4}, // min corner
+    {x:-8,y:5,z:5},  // max corner
+    whiteMat
+).triangles);
+
+// reflection demonstration mirror walls
+scene.triangles.push(...new RectangularPrism(
+    {x:-25,y:-1,z:-10}, // min corner
+    {x:-24,y:6,z:0},  // max corner
+    mirrorMat
+).triangles);
+scene.triangles.push(...new RectangularPrism(
+    {x:-34,y:-1,z:-10}, // min corner
+    {x:-33,y:6,z:0},  // max corner
+    mirrorMat
+).triangles);
+// sphere in between
+scene.spheres.push({ center:{x:-29,y:0,z:-5}, radius:1, material: whiteMat });
+
+
 const camera = new Camera(canvas.width, canvas.height);
 camera.position.y = 1; // move up on start
 
@@ -893,8 +933,8 @@ function packTriangles(tris) {
     return buf;
 }
 
-function packCamera(camera, basis, spp, triCount, sphereCount, materialCount) {
-    const strideBytes = 6 * 16; // 96 bytes
+function packCamera(camera, basis, spp, triCount, sphereCount, materialCount, maxDepth) {
+    const strideBytes = 7 * 16; // 112 bytes
     const buf = new ArrayBuffer(strideBytes);
     const f32 = new Float32Array(buf);
     const u32 = new Uint32Array(buf);
@@ -928,6 +968,9 @@ function packCamera(camera, basis, spp, triCount, sphereCount, materialCount) {
     u32[17] = (triCount >>> 0);
     u32[18] = (sphereCount >>> 0);
     u32[19] = (materialCount >>> 0);
+
+    // max depth
+    u32[20] = maxDepth >>> 0;
 
     return buf;
 }
@@ -975,7 +1018,8 @@ function rebuildBuffers() {
         sppValue,
         reordered.length,
         scene.spheres.length,
-        materials.length
+        materials.length,
+        maxRayBounces
     );
 
     // Materials
@@ -1331,8 +1375,14 @@ function startComputePass() {
     const computePass = encoder.beginComputePass();
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
+    const maxGroups = device.limits.maxComputeWorkgroupsPerDimension; // limit to max workgroups, idk if it works
     const groupsX = Math.ceil(width / WORKGROUP_SIZE_X);
     const groupsY = Math.ceil(height / WORKGROUP_SIZE_Y);
+    if (groupsX > maxGroups || groupsY > maxGroups) {
+        console.warn("Dispatch too large, clamping resolution");
+        resDiv = Math.max(resDiv, 2); // force lower resolution
+        updateDimensions();
+    }
     computePass.dispatchWorkgroups(groupsX, groupsY);
     computePass.end();
 
