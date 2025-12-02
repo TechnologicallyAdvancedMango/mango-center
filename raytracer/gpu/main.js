@@ -13,45 +13,29 @@ context.configure({
 // Read URL parameters
 const params = new URLSearchParams(window.location.search);
 
-const resDiv = parseInt(params.get("resDiv")) || 3; // breaks below 3 on chromebooks
-const samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–4 for speed, higher for quality
+let resDiv = parseInt(params.get("resDiv")) || 3; // breaks below 3 on chromebooks
+let samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–4 for speed, higher for quality
 
 // Match internal resolution to CSS size
 canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
-// Preview resolution (fast, interactive)
-const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
-const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
-
-// Render resolution (higher quality)
-const RENDER_WIDTH  = Math.floor(canvas.clientWidth / resDiv);
-const RENDER_HEIGHT = Math.floor(canvas.clientHeight / resDiv);
-
 let autoPreview = false;    // automatic preview on movement
 let manualPreview = true;   // manual toggle when autoPreview is false
 
-const WORKGROUP_SIZE_X = 8;
-const WORKGROUP_SIZE_Y = 8;
-
-if (params.get("autoRender") === "true") manualPreview = false; // Render immediately
-
-let frameIndex = 0;
-
-function isPreviewMode() {
-    return autoPreview ? true : manualPreview;
-}
-
-let width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
-let height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+let width;
+let height;
 width = Math.floor(width);
 height = Math.floor(height);
 
 function updateDimensions() {
+    const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
+    const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
+    const RENDER_WIDTH   = Math.floor(canvas.clientWidth / resDiv);
+    const RENDER_HEIGHT  = Math.floor(canvas.clientHeight / resDiv);
+
     width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
     height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
-    width = Math.floor(width);
-    height = Math.floor(height);
 
     accumTex = device.createTexture({
         size: [width, height],
@@ -63,6 +47,48 @@ function updateDimensions() {
         format: 'rgba16float',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
+}
+
+function updatePreviewUI() {
+    const icon = document.getElementById("settings-icon");
+    if (isPreviewMode()) {
+        icon.style.display = "block";
+    } else {
+        icon.style.display = "none";
+        document.getElementById("settings-menu").style.display = "none";
+    }
+}
+
+const icon = document.getElementById("settings-icon");
+const menu = document.getElementById("settings-menu");
+
+icon.addEventListener("click", () => {
+    if (menu.style.display === "none") {
+        document.getElementById("resDivInput").value = resDiv;
+        document.getElementById("sppInput").value = samplesPerPixel;
+        menu.style.display = "block";
+    } else {
+        menu.style.display = "none";
+    }
+});
+
+document.getElementById("applySettings").addEventListener("click", () => {
+    resDiv = parseInt(document.getElementById("resDivInput").value, 10);
+    samplesPerPixel = parseInt(document.getElementById("sppInput").value, 10);
+
+    updateDimensions();
+});
+
+
+const WORKGROUP_SIZE_X = 8;
+const WORKGROUP_SIZE_Y = 8;
+
+if (params.get("autoRender") === "true") manualPreview = false; // Render immediately
+
+let frameIndex = 0;
+
+function isPreviewMode() {
+    return autoPreview ? true : manualPreview;
 }
 
 async function loadShaderModule(device, url) {
@@ -1026,6 +1052,7 @@ function emergencyStop() {
 document.addEventListener("keydown", e => {
     if (e.code === "KeyR") {
         manualPreview = !manualPreview;
+        updatePreviewUI();
 
         // Always reset accumulation immediately when toggling
         resetAccumulation();
@@ -1057,24 +1084,26 @@ window.addEventListener('wheel', (event) => {
         // Check the scroll direction
         if (event.deltaY > 0) {
             // down: zoom out
-            camera.fov *= 1.1; // higher fov
-            // limit to 180
-            if (camera.fov > 180) camera.fov = 180;
+            camera.fov = Math.min(camera.fov * 1.05, 179); // higher fov limited to 179 degrees
+            
         } else if (event.deltaY < 0) {
             // up: zoom in
-            camera.fov *= 0.9; // lower fov
+            camera.fov = camera.fov * 0.95; // lower fov not limited
         }
 
-        // prevent default browser scrolling behavior
-        event.preventDefault(); 
+        lastInputAt = performance.now();
+        needReset = true;
+        cameraChanged = true;
+        
+        console.log(`FOV: ${camera.fov.toFixed(5)} degrees`);
     }
 });
 
 document.addEventListener("mousemove", e => {
     if (!isPreviewMode()) return;
     if (document.pointerLockElement === canvas) {
-        camera.yaw   -= e.movementX * 0.002;
-        camera.pitch += e.movementY * 0.002;
+        camera.yaw   -= e.movementX * 0.002 * Math.min(camera.fov / 60, 1); // adjust sensitivity based on FOV, but dont go above 1x speed
+        camera.pitch += e.movementY * 0.002 * Math.min(camera.fov / 60, 1);
         const maxPitch = Math.PI/2 - 0.01;
         camera.pitch = Math.max(-maxPitch, Math.min(maxPitch, camera.pitch));
         cameraChanged = true; // mark once
@@ -1637,7 +1666,9 @@ loadModelsAndBuildBVH([
     }},
     // { obj:"../objects/cornellBox.obj", mtl:"../objects/cornellBox.mtl" }
 ]).then(() => {
+    updateDimensions();
     initPipelines();      // creates pipelines and (re)bind groups safely
     resetAccumulation();  // creates accumTex and bind groups
     tick();               // now the loop can call renderOneFrameNow safely
+    updatePreviewUI();
 });

@@ -524,7 +524,7 @@ fn get_emission_rgb(matId:u32)->vec3<f32>{
 // -----------------------------
 // Trace loop
 // -----------------------------
-const MAX_RAY_BOUNCES : u32 = 10u;
+const MAX_RAY_BOUNCES : u32 = 15u;
 const RR_START_DEPTH  : u32 = 3u;
 
 fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
@@ -711,6 +711,7 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
         col = draw_bvh_wireframe(gid.xy);
     }
 
+    // Debug output at center pixel
     if (gid.x == dims.x/2u && gid.y == dims.y/2u) {
         var c = vec3<f32>(0.0, 0.0, 0.0);
         // pick one at a time to read a clear result
