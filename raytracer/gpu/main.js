@@ -13,7 +13,7 @@ context.configure({
 // Read URL parameters
 const params = new URLSearchParams(window.location.search);
 
-const resDiv = parseInt(params.get("resDiv")) || 1;
+const resDiv = parseInt(params.get("resDiv")) || 3; // breaks below 3 on chromebooks
 const samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–4 for speed, higher for quality
 
 // Match internal resolution to CSS size
