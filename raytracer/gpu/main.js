@@ -14,7 +14,7 @@ context.configure({
 const params = new URLSearchParams(window.location.search);
 
 const resDiv = parseInt(params.get("resDiv")) || 1;
-const samplesPerPixel = parseInt(params.get("spp")) || 2; // 1–4 for speed, higher for quality
+const samplesPerPixel = parseInt(params.get("spp")) || 1; // 1–4 for speed, higher for quality
 
 // Match internal resolution to CSS size
 canvas.width  = Math.floor(canvas.clientWidth);
