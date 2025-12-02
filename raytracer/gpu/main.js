@@ -21,8 +21,8 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 // Preview resolution (fast, interactive)
-const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 4);
-const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 4);
+const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
+const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
 
 // Render resolution (higher quality)
 const RENDER_WIDTH  = Math.floor(canvas.clientWidth / resDiv);
@@ -40,6 +40,18 @@ let frameIndex = 0;
 
 function isPreviewMode() {
     return autoPreview ? true : manualPreview;
+}
+
+let width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+let height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+width = Math.floor(width);
+height = Math.floor(height);
+
+function updateDimensions() {
+    width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
+    height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
+    width = Math.floor(width);
+    height = Math.floor(height);
 }
 
 async function loadShaderModule(device, url) {
@@ -767,8 +779,6 @@ scene.triangles.forEach((t, i) => {
 });
 
 // Camera buffer: 20 floats
-let width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
-let height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
 
 const basis = getCameraBasis(camera);
 const camData = new Float32Array([
@@ -1004,6 +1014,12 @@ function markInput() {
 let isMoving = false;
 let cameraChanged = false;
 
+let stopRequested = false;
+
+function emergencyStop() {
+    stopRequested = true;
+}
+
 document.addEventListener("keydown", e => {
     if (e.code === "KeyR") {
         manualPreview = !manualPreview;
@@ -1013,6 +1029,7 @@ document.addEventListener("keydown", e => {
         updateCameraUniform();
         return;
     }
+    if (e.code === "KeyQ") emergencyStop(); // stop immediately
 
     if (!isPreviewMode()) return;
 
@@ -1160,9 +1177,7 @@ function renderOneFrameNow() {
 }
 
 function resetAccumulation() {
-    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
-    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
-
+    updateDimensions()
     // Update before rendering
     const screenData = new Float32Array([canvas.clientWidth, canvas.clientHeight]);
     device.queue.writeBuffer(screenBuffer, 0, screenData);
@@ -1272,9 +1287,6 @@ let previewing = false;
 const idleDelayMs = 60; // small debounce so movement doesn’t thrash
 
 function startComputePass() {
-    const width  = isPreviewMode() ? PREVIEW_WIDTH  : RENDER_WIDTH;
-    const height = isPreviewMode() ? PREVIEW_HEIGHT : RENDER_HEIGHT;
-
     const encoder = device.createCommandEncoder();
 
     // Compute
@@ -1564,6 +1576,7 @@ function drawUI() {
 }
 
 function tick() {
+    if (stopRequested) return; // bail immediately
     // write current frame index
     // frameIndex write
     device.queue.writeBuffer(frameBuffer, 0, new Uint32Array([frameIndex]));

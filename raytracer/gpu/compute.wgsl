@@ -155,6 +155,13 @@ fn intersectTriangle(rayOrig: vec3<f32>, rayDir: vec3<f32>, tri: Triangle) -> f3
     return select(-1.0,t,t>EPS);
 }
 
+fn offsetOrigin(p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+    // Scale epsilon by scene magnitude to avoid acne at large coordinates
+    let scale = max(1.0, abs(p.x) + abs(p.y) + abs(p.z));
+    let eps = 1e-4 * scale;
+    return p + n * eps;
+}
+
 fn invSafe(x: f32) -> f32 {
     if (abs(x) < 1e-8) {
         // treat as "no intersection" by returning a huge number
@@ -257,6 +264,23 @@ fn traverseBVH(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
     return Hit(closestT, hitId);
 }
 
+fn bruteForceTriangles(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> Hit {
+    var closestT = 1e9;
+    var hitId    = 0u;
+
+    let triCount = arrayLength(&triangles);
+
+    for (var i = 0u; i < triCount; i = i + 1u) {
+        let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
+        if (t > 0.0 && t < closestT) {
+            closestT = t;
+            hitId = i;
+        }
+    }
+
+    return Hit(closestT, hitId);
+}
+
 // -----------------------------
 // Material stubs
 // -----------------------------
@@ -320,24 +344,9 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         }
 
         // --- Triangle intersection via BVH
-        /*
         // Brute-force triangle intersection (skip BVH for debugging)
-        var hitT = 1e9;
-        var hitIdx = 0u;
-
-        for (var i = 0u; i < camera.spp.y; i = i + 1u) { // y = triCount passed from JS
-            let t = intersectTriangle(rayOrig, rayDir, triangles[i]);
-            if (t > 0.0 && t < hitT) {
-                hitT = t;
-                hitIdx = i;
-            }
-        }
-
-        // Construct a Hit struct manually
-        let hit = Hit(hitT, hitIdx);
-        */
-
-        let hit = traverseBVH(rayOrig, rayDir);
+        let hit = bruteForceTriangles(rayOrig, rayDir);
+        //let hit = traverseBVH(rayOrig, rayDir);
         if (hit.t > 0.0 && hit.t < closestT) {
             closestT = hit.t;
             hitIsSphere = false;
@@ -384,7 +393,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
 
         // Depth cap
         if (depth >= MAX_RAY_BOUNCES) {
-            color = color + throughput * albedo;
+            // terminate with no contribution
             break;
         }
 
@@ -410,20 +419,24 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             let doReflect = (hash(seed * 313u + depth) < kr) || (length(refrDir) == 0.0);
 
             if (doReflect) {
-                rayOrig    = hitPoint + normal * 1e-4;
-                rayDir     = reflDir;
-                // For clear glass, do NOT tint reflection by albedo; use spec multiplier if desired
+                // reflection ray: offset outward
+                rayOrig = offsetOrigin(hitPoint, normal);
+                rayDir  = reflDir;
                 throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
                 specDepth  = specDepth + 1u;
             } else {
-                // Step slightly inside when refracting
-                rayOrig    = hitPoint - normal * 1e-4;
-                rayDir     = refrDir;
-                // Transmission: for clear glass, leave throughput unchanged (or apply Beer-Lambert absorption later)
+                // refraction ray: offset inward if entering, outward if exiting
+                if (entering) {
+                    rayOrig = offsetOrigin(hitPoint, -normal);
+                } else {
+                    rayOrig = offsetOrigin(hitPoint, normal);
+                }
+                rayDir  = refrDir;
                 throughput = throughput * mix(vec3<f32>(1.0), albedo, 0.0);
             }
             continue;
         }
+
 
         // Non‑dielectric: specular + diffuse blend
         let nextThroughput = throughput * albedo;
@@ -437,7 +450,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         let diffShare = 1.0 - specShare;
 
         // Take specular direction as the next ray
-        rayOrig    = hitPoint + normal * 1e-4;
+        rayOrig = offsetOrigin(hitPoint, normal);
         rayDir     = specDir;
         throughput = throughput * specShare;
         specDepth  = specDepth + 1u;
