@@ -35,8 +35,8 @@ width = Math.floor(width);
 height = Math.floor(height);
 
 function updateDimensions() {
-    const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 8);
-    const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 8);
+    const PREVIEW_WIDTH  = Math.floor(canvas.clientWidth / 16);
+    const PREVIEW_HEIGHT = Math.floor(canvas.clientHeight / 16);
     const RENDER_WIDTH   = Math.floor(canvas.clientWidth / resDiv);
     const RENDER_HEIGHT  = Math.floor(canvas.clientHeight / resDiv);
 
@@ -62,10 +62,13 @@ function updateDimensions() {
 
 function updatePreviewUI() {
     const icon = document.getElementById("settings-icon");
+    const previewText = document.getElementById("previewText");
     if (isPreviewMode()) {
         icon.style.display = "block";
+        previewText.style.display = "block";
     } else {
         icon.style.display = "none";
+        previewText.style.display = "none";
         document.getElementById("settings-menu").style.display = "none";
     }
 }
@@ -409,10 +412,10 @@ class RectangularPrism {
     }
 }
 
-async function loadOBJ(url, material, {
+async function loadOBJ(url, baseMaterial, {
     position = {x:0,y:0,z:0},
-    rotation = {x:0,y:0,z:0}, // degrees
-    scale = {x:1,y:1,z:1}
+    rotation = {x:0,y:0,z:0},
+    scale    = {x:1,y:1,z:1}
 } = {}) {
     const text = await fetch(url).then(r => r.text());
     const lines = text.split('\n');
@@ -440,7 +443,20 @@ async function loadOBJ(url, material, {
     // apply transform
     const transformed = vertices.map(v => applyTransform(v, position, rotation, scale));
 
-    return new Mesh(transformed, faces, material);
+    // clone the base material
+    const newMaterial = new Material({
+        color: baseMaterial.color,
+        reflectivity: baseMaterial.reflectivity,
+        roughness: baseMaterial.roughness,
+        ior: baseMaterial.ior,
+        emission: baseMaterial.emission,
+        emissionStrength: baseMaterial.emissionStrength,
+        doubleSided: baseMaterial.doubleSided,
+        map_Kd: baseMaterial.map_Kd
+    });
+    newMaterial.texture = baseMaterial.texture; // preserve GPUTexture
+
+    return new Mesh(transformed, faces, newMaterial);
 }
 
 function parseOBJ(objText, materialsDict) {
@@ -480,6 +496,7 @@ function parseOBJ(objText, materialsDict) {
                 };
             });
             for (let i=1; i<verts.length-1; i++) {
+                const mat = materialsDict[currentMtl];
                 triangles.push({
                     v0: verts[0].pos,
                     v1: verts[i].pos,
@@ -487,11 +504,12 @@ function parseOBJ(objText, materialsDict) {
                     uv0: verts[0].uv,
                     uv1: verts[i].uv,
                     uv2: verts[i+1].uv,
-                    material: materialsDict[currentMtl] || new Material()
+                    material: mat
                 });
             }
         }
     }
+    console.log(triangles[0].uv0, triangles[0].uv1, triangles[0].uv2);
     return { triangles };
 }
 
@@ -505,7 +523,8 @@ class Material {
         ior = null, // index of refraction (null = opaque)
         emission = {r:0,g:0,b:0},
         emissionStrength = 0.0,
-        doubleSided = false
+        doubleSided = false,
+        map_Kd = null // diffuse texture filename
     } = {}) {
         this.color = color;
         this.reflectivity = reflectivity;
@@ -515,12 +534,16 @@ class Material {
         this.emissionStrength = emissionStrength;
         this.doubleSided = doubleSided;
 
+        // fields for textures
+        this.map_Kd = map_Kd; // filename from MTL
+        this.texture = null; // GPUTexture handle once loaded
+
         materials.push(this);
     }
 }
 
-function parseMTL(mtlText) {
-    const materials = {};
+async function parseMTL(mtlText, basePath = "../textures/") {
+    const mats = {};
     let current = null;
 
     for (const raw of mtlText.split('\n')) {
@@ -530,9 +553,9 @@ function parseMTL(mtlText) {
         const tag = parts[0];
 
         if (tag === 'newmtl') {
-            current = new Material(); // use your Material class defaults
+            current = new Material();
             current.name = parts[1];
-            materials[current.name] = current;
+            mats[current.name] = current;
         } else if (!current) {
             continue;
         } else if (tag === 'Kd') {
@@ -546,7 +569,7 @@ function parseMTL(mtlText) {
             current.reflectivity = Math.max(...ks);
         } else if (tag === 'Ns') {
             const ns = parseFloat(parts[1]);
-            current.roughness = Math.max(0, Math.min(1, 1 - ns/1000));
+            current.roughness = Math.max(0, Math.min(1, 1 - ns / 1000));
         } else if (tag === 'Ni') {
             const ni = parseFloat(parts[1]);
             current.ior = (ni === 1.0) ? null : ni;
@@ -558,15 +581,15 @@ function parseMTL(mtlText) {
             const r = parseFloat(parts[1]);
             const g = parseFloat(parts[2]);
             const b = parseFloat(parts[3]);
-            current.emission = {
-                r: r, g: g, b: b
-            };
-            current.emissionStrength = Math.max(r,g,b); // intensity
+            current.emission = { r, g, b };
+            current.emissionStrength = Math.max(r, g, b);
         } else if (tag === 'map_Kd') {
-            current.map_Kd = parts[1]; // store texture filename
+            current.map_Kd = parts[1];
+            const imgData = await loadTexture(basePath + current.map_Kd);
+            current.texture = await createGPUTextureFromImageData(imgData);
         }
     }
-    return materials;
+    return mats;
 }
 
 const ground = new Material({
@@ -577,8 +600,8 @@ const ground = new Material({
 });
 
 const glass = new Material({
-    color: { r:255, g:255, b:255 },   // no tint
-    reflectivity: 0.0,                // let Fresnel govern specular; this value is for metals
+    color: { r:255, g:255, b:255 },
+    reflectivity: 0.0, // let Fresnel govern specular; this value is for metals
     roughness: 0.0,
     ior: 1.5,
     doubleSided: true
@@ -829,7 +852,7 @@ scene.triangles.push(...new RectangularPrism(
     mirrorMat
 ).triangles);
 // sphere in between
-scene.spheres.push({ center:{x:-29,y:0,z:-5}, radius:1, material: whiteMat });
+scene.spheres.push({ center:{x:-29,y:0,z:-5}, radius:1, material: greenMat });
 
 
 const camera = new Camera(canvas.width, canvas.height);
@@ -865,11 +888,11 @@ materials.forEach((m, i) => {
     matData[base + 2]  = (m.color.b ?? 255) / 255;
     matData[base + 3]  = 1.0;
 
-    // params: reflectivity, roughness, ior, unused
+    // params: reflectivity, roughness, ior, hasTexture
     matData[base + 4]  = m.reflectivity ?? 0.0;
     matData[base + 5]  = m.roughness ?? 0.0;
     matData[base + 6]  = m.ior ?? 0.0;
-    matData[base + 7]  = 0.0;
+    matData[base + 7] = m.map_Kd ? 1.0 : 0.0;
 
     // emissive: rgb + strength
     matData[base + 8]  = (m.emission?.r ?? 0) / 255;
@@ -900,38 +923,61 @@ function packSpheres(spheres) {
     }
     return buf;
 }
-
 function packTriangles(tris) {
-    const strideBytes = 64; // v0,v1,v2 (vec4<f32> each) + mat (vec4<u32>)
+    const strideBytes = 64 + 48;
     const buf = new ArrayBuffer(tris.length * strideBytes);
     const f32 = new Float32Array(buf);
     const u32 = new Uint32Array(buf);
+
     for (let i = 0; i < tris.length; i++) {
         const t = tris[i];
         const base = (i * strideBytes) >>> 2;
-        // v0
+
+        // positions
         f32[base + 0] = t.v0.x;
         f32[base + 1] = t.v0.y;
         f32[base + 2] = t.v0.z;
         f32[base + 3] = 0;
-        // v1
+
         f32[base + 4] = t.v1.x;
         f32[base + 5] = t.v1.y;
         f32[base + 6] = t.v1.z;
         f32[base + 7] = 0;
-        // v2
+
         f32[base + 8]  = t.v2.x;
         f32[base + 9]  = t.v2.y;
         f32[base + 10] = t.v2.z;
         f32[base + 11] = 0;
-        // mat
+
+        // material
         u32[base + 12] = t.material.id >>> 0;
         u32[base + 13] = 0;
         u32[base + 14] = 0;
         u32[base + 15] = 0;
+
+        // safe UVs
+        const uv0 = t.uv0 ?? { u: 0, v: 0 };
+        const uv1 = t.uv1 ?? { u: 0, v: 0 };
+        const uv2 = t.uv2 ?? { u: 0, v: 0 };
+
+        f32[base + 16] = uv0.u;
+        f32[base + 17] = uv0.v;
+        f32[base + 18] = 0;
+        f32[base + 19] = 0;
+
+        f32[base + 20] = uv1.u;
+        f32[base + 21] = uv1.v;
+        f32[base + 22] = 0;
+        f32[base + 23] = 0;
+
+        f32[base + 24] = uv2.u;
+        f32[base + 25] = uv2.v;
+        f32[base + 26] = 0;
+        f32[base + 27] = 0;
     }
     return buf;
 }
+
 
 function packCamera(camera, basis, spp, triCount, sphereCount, materialCount, maxDepth) {
     const strideBytes = 7 * 16; // 112 bytes
@@ -983,6 +1029,9 @@ let screenBuffer;
 let bvhBuffer;
 
 function rebuildBuffers() {
+    // Ensure every material has a correct, contiguous id
+    materials.forEach((m, i) => { m.id = i; });
+
     // Build BVH against the current scene
     const bvhTree = buildBVHIndices(scene.triangles);
     const { nodes, reordered } = flattenBVHWithRanges(bvhTree, scene.triangles);
@@ -1011,7 +1060,7 @@ function rebuildBuffers() {
 
     // Camera uses counts that match what’s on GPU
     const basis = getCameraBasis(camera);
-    const sppValue = isPreviewMode() ? 1 : samplesPerPixel;
+    const sppValue = isPreviewMode() ? 2 : samplesPerPixel;
     const camBufPacked = packCamera(
         camera,
         basis,
@@ -1033,7 +1082,7 @@ function rebuildBuffers() {
         matData[base + 4]  = m.reflectivity ?? 0.0;
         matData[base + 5]  = m.roughness ?? 0.0;
         matData[base + 6]  = m.ior ?? 0.0;
-        matData[base + 7]  = 0.0;
+        matData[base + 7] = m.map_Kd ? 1.0 : 0.0;
         matData[base + 8]  = (m.emission?.r ?? 0) / 255;
         matData[base + 9]  = (m.emission?.g ?? 0) / 255;
         matData[base + 10] = (m.emission?.b ?? 0) / 255;
@@ -1308,7 +1357,9 @@ function initPipelines() {
             { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },                // frame (frameIndex)
             { binding: 6, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } },           // prevImage
             { binding: 7, visibility: GPUShaderStage.COMPUTE, sampler: {} },                             // samp
-            { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } } // BVH
+            { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // BVH
+            { binding: 9, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } }, // diffuse texture
+            { binding: 10, visibility: GPUShaderStage.COMPUTE, sampler: {} }
         ]
     });
 
@@ -1333,23 +1384,52 @@ function initPipelines() {
 
 // Build or rebuild bind groups whenever accumTex changes
 function rebuildBindGroups() {
-    if (!computePipeline || !renderPipeline || !accumTex) {
-        return; // pipelines not ready yet
-    }
+    if (!computePipeline || !renderPipeline || !accumTex) return;
+
+    const texMat = getFirstTexturedMaterial(); // may be null
+
+    const computeEntries = [
+        { binding: 0, resource: { buffer: sphereBuffer } },
+        { binding: 1, resource: { buffer: triangleBuffer } },
+        { binding: 2, resource: { buffer: cameraBuffer } },
+        { binding: 3, resource: accumTex.createView() },
+        { binding: 4, resource: { buffer: materialBuffer } },
+        { binding: 5, resource: { buffer: frameBuffer } },
+        { binding: 6, resource: prevTex.createView() },
+        { binding: 7, resource: sampler },
+        { binding: 8, resource: { buffer: bvhBuffer } },
+
+        // Always bind 9/10 with inline white fallback
+        {
+            binding: 9,
+            resource: (
+                texMat && texMat.texture
+                    ? texMat.texture.createView()
+                    : (() => {
+                        const t = device.createTexture({
+                            size: [1, 1, 1],
+                            format: "rgba8unorm",
+                            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+                        });
+                        device.queue.writeTexture(
+                            { texture: t },
+                            new Uint8Array([255, 255, 255, 255]),
+                            { bytesPerRow: 4, rowsPerImage: 1 },
+                            [1, 1, 1]
+                        );
+                        return t.createView();
+                    })()
+            )
+        },
+        {
+            binding: 10,
+            resource: sampler // reuse your existing sampler
+        }
+    ];
 
     computeBindGroup = device.createBindGroup({
         layout: computePipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: { buffer: sphereBuffer } },
-            { binding: 1, resource: { buffer: triangleBuffer } },
-            { binding: 2, resource: { buffer: cameraBuffer } },
-            { binding: 3, resource: accumTex.createView() },
-            { binding: 4, resource: { buffer: materialBuffer } },
-            { binding: 5, resource: { buffer: frameBuffer } },
-            { binding: 6, resource: prevTex.createView() },
-            { binding: 7, resource: sampler },
-            { binding: 8, resource: { buffer: bvhBuffer } }
-        ]
+        entries: computeEntries
     });
 
     renderBindGroup = device.createBindGroup({
@@ -1616,16 +1696,16 @@ async function loadModelsAndBuildBVH(models) {
             m.mtl ? fetch(m.mtl).then(r => r.text()) : Promise.resolve("")
         ]);
 
-        const materials = mtlText ? parseMTL(mtlText) : {};
+        const mtlDict = mtlText ? await parseMTL(mtlText, "../objects/") : {};
 
-        for (const name in materials) {
-            const mat = materials[name];
-            if (mat.map_Kd) {
-                mat.textureImage = await loadTexture("../objects/" + mat.map_Kd);
+        for (const mat of materials) {
+            if (mat.map_Kd && !mat.texture) {
+                const imageData = await loadTexture("../objects/" + mat.map_Kd);
+                mat.texture = await createGPUTextureFromImageData(imageData);
             }
         }
 
-        const { triangles } = parseOBJ(objText, materials);
+        const { triangles } = parseOBJ(objText, mtlDict);
 
         if (m.material) {
             for (const tri of triangles) {
@@ -1669,6 +1749,33 @@ async function loadTexture(url) {
 
     console.log("Loaded", url, img.width, img.height);
     return ctx.getImageData(0, 0, img.width, img.height);
+}
+
+function getFirstTexturedMaterial() {
+    for (const m of materials) {
+        if (m.texture) return m;
+    }
+    return null;
+}
+
+async function createGPUTextureFromImageData(imageData) {
+    const texture = device.createTexture({
+        size: [imageData.width, imageData.height],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+
+    device.queue.writeTexture(
+        { texture },
+        imageData.data,
+        {
+            bytesPerRow: imageData.width * 4,
+            rowsPerImage: imageData.height
+        },
+        [imageData.width, imageData.height]
+    );
+
+    return texture;
 }
 
 // Frame buffer: pad to 256 bytes

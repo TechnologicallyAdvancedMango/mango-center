@@ -7,8 +7,12 @@ struct Triangle {
     v0 : vec4<f32>,
     v1 : vec4<f32>,
     v2 : vec4<f32>,
-    mat : vec4<u32>,            // x = materialId
+    mat : vec4<u32>, // x = materialId
+    uv0 : vec4<f32>,
+    uv1 : vec4<f32>,
+    uv2 : vec4<f32>,
 };
+
 
 struct Material {
     color    : vec4<f32>,   // rgb, a unused
@@ -53,6 +57,9 @@ struct Hit {
 @group(0) @binding(6) var prevImage : texture_2d<f32>;
 @group(0) @binding(7) var samp : sampler;
 @group(0) @binding(8) var<storage, read> bvhNodes : array<BVHNode>;
+@group(0) @binding(9) var diffuseTex : texture_2d<f32>;
+@group(0) @binding(10) var diffuseSampler : sampler;
+
 
 // -----------------------------
 // Math helpers
@@ -167,7 +174,7 @@ fn intersectTriangle(rayOrig: vec3<f32>, rayDir: vec3<f32>, tri: Triangle) -> f3
 fn offsetOrigin(p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     // Scale epsilon by scene magnitude to avoid acne at large coordinates
     let scale = max(1.0, abs(p.x) + abs(p.y) + abs(p.z));
-    let eps = 1e-4 * scale;
+    let eps = 1e-2 * scale;
     return p + n * eps;
 }
 
@@ -212,6 +219,20 @@ fn project_to_pixel(p: vec3<f32>, dims: vec2<f32>) -> vec2<f32> {
     let px = (ndc_x * 0.5 + 0.5) * dims.x;
     let py = (ndc_y * 0.5 + 0.5) * dims.y;
     return vec2<f32>(px, py);
+}
+
+fn interpolateUV(tri: Triangle, p: vec3<f32>) -> vec2<f32> {
+    let v0 = tri.v0.xyz;
+    let v1 = tri.v1.xyz;
+    let v2 = tri.v2.xyz;
+
+    // Compute barycentrics via areas (robust for your setup)
+    let area = length(cross(v1 - v0, v2 - v0));
+    let w0 = length(cross(v1 - p,  v2 - p))  / area;
+    let w1 = length(cross(v2 - p,  v0 - p))  / area;
+    let w2 = length(cross(v0 - p,  v1 - p))  / area;
+
+    return tri.uv0.xy * w0 + tri.uv1.xy * w1 + tri.uv2.xy * w2;
 }
 
 fn segment_dist_px(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
@@ -488,7 +509,6 @@ fn debug_scan_count(rayOrig: vec3<f32>, rayDir: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(g,g,g);
 }
 
-
 // -----------------------------
 // Material stubs
 // -----------------------------
@@ -533,7 +553,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
     var throughput = vec3<f32>(1.0);
     var color      = vec3<f32>(0.0);
     var specDepth  = 0u;
-    
+
     let MAX_RAY_BOUNCES: u32 = camera.maxDepth.x;
 
     for (var depth = 0u; depth <= MAX_RAY_BOUNCES; depth = depth + 1u) {
@@ -569,7 +589,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         }
 
         // --- Hit point and material
-        let hitPoint = rayOrig + rayDir * closestT;
+        var hitPoint = rayOrig + rayDir * closestT;
         var normal   = vec3<f32>(0.0);
         var matId    = 0u;
 
@@ -586,14 +606,20 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
             matId   = u32(tri.mat.x);
         }
 
-        // --- Shading (same as your current code)
+        // --- Shading
         let mat        = materials[matId];
-        let albedo     = mat.color.rgb;
+        var albedo     = mat.color.rgb;
         let refl       = mat.params.x;
         let rough      = mat.params.y;
         let ior        = mat.params.z;
         let emRGB      = mat.emissive.rgb;
         let emStrength = mat.emissive.w;
+
+        if (!hitIsSphere && mat.params.w > 0.5) {
+            let tri = triangles[hitTriIdx];
+            let uv = interpolateUV(tri, hitPoint);
+            albedo = textureSampleLevel(diffuseTex, diffuseSampler, uv, 0.0).rgb;
+        }
 
         if (emStrength > 0.0) {
             color = color + throughput * (emRGB * emStrength);
@@ -708,7 +734,7 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Use the same variable name for both modes
     var col = vec3<f32>(0.0);
 
-    let showBVH = false; // toggle debug overlay
+    let showBVH = false; // toggle debug BVH overlay
     if (showBVH) {
         col = draw_bvh_wireframe(gid.xy);
     }
@@ -729,7 +755,7 @@ fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let spp = camera.spp.x;
     for (var i = 0u; i < spp; i = i + 1u) {
-        let seed = hash2(gid.x, gid.y, frame.frameIndex, i);
+        let seed = hash2(gid.x, gid.y, u32(frame.frameIndex * 32847553) + u32(abs(camera.pos_fov.x * 32348971 + camera.forward.x * 23498768)), i);
         col = col + trace(rayOrig, rayDir, seed);
     }
     col = col / f32(spp);
