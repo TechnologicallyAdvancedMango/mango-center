@@ -11,7 +11,7 @@ const forceFactor = 25;
 
 let dt = 0;
 
-const m = 6;
+const m = 5;
 const matrix = makeRandomMatrix();
 
 function makeRandomMatrix() {
@@ -135,11 +135,13 @@ spawnRandomParticles(100, "#0000ff");
 window.onfocus = function() {
     currentTime = this.performance.now() / 1000;
     lastFrameTime = this.performance.now() / 1000;
+    accumulator = 0;
 };
 
 window.onblur = function() {
     currentTime = this.performance.now() / 1000;
     lastFrameTime = this.performance.now() / 1000;
+    accumulator = 0;
 };
 
 const fixedTimestep = 1 / 60 // 60 hz in seconds'
