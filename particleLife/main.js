@@ -126,11 +126,11 @@ function spawnRandomParticles(count, color) {
     }
 }
 
-spawnRandomParticles(100, "#ff0000");
-spawnRandomParticles(100, "#00ff00");
-spawnRandomParticles(100, "#ffff00");
-spawnRandomParticles(100, "#00ffff");
-spawnRandomParticles(100, "#0000ff");
+spawnRandomParticles(50, "#ff0000");
+spawnRandomParticles(50, "#00ff00");
+spawnRandomParticles(50, "#ffff00");
+spawnRandomParticles(50, "#00ffff");
+spawnRandomParticles(50, "#0000ff");
 
 window.onfocus = function() {
     currentTime = this.performance.now() / 1000;
