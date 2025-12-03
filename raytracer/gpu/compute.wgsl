@@ -235,6 +235,15 @@ fn interpolateUV(tri: Triangle, p: vec3<f32>) -> vec2<f32> {
     return tri.uv0.xy * w0 + tri.uv1.xy * w1 + tri.uv2.xy * w2;
 }
 
+fn checkerboard(p: vec3<f32>) -> vec3<f32> {
+    // Scale controls square size
+    let scale: f32 = 2.0;
+    let xi = i32(floor(p.x / scale));
+    let zi = i32(floor(p.z / scale));
+    let parity = (xi + zi) & 1;
+    return select(vec3<f32>(1.0,1.0,1.0), vec3<f32>(0.5,0.5,0.5), parity == 0);
+}
+
 fn segment_dist_px(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
     // If either endpoint is off-screen sentinel, treat as far
     if (a.x < 0.0 || a.y < 0.0 || b.x < 0.0 || b.y < 0.0) {
@@ -615,7 +624,10 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         let emRGB      = mat.emissive.rgb;
         let emStrength = mat.emissive.w;
 
-        if (!hitIsSphere && mat.params.w > 0.5) {
+        // If this is the ground material, override with checkerboard
+        if (matId == 0u) { // assuming ground is material 0
+            albedo = checkerboard(hitPoint);
+        } else if (!hitIsSphere && mat.params.w > 0.5) {
             let tri = triangles[hitTriIdx];
             let uv = interpolateUV(tri, hitPoint);
             albedo = textureSampleLevel(diffuseTex, diffuseSampler, uv, 0.0).rgb;
