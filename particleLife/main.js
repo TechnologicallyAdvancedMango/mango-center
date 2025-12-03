@@ -211,7 +211,7 @@ function simulate() {
 
     // Simulate
     while (accumulator >= fixedTimestep) {
-        if (simFrames % 2 == 0) { // every 2 simulation frames
+        if (simFrames % 4 == 0) { // every 4 simulation frames
             buildGrid(); // refresh grid with current positions
         }
         for (const particle of particles) {
