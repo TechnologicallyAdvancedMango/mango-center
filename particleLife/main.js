@@ -176,11 +176,11 @@ function spawnRandomParticles(count, color) {
     }
 }
 
-spawnRandomParticles(100, "#ff0000");
-spawnRandomParticles(100, "#00ff00");
-spawnRandomParticles(100, "#ffff00");
-spawnRandomParticles(100, "#00ffff");
-spawnRandomParticles(100, "#0000ff");
+spawnRandomParticles(75, "#ff0000");
+spawnRandomParticles(75, "#00ff00");
+spawnRandomParticles(75, "#ffff00");
+spawnRandomParticles(75, "#00ffff");
+spawnRandomParticles(75, "#0000ff");
 
 window.onfocus = function() {
     currentTime = this.performance.now() / 1000;
@@ -211,7 +211,7 @@ function simulate() {
 
     // Simulate
     while (accumulator >= fixedTimestep) {
-        if (simFrames % 4 == 0) { // every 4 simulation frames
+        if (simFrames % 2 == 0) { // every 2 simulation frames
             buildGrid(); // refresh grid with current positions
         }
         for (const particle of particles) {
