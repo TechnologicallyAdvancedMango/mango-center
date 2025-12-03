@@ -594,15 +594,15 @@ async function parseMTL(mtlText, basePath = "../textures/") {
 
 const ground = new Material({
     color: {r:255,g:255,b:255},
-    reflectivity: 0.1,
-    roughness: 0.8,
+    reflectivity: 0.0,
+    roughness: 0.9,
     ior: null
 });
 
 const glass = new Material({
     color: { r:255, g:255, b:255 },
     reflectivity: 0.0, // let Fresnel govern specular; this value is for metals
-    roughness: 0.0,
+    roughness: 0,
     ior: 1.5,
     doubleSided: true
 });
@@ -650,14 +650,14 @@ const whiteWall = new Material({
 
 const greenMat = new Material({
     color:{r:0,g:255,b:0},
-    reflectivity:0.1,
+    reflectivity:0.0,
     roughness:0.7
 });
 
 const whiteMat = new Material({
     color:{r:250,g:250,b:250},
-    reflectivity:0.1,
-    roughness:0.3
+    reflectivity:0.0,
+    roughness:0.7
 });
 
 const mirrorMat = new Material({

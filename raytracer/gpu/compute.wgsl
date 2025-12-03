@@ -174,7 +174,7 @@ fn intersectTriangle(rayOrig: vec3<f32>, rayDir: vec3<f32>, tri: Triangle) -> f3
 fn offsetOrigin(p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     // Scale epsilon by scene magnitude to avoid acne at large coordinates
     let scale = max(1.0, abs(p.x) + abs(p.y) + abs(p.z));
-    let eps = 1e-2 * scale;
+    let eps = 1e-4 * scale;
     return p + n * eps;
 }
 
@@ -584,7 +584,7 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
 
         // --- Miss
         if (closestT == 1e9) {
-            color = color + throughput * vec3<f32>(0.0);
+            color = color + throughput * vec3<f32>(0.0); // black background
             break;
         }
 
