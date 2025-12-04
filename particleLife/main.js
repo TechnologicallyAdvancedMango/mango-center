@@ -9,8 +9,10 @@ canvas.height = Math.floor(canvas.clientHeight);
 const maxRadius = 0.1;
 const forceFactor = 25;
 
-const cellSize = maxRadius; // cell size ~ interaction radius
-let grid = new Map
+const cellSize = maxRadius;
+const gridWidth  = Math.floor(1 / cellSize);
+const gridHeight = Math.floor(1 / cellSize);
+let grid = new Map;
 
 let dt = 0;
 
@@ -49,9 +51,7 @@ function hash(x, y) {
 function buildGrid() {
     grid.clear();
     for (const p of particles) {
-        const px = p.pos.x * canvas.width;
-        const py = p.pos.y * canvas.height;
-        const key = hash(px, py);
+        const key = hash(p.pos.x, p.pos.y); // normalized
         if (!grid.has(key)) grid.set(key, []);
         grid.get(key).push(p);
     }
@@ -81,18 +81,20 @@ class Particle {
         let totalForceX = 0;
         let totalForceY = 0;
 
-        const px = this.pos.x * canvas.width;
-        const py = this.pos.y * canvas.height;
+        const px = this.pos.x;
+        const py = this.pos.y;
         const gx = Math.floor(px / cellSize);
         const gy = Math.floor(py / cellSize);
 
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
-                const neighborKey = `${gx+dx},${gy+dy}`;
+                let nx = (gx + dx + gridWidth)  % gridWidth;
+                let ny = (gy + dy + gridHeight) % gridHeight;
+                const neighborKey = `${nx},${ny}`;
                 const neighbors = grid.get(neighborKey);
                 if (!neighbors) continue;
 
-                for (const other of particles) {
+                for (const other of neighbors) {
                     if (this === other) continue;
 
                     // wrapped displacement
@@ -134,6 +136,22 @@ class Particle {
         if (this.pos.x > 1) this.pos.x -= 1;
         if (this.pos.y < 0) this.pos.y += 1;
         if (this.pos.y > 1) this.pos.y -= 1;
+
+        this.updateCell();
+    }
+
+    updateCell() {
+        const key = hash(this.pos.x, this.pos.y); // normalized
+        if (key !== this.cellKey) {
+            if (this.cellKey && grid.has(this.cellKey)) {
+                const arr = grid.get(this.cellKey);
+                const idx = arr.indexOf(this);
+                if (idx !== -1) arr.splice(idx, 1);
+            }
+            if (!grid.has(key)) grid.set(key, []);
+            grid.get(key).push(this);
+            this.cellKey = key;
+        }
     }
 
     draw() {
@@ -151,7 +169,7 @@ class Particle {
 
 function drawFPS() {
     ctx.fillStyle = "white";
-    ctx.font = "16px monospace";
+    ctx.font = "12px monospace";
     ctx.fillText(`FPS: ${Math.round(fps)}`, 10, 20);
 }
 
@@ -176,11 +194,11 @@ function spawnRandomParticles(count, color) {
     }
 }
 
-spawnRandomParticles(50, "#ff0000");
-spawnRandomParticles(50, "#00ff00");
-spawnRandomParticles(50, "#ffff00");
-spawnRandomParticles(50, "#00ffff");
-spawnRandomParticles(50, "#0000ff");
+spawnRandomParticles(100, "#ff0000");
+spawnRandomParticles(100, "#00ff00");
+spawnRandomParticles(100, "#ffff00");
+spawnRandomParticles(100, "#00ffff");
+spawnRandomParticles(100, "#0000ff");
 
 window.onfocus = function() {
     currentTime = this.performance.now() / 1000;
@@ -194,7 +212,8 @@ window.onblur = function() {
     accumulator = 0;
 };
 
-const fixedTimestep = 1 / 60 // 60 hz in seconds'
+const fixedTimestep = 1 / 60 // 60 hz in seconds
+const maxDt = 1 / 60; // fps floor
 let currentTime = performance.now() / 1000;
 let lastFrameTime = performance.now() / 1000; // seconds
 let accumulator = 0;
@@ -203,17 +222,16 @@ let fps = 0;
 let frames = 0;
 let lastFpsUpdate = performance.now();
 
+buildGrid();
+
 function simulate() {
     currentTime = performance.now() / 1000; // seconds
-    dt = currentTime - lastFrameTime;
+    dt = Math.min(currentTime - lastFrameTime, maxDt);
     lastFrameTime = currentTime;
     accumulator += dt;
 
     // Simulate
     while (accumulator >= fixedTimestep) {
-        if (simFrames % 1 == 0) { // every simulation frame
-            buildGrid(); // refresh grid with current positions
-        }
         for (const particle of particles) {
             particle.update();
         }
