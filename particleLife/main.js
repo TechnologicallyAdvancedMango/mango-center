@@ -6,8 +6,8 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 
-const maxRadius = 0.1;
-const forceFactor = 15;
+const maxRadius = 0.05;
+const forceFactor = 30;
 
 const cellSize = maxRadius;
 const gridWidth  = Math.floor(1 / cellSize);
