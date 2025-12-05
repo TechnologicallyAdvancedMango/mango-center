@@ -119,9 +119,31 @@ class Particle {
                 }
             }
         }
-
         totalForceX *= maxRadius * forceFactor;
         totalForceY *= maxRadius * forceFactor;
+
+        // mouse attraction/repulsion force
+        if (mouse.left.down || mouse.right.down) {
+            let rx = mouse.x - this.pos.x;
+            let ry = mouse.y - this.pos.y;
+
+            // wrap across torus
+            if (rx > 0.5) rx -= 1;
+            if (rx < -0.5) rx += 1;
+            if (ry > 0.5) ry -= 1;
+            if (ry < -0.5) ry += 1;
+
+            const r2 = rx*rx + ry*ry;
+            const cursorRadius = 0.15; // attraction radius in normalized units
+            if (r2 < cursorRadius*cursorRadius) {
+                const r = Math.sqrt(r2);
+                let strength = 5.0;
+                if (mouse.right.down) strength *= -1; // repulse if right mouse
+                const f = (1 - r/cursorRadius) * strength; // stronger near center
+                totalForceX += rx / r * f;
+                totalForceY += ry / r * f;
+            }
+        }
 
         // apply friction and accumulate velocity, position update happens in integrate()
         this.vel.x *= frictionFactor;
@@ -238,6 +260,32 @@ window.onblur = function() {
     lastFrameTime = this.performance.now() / 1000;
     accumulator = 0;
 };
+
+let mouse = { x: 0.5, y: 0.5, 
+    left: { down: false },
+    right: { down: false }
+};
+
+canvas.addEventListener("mousemove", e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - rect.left) / rect.width;   // normalize to [0,1]
+    mouse.y = (e.clientY - rect.top) / rect.height;
+});
+
+canvas.addEventListener("mousedown", (e) => {
+    if (e.button === 0) {
+        mouse.left.down = true;
+    } else if (e.button === 2) {
+        mouse.right.down = true;
+    }
+});
+canvas.addEventListener("mouseup",   (e) => {
+    if (e.button === 0) {
+        mouse.left.down = false;
+    } else if (e.button === 2) {
+        mouse.right.down = false;
+    }
+});
 
 const fixedTimestep = 1 / 60 // 60 hz in seconds
 const maxDt = 1 / 60; // fps floor
