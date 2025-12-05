@@ -5,6 +5,7 @@ const ctx = canvas.getContext("2d");
 canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
+const drawRadius = 1;
 
 const maxRadius = 0.1;
 const forceFactor = 10;
@@ -81,13 +82,15 @@ class Particle {
         let totalForceX = 0;
         let totalForceY = 0;
 
+        const thisColorIndex = colors.indexOf(this.color); // precompute this color index
+
         const px = this.pos.x;
         const py = this.pos.y;
         const gx = Math.floor(px / cellSize);
         const gy = Math.floor(py / cellSize);
 
         for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
+            for (let dy = -1; dy <= 1; dy++) { // 3x3 grid of cells around this particle
                 let nx = (gx + dx + gridWidth)  % gridWidth;
                 let ny = (gy + dy + gridHeight) % gridHeight;
                 const neighborKey = `${nx},${ny}`;
@@ -107,10 +110,10 @@ class Particle {
                     if (ry > 0.5) ry -= 1;
                     if (ry < -0.5) ry += 1;
 
-                    const r = Math.hypot(rx, ry);
-
-                    if (r > 0 && r < maxRadius) {
-                        const f = force(r / maxRadius, matrix[colors.indexOf(this.color)][colors.indexOf(other.color)]);
+                    const r2 = rx*rx + ry*ry; // squared distance
+                    if (r2 > 0 && r2 < maxRadius*maxRadius) {
+                        const r = Math.sqrt(r2); // real distance only computed when within range of particle
+                        const f = force(r / maxRadius, matrix[thisColorIndex][colors.indexOf(other.color)]);
                         totalForceX += rx / r * f;
                         totalForceY += ry / r * f;
                     }
@@ -155,15 +158,34 @@ class Particle {
     }
 
     draw() {
-        const radius = 1;
-
         ctx.beginPath();
         const screenX = this.pos.x * canvas.width;
         const screenY = this.pos.y * canvas.height;
-        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, drawRadius, 0, Math.PI * 2);
 
         ctx.fillStyle = this.color;
         ctx.fill();
+    }
+}
+
+function drawParticles() {
+    for (col of colors) {
+        ctx.fillStyle = col;
+
+        for (const p of particles) {
+            if (p.color !== col) continue; // skip particles of other colors
+
+            const screenX = p.pos.x * canvas.width;
+            const screenY = p.pos.y * canvas.height;
+
+            if (drawRadius < 3) { // use rectangles if small enough
+                ctx.fillRect(screenX - drawRadius / 2, screenY - drawRadius / 2, drawRadius * 2, drawRadius * 2);
+            } else {
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, drawRadius, 0, Math.PI * 2); // expensive
+                ctx.fill();
+            }
+        }
     }
 }
 
@@ -202,11 +224,11 @@ function spawnRandomParticles(count, color) {
     }
 }
 
-spawnRandomParticles(100, "#ff0000");
-spawnRandomParticles(100, "#00ff00");
-spawnRandomParticles(100, "#ffff00");
-spawnRandomParticles(100, "#00ffff");
-spawnRandomParticles(100, "#0000ff");
+spawnRandomParticles(200, "#ff0000");
+spawnRandomParticles(200, "#00ff00");
+spawnRandomParticles(200, "#ffff00");
+spawnRandomParticles(200, "#00ffff");
+spawnRandomParticles(200, "#0000ff");
 
 window.onfocus = function() {
     currentTime = this.performance.now() / 1000;
@@ -255,9 +277,7 @@ function simulate() {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    for (const particle of particles) {
-        particle.draw();
-    }
+    drawParticles();
 
     updateFPS();
     drawPerformance();
