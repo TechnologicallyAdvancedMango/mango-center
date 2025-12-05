@@ -11,8 +11,8 @@ const maxRadius = 0.075;
 const forceFactor = 10;
 
 const cellSize = maxRadius * 0.5;
-const gridWidth  = Math.floor(1 / cellSize);
-const gridHeight = Math.floor(1 / cellSize);
+const gridWidth  = Math.ceil(1 / cellSize);
+const gridHeight = Math.ceil(1 / cellSize);
 let grid = new Map;
 
 let dt = 0;
@@ -44,8 +44,10 @@ function force(r, a) {
 }
 
 function hash(x, y) {
-    const gx = Math.floor(x / cellSize);
-    const gy = Math.floor(y / cellSize);
+    let gx = Math.floor(x / cellSize);
+    let gy = Math.floor(y / cellSize);
+    gx = ((gx % gridWidth) + gridWidth) % gridWidth;
+    gy = ((gy % gridHeight) + gridHeight) % gridHeight;
     return `${gx},${gy}`;
 }
 
@@ -74,48 +76,43 @@ class Particle {
         particles.push(this);
     }
 
-    update() {
+    computeForces() {
         const frictionHalfLife = 0.040;
         const frictionFactor = Math.pow(0.5, dt / frictionHalfLife);
 
-        // update velocity
-        let totalForceX = 0;
-        let totalForceY = 0;
+        let totalForceX = 0, totalForceY = 0;
+        const thisColorIndex = colors.indexOf(this.color);
 
-        const thisColorIndex = colors.indexOf(this.color); // precompute this color index
-
-        const px = this.pos.x;
-        const py = this.pos.y;
+        const px = this.pos.x, py = this.pos.y;
         const gx = Math.floor((px + 1e-4) / cellSize);
         const gy = Math.floor((py + 1e-4) / cellSize);
 
-        const neighborRadius = 2; // 1 = 3x3, 2 = 5x5, etc
+        const neighborRadius = 2;
 
         for (let dx = -neighborRadius; dx <= neighborRadius; dx++) {
-            for (let dy = -neighborRadius; dy <= neighborRadius; dy++) { // grid of cells around this particle
-                let nx = (gx + dx + gridWidth)  % gridWidth;
-                let ny = (gy + dy + gridHeight) % gridHeight;
-                const neighborKey = `${nx},${ny}`;
-                const neighbors = grid.get(neighborKey);
+            for (let dy = -neighborRadius; dy <= neighborRadius; dy++) {
+                const nx = (gx + dx + gridWidth)  % gridWidth;
+                const ny = (gy + dy + gridHeight) % gridHeight;
+                const neighbors = grid.get(`${nx},${ny}`);
                 if (!neighbors) continue;
 
                 for (const other of neighbors) {
                     if (this === other) continue;
 
-                    // wrapped displacement
                     let rx = other.pos.x - this.pos.x;
                     let ry = other.pos.y - this.pos.y;
 
-                    // choose shortest path across torus
+                    // shortest path across torus
                     if (rx > 0.5) rx -= 1;
                     if (rx < -0.5) rx += 1;
                     if (ry > 0.5) ry -= 1;
                     if (ry < -0.5) ry += 1;
 
-                    const r2 = rx*rx + ry*ry; // squared distance
+                    const r2 = rx*rx + ry*ry;
                     if (r2 > 0 && r2 < maxRadius*maxRadius) {
-                        const r = Math.sqrt(r2); // real distance only computed when within range of particle
-                        const f = force(r / maxRadius, matrix[thisColorIndex][colors.indexOf(other.color)]);
+                        const r = Math.sqrt(r2);
+                        const a = matrix[thisColorIndex][colors.indexOf(other.color)];
+                        const f = force(r / maxRadius, a);
                         totalForceX += rx / r * f;
                         totalForceY += ry / r * f;
                     }
@@ -126,47 +123,22 @@ class Particle {
         totalForceX *= maxRadius * forceFactor;
         totalForceY *= maxRadius * forceFactor;
 
+        // apply friction and accumulate velocity, position update happens in integrate()
         this.vel.x *= frictionFactor;
         this.vel.y *= frictionFactor;
-
         this.vel.x += totalForceX * dt;
         this.vel.y += totalForceY * dt;
+    }
 
-        // update position
+    integrate() {
         this.pos.x += this.vel.x * dt;
         this.pos.y += this.vel.y * dt;
 
-        // wrap around [0,1]
+        // avoid exact-boundary positions
         if (this.pos.x < 0) this.pos.x += 1;
-        if (this.pos.x > 1) this.pos.x -= 1;
+        if (this.pos.x >= 1) this.pos.x -= 1;
         if (this.pos.y < 0) this.pos.y += 1;
-        if (this.pos.y > 1) this.pos.y -= 1;
-
-        this.updateCell();
-    }
-
-    updateCell() {
-        const key = hash(this.pos.x, this.pos.y); // normalized
-        if (key !== this.cellKey) {
-            if (this.cellKey && grid.has(this.cellKey)) {
-                const arr = grid.get(this.cellKey);
-                const idx = arr.indexOf(this);
-                if (idx !== -1) arr.splice(idx, 1);
-            }
-            if (!grid.has(key)) grid.set(key, []);
-            grid.get(key).push(this);
-            this.cellKey = key;
-        }
-    }
-
-    draw() {
-        ctx.beginPath();
-        const screenX = this.pos.x * canvas.width;
-        const screenY = this.pos.y * canvas.height;
-        ctx.arc(screenX, screenY, drawRadius, 0, Math.PI * 2);
-
-        ctx.fillStyle = this.color;
-        ctx.fill();
+        if (this.pos.y >= 1) this.pos.y -= 1;
     }
 }
 
@@ -290,9 +262,19 @@ function simulate() {
 
     // Simulate
     while (accumulator >= fixedTimestep) {
+        // compute forces using the current grid snapshot
         for (const particle of particles) {
-            particle.update();
+            particle.computeForces();
         }
+
+        // then integrate positions and wrap
+        for (const particle of particles) {
+            particle.integrate(); // move, apply friction, wrap
+        }
+
+        // rebuild grid for the next substep
+        buildGrid();
+
         accumulator -= fixedTimestep;
         updateTPS();
         ticks++;
