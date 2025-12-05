@@ -168,7 +168,7 @@ class Particle {
 }
 
 function drawPerformance() {
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     ctx.font = "12px monospace";
     ctx.fillText(`FPS: ${Math.round(fps)}`, 10, 20);
     ctx.fillText(`TPS: ${Math.round(tps)}`, 10, 36);
