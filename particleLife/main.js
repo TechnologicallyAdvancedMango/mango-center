@@ -185,7 +185,7 @@ function updateFPS() {
 function updateTPS() {
     const now = performance.now();
     if (now - lastTpsUpdate >= 1000) { // every 1 second
-        fps = ticks * 1000 / (now - lastTpsUpdate);
+        tps = ticks * 1000 / (now - lastTpsUpdate);
         ticks = 0;
         lastTpsUpdate = now;
     }
