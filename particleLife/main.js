@@ -167,19 +167,27 @@ class Particle {
     }
 }
 
-function drawFPS() {
+function drawPerformance() {
     ctx.fillStyle = "white";
     ctx.font = "12px monospace";
     ctx.fillText(`FPS: ${Math.round(fps)}`, 10, 20);
+    ctx.fillText(`TPS: ${Math.round(tps)}`, 10, 36);
 }
 
 function updateFPS() {
-    frames++;
     const now = performance.now();
     if (now - lastFpsUpdate >= 1000) { // every 1 second
         fps = frames * 1000 / (now - lastFpsUpdate);
         frames = 0;
         lastFpsUpdate = now;
+    }
+}
+function updateTPS() {
+    const now = performance.now();
+    if (now - lastTpsUpdate >= 1000) { // every 1 second
+        fps = ticks * 1000 / (now - lastTpsUpdate);
+        ticks = 0;
+        lastTpsUpdate = now;
     }
 }
 
@@ -217,10 +225,12 @@ const maxDt = 1 / 60; // fps floor
 let currentTime = performance.now() / 1000;
 let lastFrameTime = performance.now() / 1000; // seconds
 let accumulator = 0;
-let simFrames = 0;
 let fps = 0;
+let tps = 0;
 let frames = 0;
+let ticks = 0;
 let lastFpsUpdate = performance.now();
+let lastTpsUpdate = performance.now();
 
 buildGrid();
 
@@ -229,6 +239,7 @@ function simulate() {
     dt = Math.min(currentTime - lastFrameTime, maxDt);
     lastFrameTime = currentTime;
     accumulator += dt;
+    frames++;
 
     // Simulate
     while (accumulator >= fixedTimestep) {
@@ -236,7 +247,8 @@ function simulate() {
             particle.update();
         }
         accumulator -= fixedTimestep;
-        simFrames++;
+        updateTPS();
+        ticks++;
     }
 
     // Render
@@ -248,7 +260,7 @@ function simulate() {
     }
 
     updateFPS();
-    drawFPS();
+    drawPerformance();
 
     requestAnimationFrame(simulate);
 }
