@@ -287,6 +287,10 @@ canvas.addEventListener("mouseup",   (e) => {
     }
 });
 
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+});
+
 const fixedTimestep = 1 / 60 // 60 hz in seconds
 const maxDt = 1 / 60; // fps floor
 let currentTime = performance.now() / 1000;
