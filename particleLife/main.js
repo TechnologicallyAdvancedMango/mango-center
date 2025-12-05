@@ -7,10 +7,10 @@ canvas.height = Math.floor(canvas.clientHeight);
 
 const drawRadius = 1;
 
-const maxRadius = 0.1;
+const maxRadius = 0.075;
 const forceFactor = 10;
 
-const cellSize = maxRadius;
+const cellSize = maxRadius * 0.5;
 const gridWidth  = Math.floor(1 / cellSize);
 const gridHeight = Math.floor(1 / cellSize);
 let grid = new Map;
@@ -86,11 +86,13 @@ class Particle {
 
         const px = this.pos.x;
         const py = this.pos.y;
-        const gx = Math.floor(px / cellSize);
-        const gy = Math.floor(py / cellSize);
+        const gx = Math.floor((px + 1e-4) / cellSize);
+        const gy = Math.floor((py + 1e-4) / cellSize);
 
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) { // 3x3 grid of cells around this particle
+        const neighborRadius = 2; // 1 = 3x3, 2 = 5x5, etc
+
+        for (let dx = -neighborRadius; dx <= neighborRadius; dx++) {
+            for (let dy = -neighborRadius; dy <= neighborRadius; dy++) { // grid of cells around this particle
                 let nx = (gx + dx + gridWidth)  % gridWidth;
                 let ny = (gy + dy + gridHeight) % gridHeight;
                 const neighborKey = `${nx},${ny}`;
@@ -196,6 +198,29 @@ function drawPerformance() {
     ctx.fillText(`TPS: ${Math.round(tps)}`, 10, 36);
 }
 
+function drawCellBorders() {
+    ctx.strokeStyle = "rgba(255,255,255,0.2)"; // faint white lines
+    ctx.lineWidth = 1;
+
+    // Vertical lines
+    for (let gx = 0; gx <= gridWidth; gx++) {
+        const x = gx * cellSize * canvas.width;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let gy = 0; gy <= gridHeight; gy++) {
+        const y = gy * cellSize * canvas.height;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
+}
+
 function updateFPS() {
     const now = performance.now();
     if (now - lastFpsUpdate >= 1000) { // every 1 second
@@ -278,6 +303,7 @@ function simulate() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     drawParticles();
+    // drawCellBorders();
 
     updateFPS();
     drawPerformance();
