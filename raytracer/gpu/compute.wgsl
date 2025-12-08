@@ -241,7 +241,7 @@ fn checkerboard(p: vec3<f32>) -> vec3<f32> {
     let xi = i32(floor(p.x / scale));
     let zi = i32(floor(p.z / scale));
     let parity = (xi + zi) & 1;
-    return select(vec3<f32>(0, 0, 1), vec3<f32>(0, 1, 0), parity == 0); // blue and green
+    return select(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.0, 0.0, 1.0), parity == 0); // white and blue
 }
 
 fn segment_dist_px(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
