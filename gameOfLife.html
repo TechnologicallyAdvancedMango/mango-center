@@ -125,7 +125,7 @@ let bruteForceInterval = null;
 
 let runInterval = 200;
 
-const initialGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+const initialGrid = Array.from({ length: gridSize }, () => new Uint8Array(gridSize));
 initialGrid[1][2] = 1;
 initialGrid[2][3] = 1;
 initialGrid[3][1] = 1;
@@ -614,7 +614,7 @@ function openSelectionMenu(start, end) {
     e.preventDefault();
     e.stopPropagation();
     isDraggingSelection = true;
-    dragOffset = getCellFromMouse(e);
+    dragOffset = getCellFromEvent(e);
   });
 }
 
@@ -857,10 +857,10 @@ canvas.addEventListener('contextmenu', e => e.preventDefault()); // prevent defa
 
 
 canvas.addEventListener("mousemove", function (event) {
-  const { row, col } = getCellFromMouse(event);
+  const { row, col } = getCellFromEvent(event);
 
   if (isDraggingSelection) {
-    const { row, col } = getCellFromMouse(event);
+    const { row, col } = getCellFromEvent(event);
     const deltaRow = row - dragOffset.row;
     const deltaCol = col - dragOffset.col;
     dragOffset = { row, col };
@@ -880,7 +880,7 @@ canvas.addEventListener("mousemove", function (event) {
     const [r, c] = getCellFromEvent(event);
     applyDrag(r, c);
   } else if (isSelecting) {
-    selectionEnd = getCellFromMouse(event);
+    selectionEnd = getCellFromEvent(event);
     drawGrid(currentGrid);
     drawSelectionBox(selectionStart, selectionEnd);
   }
@@ -889,7 +889,7 @@ canvas.addEventListener("mousemove", function (event) {
 document.addEventListener("mousemove", function (event) {
   if (!isDraggingSelection) return;
 
-  const { row, col } = getCellFromMouse(event);
+  const { row, col } = getCellFromEvent(event);
   const deltaRow = row - dragOffset.row;
   const deltaCol = col - dragOffset.col;
   dragOffset = { row, col };
