@@ -133,6 +133,7 @@ initialGrid[3][2] = 1;
 initialGrid[3][3] = 1;
 
 let currentGrid = initialGrid.map(row => row.slice());
+let nextGrid = [];
 let history = [currentGrid.map(row => row.slice())];
 let currentGen = 0;
 
@@ -167,7 +168,7 @@ function getNeighborsSum(grid, row, col) {
 }
 
 function updateGrid() {
-  const newGrid = [];
+  newGrid = [];
   for (let row = 0; row < currentGrid.length; row++) {
     newGrid[row] = [];
     for (let col = 0; col < currentGrid[row].length; col++) {
@@ -204,7 +205,7 @@ function getInfluenceZone(grid) {
 }
 
 function updateGridFrom(grid) {
-  const newGrid = [];
+  newGrid = [];
   for (let row = 0; row < grid.length; row++) {
     newGrid[row] = [];
     for (let col = 0; col < grid[row].length; col++) {
@@ -249,7 +250,7 @@ function importGridFromCoords(json) {
   try {
     const coords = JSON.parse(json);
     const newSize = coords[0];
-    const newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
+    newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
 
     for (let i = 1; i < coords.length; i++) {
       const row = coords[i][0];
@@ -276,7 +277,7 @@ function resizeGrid(newSize) {
     return;
   }
 
-  const newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
+  newGrid = Array(newSize).fill().map(() => Array(newSize).fill(0));
   for (let row = 0; row < Math.min(gridSize, newSize); row++) {
     for (let col = 0; col < Math.min(gridSize, newSize); col++) {
       newGrid[row][col] = currentGrid[row][col];
