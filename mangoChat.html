@@ -1,13 +1,21 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>Mango Chat</title>
+
+    <!-- LZString for compression -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+
+    <!-- QR Code generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- QR Code scanner (jsQR) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+
     <style>
         body {
             font-family: sans-serif;
-            max-width: 600px;
+            max-width: 700px;
             margin: 20px auto;
         }
 
@@ -32,9 +40,51 @@
             white-space: pre-wrap;
             background: #fafafa;
         }
+
+        .flex {
+            display: flex;
+            gap: 20px;
+        }
+
+        .qrBox {
+            min-width: 150px;
+        }
+
+        /* Dark popup scanner overlay */
+        #scannerOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        #scannerModal {
+            background: #111;
+            border-radius: 8px;
+            padding: 16px;
+            color: #fff;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            text-align: center;
+        }
+
+        #scannerVideo {
+            width: 100%;
+            max-height: 260px;
+            background: #000;
+            border-radius: 4px;
+        }
+
+        #scannerCloseBtn {
+            margin-top: 10px;
+            padding: 6px 12px;
+        }
     </style>
 </head>
-
 <body>
 
     <h1>Mango Chat</h1>
@@ -47,26 +97,50 @@
     <!-- HOST UI -->
     <div id="hostUI" class="hidden">
         <h3>Share this join code:</h3>
-        <div id="joinCode" style="font-size:18px; font-weight:bold; word-break:break-all;"></div>
-        <button onclick="copyJoinCode()">Copy Code</button>
+
+        <div class="flex">
+            <div style="flex:1;">
+                <div id="joinCode" style="font-size:18px; font-weight:bold; word-break:break-all;"></div>
+                <button onclick="copyJoinCode()">Copy Code</button>
+            </div>
+
+            <div class="qrBox">
+                <div id="hostQR"></div>
+            </div>
+        </div>
 
         <h3>Paste encoded answer from client:</h3>
         <textarea id="hostAnswer" rows="4"></textarea>
         <button onclick="pasteHostAnswer()">Paste Answer</button>
+        <button onclick="openScanner('hostAnswer')">Scan Answer QR</button>
         <button onclick="applyHostAnswer()">Connect</button>
     </div>
 
     <!-- JOIN UI -->
     <div id="joinUI" class="hidden">
         <h3>Enter join code:</h3>
-        <input id="codeInput" />
-        <button onclick="pasteJoinCode()">Paste Code</button>
 
-        <button onclick="joinWithCode()">Submit Code</button>
+        <div class="flex">
+            <div style="flex:1;">
+                <input id="codeInput" />
+                <button onclick="pasteJoinCode()">Paste Code</button>
+                <button onclick="openScanner('codeInput')">Scan Join Code QR</button>
+                <button onclick="joinWithCode()">Submit Code</button>
+            </div>
+        </div>
 
         <h3>Send this encoded answer back to host:</h3>
-        <textarea id="answerOut" rows="4"></textarea>
-        <button onclick="copyAnswer()">Copy Answer</button>
+
+        <div class="flex">
+            <div style="flex:1;">
+                <textarea id="answerOut" rows="4"></textarea>
+                <button onclick="copyAnswer()">Copy Answer</button>
+            </div>
+
+            <div class="qrBox">
+                <div id="answerQR"></div>
+            </div>
+        </div>
     </div>
 
     <!-- CHAT UI -->
@@ -81,16 +155,31 @@
         <p id="status"></p>
     </div>
 
+    <!-- Dark popup QR scanner -->
+    <div id="scannerOverlay">
+        <div id="scannerModal">
+            <h3>Scan QR Code</h3>
+            <video id="scannerVideo" autoplay playsinline></video>
+            <canvas id="scannerCanvas" class="hidden"></canvas>
+            <div>
+                <button id="scannerCloseBtn" onclick="closeScanner()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let pc;
         let channel;
         let isHost = false;
         let messages = [];
-        let messageLimit = 100;
+        let messageLimit = 10;
 
-        const chatBox = document.getElementById("chatBox");
-        const sendBtn = document.getElementById("sendBtn");
         const statusEl = document.getElementById("status");
+
+        // Scanner state
+        let scanTargetId = null;
+        let scannerStream = null;
+        let scanning = false;
 
         // URL-safe Base64 helpers
         function toUrlSafe(b64) {
@@ -109,8 +198,32 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        function makeQR(elementId, text) {
+            const el = document.getElementById(elementId);
+            if (!el) {
+                console.error("QR element not found:", elementId);
+                return;
+            }
+            el.innerHTML = "";
+            // tiny delay to ensure layout is ready
+            setTimeout(() => {
+                try {
+                    new QRCode(el, {
+                        text,
+                        width: 150,
+                        height: 150
+                    });
+                } catch (err) {
+                    console.error("QR generation failed for", elementId, err);
+                }
+            }, 0);
+        }
+
         async function startHost() {
             isHost = true;
+
+            setup.style.display = "none";
+            hostUI.style.display = "block"; // show UI first
 
             pc = new RTCPeerConnection({
                 iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -119,20 +232,21 @@
             channel = pc.createDataChannel("chat");
             setupChannel();
 
+            console.log("hostQR element:", document.getElementById("hostQR"));
+
             pc.onicecandidate = e => {
                 if (!e.candidate) {
                     const offer = pc.localDescription.sdp;
                     const compressed = LZString.compressToBase64(offer);
                     const urlSafe = toUrlSafe(compressed);
+
                     joinCode.textContent = urlSafe;
+                    makeQR("hostQR", urlSafe);
                 }
             };
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-
-            setup.style.display = "none";
-            hostUI.style.display = "block";
         }
 
         async function applyHostAnswer() {
@@ -183,6 +297,7 @@
             const urlSafe = toUrlSafe(compressed);
 
             answerOut.value = urlSafe;
+            makeQR("answerQR", urlSafe);
         }
 
         function setupChannel() {
@@ -205,7 +320,7 @@
         }
 
         function sendMessage() {
-            if (channel.readyState !== "open") return;
+            if (!channel || channel.readyState !== "open") return;
 
             const text = chatInput.value.trim();
             if (!text) return;
@@ -245,8 +360,72 @@
             await navigator.clipboard.writeText(answerOut.value);
             alert("Copied!");
         }
+
+        // QR scanner popup logic
+        async function openScanner(targetId) {
+            scanTargetId = targetId;
+            const overlay = document.getElementById("scannerOverlay");
+            const video = document.getElementById("scannerVideo");
+
+            overlay.style.display = "flex";
+
+            try {
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                video.srcObject = scannerStream;
+                video.play();
+                scanning = true;
+                requestAnimationFrame(scanFrame);
+            } catch (err) {
+                alert("Unable to access camera: " + err.message);
+                closeScanner();
+            }
+        }
+
+        function closeScanner() {
+            scanning = false;
+            const overlay = document.getElementById("scannerOverlay");
+            const video = document.getElementById("scannerVideo");
+
+            overlay.style.display = "none";
+
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(t => t.stop());
+                scannerStream = null;
+            }
+            video.srcObject = null;
+        }
+
+        function scanFrame() {
+            if (!scanning) return;
+
+            const video = document.getElementById("scannerVideo");
+            const canvas = document.getElementById("scannerCanvas");
+            const ctx = canvas.getContext("2d");
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code && code.data) {
+                    const target = document.getElementById(scanTargetId);
+                    if (target) {
+                        target.value = code.data;
+                    }
+                    closeScanner();
+                    return;
+                }
+            }
+
+            requestAnimationFrame(scanFrame);
+        }
     </script>
-
 </body>
-
 </html>
