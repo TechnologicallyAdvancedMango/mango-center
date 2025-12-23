@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mango Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+        }
+
+        button {
+            margin-top: 6px;
+        }
+
+        #chatBox {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            background: #fafafa;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Mango Chat</h1>
+
+    <div id="setup">
+        <button onclick="startHost()">Host</button>
+        <button onclick="startJoin()">Join</button>
+    </div>
+
+    <!-- HOST UI -->
+    <div id="hostUI" class="hidden">
+        <h3>Share this join code:</h3>
+        <div id="joinCode" style="font-size:18px; font-weight:bold; word-break:break-all;"></div>
+        <button onclick="copyJoinCode()">Copy Code</button>
+
+        <h3>Paste encoded answer from client:</h3>
+        <textarea id="hostAnswer" rows="4"></textarea>
+        <button onclick="pasteHostAnswer()">Paste Answer</button>
+        <button onclick="applyHostAnswer()">Connect</button>
+    </div>
+
+    <!-- JOIN UI -->
+    <div id="joinUI" class="hidden">
+        <h3>Enter join code:</h3>
+        <input id="codeInput" />
+        <button onclick="pasteJoinCode()">Paste Code</button>
+
+        <button onclick="joinWithCode()">Submit Code</button>
+
+        <h3>Send this encoded answer back to host:</h3>
+        <textarea id="answerOut" rows="4"></textarea>
+        <button onclick="copyAnswer()">Copy Answer</button>
+    </div>
+
+    <!-- CHAT UI -->
+    <div id="app" class="hidden">
+        <h2>Chat</h2>
+
+        <div id="chatBox"></div>
+
+        <input id="chatInput" placeholder="Type a message..." />
+        <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+
+        <p id="status"></p>
+    </div>
+
+    <script>
+        let pc;
+        let channel;
+        let isHost = false;
+        let messages = [];
+        let messageLimit = 100;
+
+        const chatBox = document.getElementById("chatBox");
+        const sendBtn = document.getElementById("sendBtn");
+        const statusEl = document.getElementById("status");
+
+        // URL-safe Base64 helpers
+        function toUrlSafe(b64) {
+            return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
+        function fromUrlSafe(str) {
+            str = str.replace(/-/g, "+").replace(/_/g, "/");
+            while (str.length % 4) str += "=";
+            return str;
+        }
+
+        function renderChat() {
+            chatBox.textContent = messages
+                .map(m => `[${m.from}] > ${m.text}`)
+                .join("\n");
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function startHost() {
+            isHost = true;
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            });
+
+            channel = pc.createDataChannel("chat");
+            setupChannel();
+
+            pc.onicecandidate = e => {
+                if (!e.candidate) {
+                    const offer = pc.localDescription.sdp;
+                    const compressed = LZString.compressToBase64(offer);
+                    const urlSafe = toUrlSafe(compressed);
+                    joinCode.textContent = urlSafe;
+                }
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            setup.style.display = "none";
+            hostUI.style.display = "block";
+        }
+
+        async function applyHostAnswer() {
+            const encoded = hostAnswer.value.trim();
+            const b64 = fromUrlSafe(encoded);
+            const sdp = LZString.decompressFromBase64(b64);
+
+            await pc.setRemoteDescription({
+                type: "answer",
+                sdp
+            });
+
+            hostUI.style.display = "none";
+            app.style.display = "block";
+            statusEl.textContent = "Waiting for connection...";
+        }
+
+        function startJoin() {
+            isHost = false;
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            });
+
+            pc.ondatachannel = e => {
+                channel = e.channel;
+                setupChannel();
+            };
+
+            setup.style.display = "none";
+            joinUI.style.display = "block";
+        }
+
+        async function joinWithCode() {
+            const encoded = codeInput.value.trim();
+            const b64 = fromUrlSafe(encoded);
+            const offerSDP = LZString.decompressFromBase64(b64);
+
+            await pc.setRemoteDescription({
+                type: "offer",
+                sdp: offerSDP
+            });
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            const compressed = LZString.compressToBase64(answer.sdp);
+            const urlSafe = toUrlSafe(compressed);
+
+            answerOut.value = urlSafe;
+        }
+
+        function setupChannel() {
+            channel.onopen = () => {
+                joinUI.style.display = "none";
+                app.style.display = "block";
+                statusEl.textContent = "Connected!";
+                sendBtn.disabled = false;
+            };
+
+            channel.onmessage = e => {
+                const msg = JSON.parse(e.data);
+
+                if (msg.type === "msg") {
+                    messages.push(msg);
+                    messages = messages.slice(-messageLimit);
+                    renderChat();
+                }
+            };
+        }
+
+        function sendMessage() {
+            if (channel.readyState !== "open") return;
+
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            const msg = {
+                type: "msg",
+                from: isHost ? "HOST" : "CLIENT",
+                text
+            };
+
+            messages.push(msg);
+            messages = messages.slice(-messageLimit);
+            renderChat();
+
+            channel.send(JSON.stringify(msg));
+
+            chatInput.value = "";
+        }
+
+        // Clipboard helpers
+        async function copyJoinCode() {
+            await navigator.clipboard.writeText(joinCode.textContent);
+            alert("Copied!");
+        }
+
+        async function pasteHostAnswer() {
+            const text = await navigator.clipboard.readText();
+            hostAnswer.value = text;
+        }
+
+        async function pasteJoinCode() {
+            const text = await navigator.clipboard.readText();
+            codeInput.value = text;
+        }
+
+        async function copyAnswer() {
+            await navigator.clipboard.writeText(answerOut.value);
+            alert("Copied!");
+        }
+    </script>
+
+</body>
+
+</html>

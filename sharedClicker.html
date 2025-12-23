@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>P2P Counter (Offline, URL-safe)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+        }
+
+        button {
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>P2P Shared Counter</h1>
+
+    <div id="setup">
+        <button onclick="startHost()">Host</button>
+        <button onclick="startJoin()">Join</button>
+    </div>
+
+    <!-- HOST UI -->
+    <div id="hostUI" class="hidden">
+        <h3>Share this join code:</h3>
+        <div id="joinCode" style="font-size:18px; font-weight:bold; word-break:break-all;"></div>
+        <button onclick="copyJoinCode()">Copy Code</button>
+
+        <h3>Paste encoded answer from client:</h3>
+        <textarea id="hostAnswer" rows="4"></textarea>
+        <button onclick="pasteHostAnswer()">Paste Answer</button>
+        <button onclick="applyHostAnswer()">Connect</button>
+    </div>
+
+    <!-- JOIN UI -->
+    <div id="joinUI" class="hidden">
+        <h3>Enter join code:</h3>
+        <input id="codeInput" />
+        <button onclick="pasteJoinCode()">Paste Code</button>
+
+        <button onclick="joinWithCode()">Submit Code</button>
+
+        <h3>Send this encoded answer back to host:</h3>
+        <textarea id="answerOut" rows="4"></textarea>
+        <button onclick="copyAnswer()">Copy Answer</button>
+    </div>
+
+    <!-- APP UI -->
+    <div id="app" class="hidden">
+        <h2>Clicks: <span id="count">0</span></h2>
+        <button id="clickBtn" onclick="increment()" disabled>Click</button>
+        <p id="status"></p>
+    </div>
+
+    <script>
+        let pc;
+        let channel;
+        let count = 0;
+        let isHost = false;
+
+        const countEl = document.getElementById("count");
+        const clickBtn = document.getElementById("clickBtn");
+        const statusEl = document.getElementById("status");
+
+        // URL-safe Base64 helpers
+        function toUrlSafe(b64) {
+            return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
+        function fromUrlSafe(str) {
+            str = str.replace(/-/g, "+").replace(/_/g, "/");
+            while (str.length % 4) str += "=";
+            return str;
+        }
+
+        async function startHost() {
+            isHost = true;
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            });
+
+            channel = pc.createDataChannel("sync");
+            setupChannel();
+
+            pc.onicecandidate = e => {
+                if (!e.candidate) {
+                    const offer = pc.localDescription.sdp;
+                    const compressed = LZString.compressToBase64(offer);
+                    const urlSafe = toUrlSafe(compressed);
+                    joinCode.textContent = urlSafe;
+                }
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            setup.style.display = "none";
+            hostUI.style.display = "block";
+        }
+
+        async function applyHostAnswer() {
+            const encoded = hostAnswer.value.trim();
+            const b64 = fromUrlSafe(encoded);
+            const sdp = LZString.decompressFromBase64(b64);
+
+            await pc.setRemoteDescription({
+                type: "answer",
+                sdp
+            });
+
+            hostUI.style.display = "none";
+            app.style.display = "block";
+            statusEl.textContent = "Waiting for connection...";
+        }
+
+        function startJoin() {
+            isHost = false;
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            });
+
+            pc.ondatachannel = e => {
+                channel = e.channel;
+                setupChannel();
+            };
+
+            setup.style.display = "none";
+            joinUI.style.display = "block";
+        }
+
+        async function joinWithCode() {
+            const encoded = codeInput.value.trim();
+            const b64 = fromUrlSafe(encoded);
+            const offerSDP = LZString.decompressFromBase64(b64);
+
+            await pc.setRemoteDescription({
+                type: "offer",
+                sdp: offerSDP
+            });
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            const compressed = LZString.compressToBase64(answer.sdp);
+            const urlSafe = toUrlSafe(compressed);
+
+            answerOut.value = urlSafe;
+        }
+
+        function setupChannel() {
+            channel.onopen = () => {
+                app.style.display = "block";
+                joinUI.style.display = "none";
+                statusEl.textContent = "Connected!";
+                clickBtn.disabled = false;
+            };
+
+            channel.onmessage = e => {
+                const msg = JSON.parse(e.data);
+
+                if (msg.type === "set") {
+                    count = msg.value;
+                    countEl.textContent = count;
+                }
+
+                if (msg.type === "inc") {
+                    count++;
+                    countEl.textContent = count;
+                    if (isHost) broadcast();
+                }
+            };
+        }
+
+        function increment() {
+            if (channel.readyState !== "open") return;
+
+            if (isHost) {
+                count++;
+                countEl.textContent = count;
+                broadcast();
+            } else {
+                channel.send(JSON.stringify({ type: "inc" }));
+            }
+        }
+
+        function broadcast() {
+            channel.send(JSON.stringify({ type: "set", value: count }));
+        }
+
+        // Clipboard helpers
+        async function copyJoinCode() {
+            await navigator.clipboard.writeText(joinCode.textContent);
+            alert("Copied!");
+        }
+
+        async function pasteHostAnswer() {
+            const text = await navigator.clipboard.readText();
+            hostAnswer.value = text;
+        }
+
+        async function pasteJoinCode() {
+            const text = await navigator.clipboard.readText();
+            codeInput.value = text;
+        }
+
+        async function copyAnswer() {
+            await navigator.clipboard.writeText(answerOut.value);
+            alert("Copied!");
+        }
+    </script>
+
+</body>
+</html>
