@@ -96,356 +96,375 @@
     </style>
 </head>
 <body>
+<h1>Mango Chat</h1>
 
-    <h1>Mango Chat</h1>
+<div id="setup">
+    <button onclick="startHost()">Host</button>
+    <button onclick="startJoin()">Join</button>
+</div>
 
-    <div id="setup">
-        <button onclick="startHost()">Host</button>
-        <button onclick="startJoin()">Join</button>
-    </div>
+<!-- HOST UI -->
+<div id="hostUI" class="hidden">
+    <h3>Share this join code:</h3>
 
-    <!-- HOST UI -->
-    <div id="hostUI" class="hidden">
-        <h3>Share this join code:</h3>
-
-        <div class="flex">
-            <div style="flex:1;">
-                <div id="joinCode" style="font-size:10px; font-weight:bold; word-break:break-all;"></div>
-                <button onclick="copyJoinCode()">Copy Code</button>
-            </div>
-
-            <div class="qrBox">
-                <div id="hostQR"></div>
-            </div>
+    <div class="flex">
+        <div style="flex:1;">
+            <div id="joinCode" style="font-size:10px; font-weight:bold; word-break:break-all;"></div>
+            <button onclick="copyJoinCode()">Copy Code</button>
         </div>
 
-        <h3>Paste encoded answer from client:</h3>
-        <textarea id="hostAnswer" rows="4"></textarea>
-        <button onclick="pasteHostAnswer()">Paste Answer</button>
-        <button onclick="openScanner('hostAnswer')">Scan Answer QR</button>
-        <button onclick="applyHostAnswer()">Connect</button>
-    </div>
-
-    <!-- JOIN UI -->
-    <div id="joinUI" class="hidden">
-        <h3>Enter join code:</h3>
-
-        <div class="flex">
-            <div style="flex:1;">
-                <input id="codeInput" />
-                <button onclick="pasteJoinCode()">Paste Code</button>
-                <button onclick="openScanner('codeInput')">Scan Join Code QR</button>
-                <button onclick="joinWithCode()">Submit Code</button>
-            </div>
-        </div>
-
-        <h3>Send this encoded answer back to host:</h3>
-
-        <div class="flex">
-            <div style="flex:1;">
-                <textarea id="answerOut" rows="4"></textarea>
-                <button onclick="copyAnswer()">Copy Answer</button>
-            </div>
-
-            <div class="qrBox">
-                <div id="answerQR"></div>
-            </div>
+        <div class="qrBox">
+            <div id="hostQR"></div>
         </div>
     </div>
 
-    <!-- CHAT UI -->
-    <div id="app" class="hidden">
-        <h2>Chat</h2>
+    <h3>Paste encoded answer from client:</h3>
+    <textarea id="hostAnswer" rows="4"></textarea>
+    <button onclick="pasteHostAnswer()">Paste Answer</button>
+    <button onclick="openScanner('hostAnswer')">Scan Answer QR</button>
+    <button onclick="applyHostAnswer()">Connect</button>
+</div>
 
-        <div id="chatBox"></div>
+<!-- JOIN UI -->
+<div id="joinUI" class="hidden">
+    <h3>Enter join code:</h3>
 
-        <input id="chatInput" placeholder="Type a message..." />
-        <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
-
-        <p id="status"></p>
-    </div>
-
-    <!-- Dark popup QR scanner -->
-    <div id="scannerOverlay">
-        <div id="scannerModal">
-            <h3>Scan QR Code</h3>
-            <video id="scannerVideo" autoplay playsinline></video>
-            <canvas id="scannerCanvas" class="hidden"></canvas>
-            <div>
-                <button id="scannerCloseBtn" onclick="closeScanner()">Close</button>
-            </div>
+    <div class="flex">
+        <div style="flex:1;">
+            <input id="codeInput" />
+            <button onclick="pasteJoinCode()">Paste Code</button>
+            <button onclick="openScanner('codeInput')">Scan Join Code QR</button>
+            <button onclick="joinWithCode()">Submit Code</button>
         </div>
     </div>
 
-    <script>
-        let pc;
-        let channel;
-        let isHost = false;
-        let messages = [];
-        let messageLimit = 10;
+    <h3>Send this encoded answer back to host:</h3>
 
-        const statusEl = document.getElementById("status");
+    <div class="flex">
+        <div style="flex:1;">
+            <textarea id="answerOut" rows="4"></textarea>
+            <button onclick="copyAnswer()">Copy Answer</button>
+        </div>
 
-        // Scanner state
-        let scanTargetId = null;
-        let scannerStream = null;
-        let scanning = false;
+        <div class="qrBox">
+            <div id="answerQR"></div>
+        </div>
+    </div>
+</div>
 
-        // URL-safe Base64 helpers
-        function toUrlSafe(b64) {
-            return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-        }
-        function fromUrlSafe(str) {
-            str = str.replace(/-/g, "+").replace(/_/g, "/");
-            while (str.length % 4) str += "=";
-            return str;
-        }
+<!-- CHAT UI -->
+<div id="app" class="hidden">
+    <h2>Chat</h2>
 
-        function renderChat() {
-            chatBox.textContent = messages
-                .map(m => `[${m.from}] > ${m.text}`)
-                .join("\n");
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+    <div id="chatBox"></div>
 
-        function makeQR(elementId, text) {
-            const el = document.getElementById(elementId);
-            if (!el) return;
+    <input id="chatInput" placeholder="Type a message..." />
+    <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
 
+    <p id="status"></p>
+</div>
+
+<!-- Dark popup QR scanner -->
+<div id="scannerOverlay">
+    <div id="scannerModal">
+        <h3>Scan QR Code</h3>
+        <video id="scannerVideo" autoplay playsinline></video>
+        <canvas id="scannerCanvas" class="hidden"></canvas>
+        <div>
+            <button id="scannerCloseBtn" onclick="closeScanner()">Close</button>
+        </div>
+    </div>
+</div>
+<script>
+    let pc;
+    let channel;
+    let isHost = false;
+    let messages = [];
+    let messageLimit = 10;
+    let pendingAnswer = null; // joiner waits for ICE to finish
+
+    const statusEl = document.getElementById("status");
+
+    // Scanner state
+    let scanTargetId = null;
+    let scannerStream = null;
+    let scanning = false;
+
+    // URL-safe Base64 helpers
+    function toUrlSafe(b64) {
+        return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    function fromUrlSafe(str) {
+        str = str.replace(/-/g, "+").replace(/_/g, "/");
+        while (str.length % 4) str += "=";
+        return str;
+    }
+
+    function renderChat() {
+        chatBox.textContent = messages
+            .map(m => `[${m.from}] > ${m.text}`)
+            .join("\n");
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function makeQR(elementId, text) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        el.innerHTML = "";
+
+        // Step 1: create a temporary QR to read module count
+        const temp = new QRCode(el, {
+            text,
+            width: 1,
+            height: 1,
+            correctLevel: QRCode.CorrectLevel.L,
+            margin: 8
+        });
+
+        // Wait for QR to render
+        setTimeout(() => {
+            const canvas = el.querySelector("canvas");
+            if (!canvas) return;
+
+            // Extract module count from qrcode.js internals
+            const moduleCount = temp._oQRCode.getModuleCount();
+
+            // Choose an integer module size
+            const moduleSize = 16;
+            const finalSize = moduleCount * moduleSize;
+
+            // Clear and re-render at perfect integer resolution
             el.innerHTML = "";
-
-            // Step 1: create a temporary QR to read module count
-            const temp = new QRCode(el, {
+            new QRCode(el, {
                 text,
-                width: 1,
-                height: 1,
+                width: finalSize,
+                height: finalSize,
                 correctLevel: QRCode.CorrectLevel.L,
-                margin: 8
+                margin: 8 // default is 4
             });
 
-            // Wait for QR to render
-            setTimeout(() => {
-                const canvas = el.querySelector("canvas");
-                if (!canvas) return;
+            // Force crisp rendering
+            const finalCanvas = el.querySelector("canvas");
+            if (finalCanvas) {
+                finalCanvas.style.width = finalSize + "px";
+                finalCanvas.style.height = finalSize + "px";
+                finalCanvas.style.imageRendering = "pixelated";
+            }
+        }, 0);
+    }
 
-                // Extract module count from qrcode.js internals
-                const moduleCount = temp._oQRCode.getModuleCount();
+    async function startHost() {
+        isHost = true;
 
-                // Choose an integer module size
-                const moduleSize = 16;
-                const finalSize = moduleCount * moduleSize;
+        setup.style.display = "none";
+        hostUI.style.display = "block"; // show UI first
 
-                // Clear and re-render at perfect integer resolution
-                el.innerHTML = "";
-                new QRCode(el, {
-                    text,
-                    width: finalSize,
-                    height: finalSize,
-                    correctLevel: QRCode.CorrectLevel.L,
-                    margin: 8 // default is 4
-                });
+        pc = new RTCPeerConnection({
+            iceServers: [],               // no STUN, no TURN
+            iceTransportPolicy: "all"     // allow host candidates
+        });
 
-                // Force crisp rendering
-                const finalCanvas = el.querySelector("canvas");
-                if (finalCanvas) {
-                    finalCanvas.style.width = finalSize + "px";
-                    finalCanvas.style.height = finalSize + "px";
-                    finalCanvas.style.imageRendering = "pixelated";
-                }
-            }, 0);
-        }
+        channel = pc.createDataChannel("chat");
+        setupChannel();
 
-        async function startHost() {
-            isHost = true;
+        pc.onicecandidate = e => {
+            if (!e.candidate) {
+                const offer = pc.localDescription.sdp;
+                const compressed = LZString.compressToBase64(offer);
+                const urlSafe = toUrlSafe(compressed);
 
-            setup.style.display = "none";
-            hostUI.style.display = "block"; // show UI first
+                joinCode.textContent = urlSafe;
+                makeQR("hostQR", urlSafe);
+            }
+        };
 
-            pc = new RTCPeerConnection({
-                iceServers: [],               // no STUN, no TURN
-                iceTransportPolicy: "all"     // allow host candidates
-            });
+        pc.oniceconnectionstatechange = () => {
+            console.log("Host ICE state:", pc.iceConnectionState);
+            statusEl.textContent = "Status: " + pc.iceConnectionState;
+        };
 
-            channel = pc.createDataChannel("chat");
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+    }
+
+    async function applyHostAnswer() {
+        const encoded = hostAnswer.value.trim();
+        const b64 = fromUrlSafe(encoded);
+        const sdp = LZString.decompressFromBase64(b64);
+
+        await pc.setRemoteDescription({
+            type: "answer",
+            sdp
+        });
+
+        hostUI.style.display = "none";
+        app.style.display = "block";
+        statusEl.textContent = "Waiting for connection...";
+    }
+
+    function startJoin() {
+        isHost = false;
+
+        pc = new RTCPeerConnection({
+            iceServers: [],               // no STUN, no TURN
+            iceTransportPolicy: "all"     // allow host candidates
+        });
+
+        pc.ondatachannel = e => {
+            channel = e.channel;
             setupChannel();
+        };
 
-            console.log("hostQR element:", document.getElementById("hostQR"));
+        pc.onicecandidate = e => {
+            // When ICE gathering is done and we have marked that an answer is pending,
+            // serialize the full SDP (with candidates) into the QR.
+            if (!e.candidate && pendingAnswer) {
+                const fullAnswerSDP = pc.localDescription.sdp;
+                const compressed = LZString.compressToBase64(fullAnswerSDP);
+                const urlSafe = toUrlSafe(compressed);
 
-            pc.onicecandidate = e => {
-                if (!e.candidate) {
-                    const offer = pc.localDescription.sdp;
-                    const compressed = LZString.compressToBase64(offer);
-                    const urlSafe = toUrlSafe(compressed);
+                answerOut.value = urlSafe;
+                makeQR("answerQR", urlSafe);
 
-                    joinCode.textContent = urlSafe;
-                    makeQR("hostQR", urlSafe);
-                }
-            };
+                pendingAnswer = null;
+            }
+        };
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-        }
+        pc.oniceconnectionstatechange = () => {
+            console.log("Joiner ICE state:", pc.iceConnectionState);
+            statusEl.textContent = "Status: " + pc.iceConnectionState;
+        };
 
-        async function applyHostAnswer() {
-            const encoded = hostAnswer.value.trim();
-            const b64 = fromUrlSafe(encoded);
-            const sdp = LZString.decompressFromBase64(b64);
+        setup.style.display = "none";
+        joinUI.style.display = "block";
+    }
 
-            await pc.setRemoteDescription({
-                type: "answer",
-                sdp
-            });
+    async function joinWithCode() {
+        const encoded = codeInput.value.trim();
+        const b64 = fromUrlSafe(encoded);
+        const offerSDP = LZString.decompressFromBase64(b64);
 
-            hostUI.style.display = "none";
+        await pc.setRemoteDescription({
+            type: "offer",
+            sdp: offerSDP
+        });
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        // Do NOT build the QR yet; wait for ICE to finish.
+        pendingAnswer = true;
+        statusEl.textContent = "Status: gathering ICE...";
+    }
+
+    function setupChannel() {
+        channel.onopen = () => {
+            joinUI.style.display = "none";
             app.style.display = "block";
-            statusEl.textContent = "Waiting for connection...";
-        }
+            statusEl.textContent = "Connected!";
+            sendBtn.disabled = false;
+        };
 
-        function startJoin() {
-            isHost = false;
+        channel.onmessage = e => {
+            const msg = JSON.parse(e.data);
 
-            pc = new RTCPeerConnection({
-                iceServers: [],               // no STUN, no TURN
-                iceTransportPolicy: "all"     // allow host candidates
-            });
+            if (msg.type === "msg") {
+                messages.push(msg);
+                messages = messages.slice(-messageLimit);
+                renderChat();
+            }
+        };
+    }
 
+    function sendMessage() {
+        if (!channel || channel.readyState !== "open") return;
 
-            pc.ondatachannel = e => {
-                channel = e.channel;
-                setupChannel();
-            };
+        const text = chatInput.value.trim();
+        if (!text) return;
 
-            setup.style.display = "none";
-            joinUI.style.display = "block";
-        }
+        const msg = {
+            type: "msg",
+            from: isHost ? "HOST" : "CLIENT",
+            text
+        };
 
-        async function joinWithCode() {
-            const encoded = codeInput.value.trim();
-            const b64 = fromUrlSafe(encoded);
-            const offerSDP = LZString.decompressFromBase64(b64);
+        messages.push(msg);
+        messages = messages.slice(-messageLimit);
+        renderChat();
 
-            await pc.setRemoteDescription({
-                type: "offer",
-                sdp: offerSDP
-            });
+        channel.send(JSON.stringify(msg));
 
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
+        chatInput.value = "";
+    }
 
-            const compressed = LZString.compressToBase64(answer.sdp);
-            const urlSafe = toUrlSafe(compressed);
+    // Clipboard helpers
+    async function copyJoinCode() {
+        await navigator.clipboard.writeText(joinCode.textContent);
+        alert("Copied!");
+    }
 
-            answerOut.value = urlSafe;
-            makeQR("answerQR", urlSafe);
-        }
+    async function pasteHostAnswer() {
+        const text = await navigator.clipboard.readText();
+        hostAnswer.value = text;
+    }
 
-        function setupChannel() {
-            channel.onopen = () => {
-                joinUI.style.display = "none";
-                app.style.display = "block";
-                statusEl.textContent = "Connected!";
-                sendBtn.disabled = false;
-            };
+    async function pasteJoinCode() {
+        const text = await navigator.clipboard.readText();
+        codeInput.value = text;
+    }
 
-            channel.onmessage = e => {
-                const msg = JSON.parse(e.data);
+    async function copyAnswer() {
+        await navigator.clipboard.writeText(answerOut.value);
+        alert("Copied!");
+    }
 
-                if (msg.type === "msg") {
-                    messages.push(msg);
-                    messages = messages.slice(-messageLimit);
-                    renderChat();
-                }
-            };
-        }
+    // QR scanner popup logic (ZXing)
+    let codeReader = new ZXing.BrowserQRCodeReader();
 
-        function sendMessage() {
-            if (!channel || channel.readyState !== "open") return;
+    async function openScanner(targetId) {
+        scanTargetId = targetId;
 
-            const text = chatInput.value.trim();
-            if (!text) return;
+        const overlay = document.getElementById("scannerOverlay");
+        const video = document.getElementById("scannerVideo");
 
-            const msg = {
-                type: "msg",
-                from: isHost ? "HOST" : "CLIENT",
-                text
-            };
+        overlay.style.display = "flex";
 
-            messages.push(msg);
-            messages = messages.slice(-messageLimit);
-            renderChat();
-
-            channel.send(JSON.stringify(msg));
-
-            chatInput.value = "";
-        }
-
-        // Clipboard helpers
-        async function copyJoinCode() {
-            await navigator.clipboard.writeText(joinCode.textContent);
-            alert("Copied!");
-        }
-
-        async function pasteHostAnswer() {
-            const text = await navigator.clipboard.readText();
-            hostAnswer.value = text;
-        }
-
-        async function pasteJoinCode() {
-            const text = await navigator.clipboard.readText();
-            codeInput.value = text;
-        }
-
-        async function copyAnswer() {
-            await navigator.clipboard.writeText(answerOut.value);
-            alert("Copied!");
-        }
-
-        // QR scanner popup logic
-        let codeReader = new ZXing.BrowserQRCodeReader();
-
-        async function openScanner(targetId) {
-            scanTargetId = targetId;
-
-            const overlay = document.getElementById("scannerOverlay");
-            const video = document.getElementById("scannerVideo");
-
-            overlay.style.display = "flex";
-
-            try {
-                await codeReader.decodeFromVideoDevice(
-                    null,            // auto-select camera
-                    "scannerVideo",  // your <video> element ID
-                    (result, err) => {
-                        if (result) {
-                            const target = document.getElementById(scanTargetId);
-                            if (target) target.value = result.text;
-                            closeScanner();
-                        }
+        try {
+            await codeReader.decodeFromVideoDevice(
+                null,            // auto-select camera
+                "scannerVideo",  // your <video> element ID
+                (result, err) => {
+                    if (result) {
+                        const target = document.getElementById(scanTargetId);
+                        if (target) target.value = result.text;
+                        closeScanner();
                     }
-                );
-            } catch (err) {
-                alert("Unable to access camera: " + err.message);
-                closeScanner();
-            }
+                }
+            );
+        } catch (err) {
+            alert("Unable to access camera: " + err.message);
+            closeScanner();
+        }
+    }
+
+    function closeScanner() {
+        scanning = false;
+
+        const overlay = document.getElementById("scannerOverlay");
+        const video = document.getElementById("scannerVideo");
+
+        overlay.style.display = "none";
+
+        codeReader.reset();
+
+        if (scannerStream) {
+            scannerStream.getTracks().forEach(t => t.stop());
+            scannerStream = null;
         }
 
-        function closeScanner() {
-            scanning = false;
-
-            const overlay = document.getElementById("scannerOverlay");
-            const video = document.getElementById("scannerVideo");
-
-            overlay.style.display = "none";
-
-            codeReader.reset(); // <-- important
-
-            if (scannerStream) {
-                scannerStream.getTracks().forEach(t => t.stop());
-                scannerStream = null;
-            }
-
-            video.srcObject = null;
-        }
-    </script>
+        video.srcObject = null;
+    }
+</script>    
 </body>
 </html>
