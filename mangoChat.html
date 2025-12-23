@@ -9,13 +9,13 @@
     <!-- QR Code generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-    <!-- QR Code scanner (jsQR) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+    <!-- QR Code scanner ZXing -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <style>
         body {
             font-family: sans-serif;
-            max-width: 700px;
+            max-width: 1000px;
             margin: 20px auto;
         }
 
@@ -54,8 +54,8 @@
         #hostQR img,
         #answerQR canvas,
         #answerQR img {
-            width: 256px;
-            height: 256px;
+            width: 512px;
+            height: 512px;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
@@ -231,8 +231,8 @@
                 // Extract module count from qrcode.js internals
                 const moduleCount = temp._oQRCode.getModuleCount();
 
-                // Choose an integer module size (e.g., 8px per module)
-                const moduleSize = 8;
+                // Choose an integer module size
+                const moduleSize = 16;
                 const finalSize = moduleCount * moduleSize;
 
                 // Clear and re-render at perfect integer resolution
@@ -398,21 +398,28 @@
         }
 
         // QR scanner popup logic
+        let codeReader = new ZXing.BrowserQRCodeReader();
+
         async function openScanner(targetId) {
             scanTargetId = targetId;
+
             const overlay = document.getElementById("scannerOverlay");
             const video = document.getElementById("scannerVideo");
 
             overlay.style.display = "flex";
 
             try {
-                scannerStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }
-                });
-                video.srcObject = scannerStream;
-                video.play();
-                scanning = true;
-                requestAnimationFrame(scanFrame);
+                await codeReader.decodeFromVideoDevice(
+                    null,            // auto-select camera
+                    "scannerVideo",  // your <video> element ID
+                    (result, err) => {
+                        if (result) {
+                            const target = document.getElementById(scanTargetId);
+                            if (target) target.value = result.text;
+                            closeScanner();
+                        }
+                    }
+                );
             } catch (err) {
                 alert("Unable to access camera: " + err.message);
                 closeScanner();
@@ -421,46 +428,20 @@
 
         function closeScanner() {
             scanning = false;
+
             const overlay = document.getElementById("scannerOverlay");
             const video = document.getElementById("scannerVideo");
 
             overlay.style.display = "none";
 
+            codeReader.reset(); // <-- important
+
             if (scannerStream) {
                 scannerStream.getTracks().forEach(t => t.stop());
                 scannerStream = null;
             }
+
             video.srcObject = null;
-        }
-
-        function scanFrame() {
-            if (!scanning) return;
-
-            const video = document.getElementById("scannerVideo");
-            const canvas = document.getElementById("scannerCanvas");
-            const ctx = canvas.getContext("2d");
-
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert",
-                });
-
-                if (code && code.data) {
-                    const target = document.getElementById(scanTargetId);
-                    if (target) {
-                        target.value = code.data;
-                    }
-                    closeScanner();
-                    return;
-                }
-            }
-
-            requestAnimationFrame(scanFrame);
         }
     </script>
 </body>
