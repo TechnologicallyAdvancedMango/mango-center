@@ -50,6 +50,16 @@
             min-width: 150px;
         }
 
+        #hostQR canvas,
+        #hostQR img,
+        #answerQR canvas,
+        #answerQR img {
+            width: 256px;
+            height: 256px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
         /* Dark popup scanner overlay */
         #scannerOverlay {
             position: fixed;
@@ -100,7 +110,7 @@
 
         <div class="flex">
             <div style="flex:1;">
-                <div id="joinCode" style="font-size:18px; font-weight:bold; word-break:break-all;"></div>
+                <div id="joinCode" style="font-size:10px; font-weight:bold; word-break:break-all;"></div>
                 <button onclick="copyJoinCode()">Copy Code</button>
             </div>
 
@@ -200,21 +210,47 @@
 
         function makeQR(elementId, text) {
             const el = document.getElementById(elementId);
-            if (!el) {
-                console.error("QR element not found:", elementId);
-                return;
-            }
+            if (!el) return;
+
             el.innerHTML = "";
-            // tiny delay to ensure layout is ready
+
+            // Step 1: create a temporary QR to read module count
+            const temp = new QRCode(el, {
+                text,
+                width: 1,
+                height: 1,
+                correctLevel: QRCode.CorrectLevel.L,
+                margin: 8
+            });
+
+            // Wait for QR to render
             setTimeout(() => {
-                try {
-                    new QRCode(el, {
-                        text,
-                        width: 150,
-                        height: 150
-                    });
-                } catch (err) {
-                    console.error("QR generation failed for", elementId, err);
+                const canvas = el.querySelector("canvas");
+                if (!canvas) return;
+
+                // Extract module count from qrcode.js internals
+                const moduleCount = temp._oQRCode.getModuleCount();
+
+                // Choose an integer module size (e.g., 8px per module)
+                const moduleSize = 8;
+                const finalSize = moduleCount * moduleSize;
+
+                // Clear and re-render at perfect integer resolution
+                el.innerHTML = "";
+                new QRCode(el, {
+                    text,
+                    width: finalSize,
+                    height: finalSize,
+                    correctLevel: QRCode.CorrectLevel.L,
+                    margin: 8 // default is 4
+                });
+
+                // Force crisp rendering
+                const finalCanvas = el.querySelector("canvas");
+                if (finalCanvas) {
+                    finalCanvas.style.width = finalSize + "px";
+                    finalCanvas.style.height = finalSize + "px";
+                    finalCanvas.style.imageRendering = "pixelated";
                 }
             }, 0);
         }
