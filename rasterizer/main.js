@@ -5,6 +5,8 @@ const ctx = canvas.getContext('2d');
 canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
+let backfaceCulling = false;
+
 class Camera {
     constructor (position = {x:0, y:0, z:0}, rotation) {
         this.position = position;
@@ -29,22 +31,18 @@ function getCameraBasis(camera) {
     const cy = Math.cos(camera.yaw),  sy = Math.sin(camera.yaw);
     const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
 
-    // Forward: -Z at yaw=0, pitch=0 (standard right-handed view)
     const forward = normalize({
         x: sy * cp,
         y: sp,
         z: -cy * cp
     });
 
-    // Right: purely horizontal, depends only on yaw
-    // Ensures no basis degeneracy when pitch ~ ±90°
     const right = normalize({
         x: cy,
         y: 0,
         z: sy
     });
 
-    // Up: derived to keep orthonormality and handedness
     const up = normalize({
         x: right.y * forward.z - right.z * forward.y,
         y: right.z * forward.x - right.x * forward.z,
@@ -125,27 +123,25 @@ function worldToCamera(v, cam) {
 }
 
 function projectVertex(v, cam) {
-    // Camera-space transform
     const camSpace = worldToCamera(v, cam);
-    const camZ = camSpace.z;           // negative when in front (we look down -Z)
-    const zi = -camZ;                  // positive distance in front
-    if (zi <= 0 || zi < 0.1) return null; // clip too close/behind to avoid blow-ups
+    const camZ = camSpace.z;
+    const zi = -camZ;
+    if (zi <= 0) return null; // reject behind-camera vertices
 
     const fovRad = cam.fov * Math.PI / 180;
-    const tanHalf = Math.tan(fovRad/2);
+    const tanHalf = Math.tan(fovRad / 2);
+    const aspect = canvas.width / canvas.height;
 
-    // Perspective divide with -camZ
-    const px = (camSpace.x / -camZ) * (canvas.width/2) / tanHalf;
-    const py = (camSpace.y / -camZ) * (canvas.height/2) / tanHalf;
+    const px = (camSpace.x / -camZ) * (canvas.width / 2) / (tanHalf * aspect);
+    const py = (camSpace.y / -camZ) * (canvas.height / 2) / tanHalf;
 
     return {
         x: canvas.width/2 + px,
         y: canvas.height/2 - py,
-        zi,               // positive depth (distance along view)
-        invZi: 1 / zi     // for perspective-correct interpolation
+        zi,
+        invZi: 1 / zi
     };
 }
-
 
 function drawTriangle(tri) {
     const p0 = projectVertex(tri.verts[0], camera);
@@ -230,45 +226,131 @@ function setPixel(x, y, depth, color) {
     }
 }
 
+// screen-space backface culling
+function isBackfaceScreen(p0, p1, p2) {
+    const area = (p1.x - p0.x) * (p2.y - p0.y) -
+                 (p1.y - p0.y) * (p2.x - p0.x);
+    return area <= 0; // CCW = front-facing
+}
 
 // Barycentric rasterization
 function drawTriangleZBuffer(tri) {
-    const p0 = projectVertex(tri.verts[0], camera);
-    const p1 = projectVertex(tri.verts[1], camera);
-    const p2 = projectVertex(tri.verts[2], camera);
-    if (!p0 || !p1 || !p2) return;
+    // Transform verts to camera space once
+    const v0c = worldToCamera(tri.verts[0], camera);
+    const v1c = worldToCamera(tri.verts[1], camera);
+    const v2c = worldToCamera(tri.verts[2], camera);
 
-    // Optional backface culling (CCW front) (broken)
-    const denom = (p1.y - p2.y) * (p0.x - p2.x) + (p2.x - p1.x) * (p0.y - p2.y);
-    if (denom === 0) return;
-    // broken culling:
-    //if (denom < 0) return;
+    // Near-plane clipping in camera space (z < 0 is in front)
+    const NEAR = 0.01; // distance in front of camera
+    const verts = [v0c, v1c, v2c];
+    const inside = [];
+    const outside = [];
 
-    const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x, p2.x)));
-    const maxX = Math.min(canvas.width  - 1, Math.ceil(Math.max(p0.x, p1.x, p2.x)));
-    const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y, p2.y)));
-    const maxY = Math.min(canvas.height - 1, Math.ceil(Math.max(p0.y, p1.y, p2.y)));
+    for (let i = 0; i < 3; i++) {
+        (verts[i].z < -NEAR ? inside : outside).push(verts[i]);
+    }
 
-    const invZ0 = p0.invZi, invZ1 = p1.invZi, invZ2 = p2.invZi;
+    if (inside.length === 0) {
+        // whole triangle is behind camera: discard
+        return;
+    }
 
-    for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-            // Barycentric weights w.r.t. triangle (p0,p1,p2)
-            const w0 = ((p1.y - p2.y) * (x - p2.x) + (p2.x - p1.x) * (y - p2.y)) / denom;
-            const w1 = ((p2.y - p0.y) * (x - p2.x) + (p0.x - p2.x) * (y - p2.y)) / denom;
-            const w2 = 1 - w0 - w1;
+    // intersection of edge (a->b) with z = 0 plane
+    function intersect(a, b) {
+        const targetZ = -NEAR; // plane at z = -NEAR (in front)
+        const t = (a.z - targetZ) / (a.z - b.z); // solve a.z + t*(b.z - a.z) = targetZ
+        return {
+            x: a.x + t * (b.x - a.x),
+            y: a.y + t * (b.y - a.y),
+            z: targetZ
+        };
+    }
 
-            // Inside test (allow a small epsilon to reduce cracks)
-            if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-                // Perspective-correct depth: interpolate invZ, invert
-                const invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
-                const depth = 1 / invZ; // positive, smaller = closer
+    // Build a list of 1 or 2 clipped triangles in camera space
+    const clippedTris = [];
 
-                setPixel(x, y, depth, tri.material.color);
+    if (inside.length === 3) {
+        // no clipping needed
+        clippedTris.push(inside);
+    } else if (inside.length === 1 && outside.length === 2) {
+        // one inside, two outside → one smaller triangle
+        const v0 = inside[0];
+        const v1 = intersect(v0, outside[0]);
+        const v2 = intersect(v0, outside[1]);
+        clippedTris.push([v0, v1, v2]);
+    } else if (inside.length === 2 && outside.length === 1) {
+        // two inside, one outside → quad split into two triangles
+        const v0 = inside[0];
+        const v1 = inside[1];
+        const v2 = intersect(v0, outside[0]);
+        const v3 = intersect(v1, outside[0]);
+        clippedTris.push([v0, v1, v2], [v1, v3, v2]);
+    }
+
+    // project from camera space (avoid double worldToCamera)
+    function projectFromCamSpace(camSpace, cam) {
+        const camZ = camSpace.z;
+        const zi = -camZ;
+        if (zi <= 0) return null; // with clipping, zi will be >= NEAR
+    
+        const fovRad = cam.fov * Math.PI / 180;
+        const tanHalf = Math.tan(fovRad / 2);
+        const aspect = canvas.width / canvas.height;
+    
+        const px = (camSpace.x / -camZ) * (canvas.width / 2) / (tanHalf * aspect);
+        const py = (camSpace.y / -camZ) * (canvas.height / 2) / tanHalf;
+    
+        return {
+            x: canvas.width/2 + px,
+            y: canvas.height/2 - py,
+            zi,
+            invZi: 1 / zi
+        };
+    }    
+
+    // Rasterize each clipped triangle
+    for (const cTri of clippedTris) {
+        const p0 = projectFromCamSpace(cTri[0], camera);
+        const p1 = projectFromCamSpace(cTri[1], camera);
+        const p2 = projectFromCamSpace(cTri[2], camera);
+        if (!p0 || !p1 || !p2) continue;
+
+        // Optional backface culling in screen space
+        if (backfaceCulling) {
+            const area = (p1.x - p0.x) * (p2.y - p0.y) -
+                         (p1.y - p0.y) * (p2.x - p0.x);
+            if (area <= 0) continue;
+        }
+
+        let denom = (p1.y - p2.y) * (p0.x - p2.x) + (p2.x - p1.x) * (p0.y - p2.y);
+        if (denom === 0) continue;
+        const invDenom = 1 / denom;
+
+        const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x, p2.x)));
+        const maxX = Math.min(canvas.width  - 1, Math.ceil(Math.max(p0.x, p1.x, p2.x)));
+        const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y, p2.y)));
+        const maxY = Math.min(canvas.height - 1, Math.ceil(Math.max(p0.y, p1.y, p2.y)));
+
+        const invZ0 = p0.invZi, invZ1 = p1.invZi, invZ2 = p2.invZi;
+
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                const w0 = ((p1.y - p2.y) * (x - p2.x) + (p2.x - p1.x) * (y - p2.y)) * invDenom;
+                const w1 = ((p2.y - p0.y) * (x - p2.x) + (p0.x - p2.x) * (y - p2.y)) * invDenom;
+                const w2 = 1 - w0 - w1;
+
+                if ((w0 >= 0 && w1 >= 0 && w2 >= 0) ||
+                    (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+
+                    const invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
+                    const depth = 1 / invZ;
+                    setPixel(x, y, depth, tri.material.color);
+                }
             }
         }
     }
 }
+
 
 function renderFrame() {
     moveCamera();
