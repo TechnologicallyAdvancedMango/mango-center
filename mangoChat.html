@@ -208,9 +208,39 @@ function extractMinimal(sdp) {
     const pwd = lines.find(l => l.startsWith("a=ice-pwd:"))?.slice("a=ice-pwd:".length).trim();
     const fingerprint = lines.find(l => l.startsWith("a=fingerprint:"))?.slice("a=fingerprint:".length).trim();
 
-    const candidates = lines
+    // 1) Get all raw candidate lines
+    const rawCandidates = lines
         .filter(l => l.startsWith("a=candidate:"))
         .map(l => l.slice("a=candidate:".length).trim());
+
+    // 2) Filter out mDNS (useless for QR/offline)
+    let filtered = rawCandidates.filter(c => !c.includes(".local"));
+
+    // 3) Prefer IPv4 UDP host candidates
+    const ipv4HostUdp = filtered.filter(c =>
+        c.includes("typ host") &&
+        c.includes(" udp ") &&
+        /\d+\.\d+\.\d+\.\d+/.test(c)
+    );
+
+    // 4) Decide which set to use
+    let candidatesToUse;
+    if (ipv4HostUdp.length > 0) {
+        candidatesToUse = ipv4HostUdp;
+    } else if (filtered.length > 0) {
+        // no nice IPv4 host UDP, but we have something (IPv6 etc.)
+        candidatesToUse = filtered;
+    } else {
+        // filtering killed everything – fall back to raw
+        candidatesToUse = rawCandidates;
+    }
+
+    // 5) Sanitize to plain ASCII (defensive)
+    const candidates = candidatesToUse.map(c =>
+        c.replace(/[^\x20-\x7E]/g, "")
+    );
+
+    console.log("extractMinimal:", { ufrag, pwd, fingerprint, candidates });
 
     return { ufrag, pwd, fingerprint, candidates };
 }
