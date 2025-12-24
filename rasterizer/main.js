@@ -66,37 +66,37 @@ document.addEventListener("keyup", e => {
 
 function moveCamera() {
     const { forward, right, up } = getCameraBasis(camera);
-    const speed = 0.1; // smaller step for smoother motion
+    const speed = 0.1;
 
     if (keys["KeyW"]) {
-        camera.position.x += forward.x * speed;
-        camera.position.y += forward.y * speed;
-        camera.position.z += forward.z * speed;
+        camera.position.x += forward.x * speed * dt;
+        camera.position.y += forward.y * speed * dt;
+        camera.position.z += forward.z * speed * dt;
     }
     if (keys["KeyS"]) {
-        camera.position.x -= forward.x * speed;
-        camera.position.y -= forward.y * speed;
-        camera.position.z -= forward.z * speed;
+        camera.position.x -= forward.x * speed * dt;
+        camera.position.y -= forward.y * speed * dt;
+        camera.position.z -= forward.z * speed * dt;
     }
     if (keys["KeyA"]) {
-        camera.position.x -= right.x * speed;
-        camera.position.y -= right.y * speed;
-        camera.position.z -= right.z * speed;
+        camera.position.x -= right.x * speed * dt;
+        camera.position.y -= right.y * speed * dt;
+        camera.position.z -= right.z * speed * dt;
     }
     if (keys["KeyD"]) {
-        camera.position.x += right.x * speed;
-        camera.position.y += right.y * speed;
-        camera.position.z += right.z * speed;
+        camera.position.x += right.x * speed * dt;
+        camera.position.y += right.y * speed * dt;
+        camera.position.z += right.z * speed * dt;
     }
     if (keys["Space"]) { // up
-        camera.position.x += up.x * speed;
-        camera.position.y += up.y * speed;
-        camera.position.z += up.z * speed;
+        camera.position.x += up.x * speed * dt;
+        camera.position.y += up.y * speed * dt;
+        camera.position.z += up.z * speed * dt;
     }
     if (keys["ShiftLeft"]) { // down
-        camera.position.x -= up.x * speed;
-        camera.position.y -= up.y * speed;
-        camera.position.z -= up.z * speed;
+        camera.position.x -= up.x * speed * dt;
+        camera.position.y -= up.y * speed * dt;
+        camera.position.z -= up.z * speed * dt;
     }
 }
 
@@ -401,8 +401,13 @@ function drawTriangleZBuffer(tri) {
     }
 }
 
-
+let currentTime = performance.now();
+let dt = currentTime;
+let lastTime = currentTime;
 function renderFrame() {
+    currentTime = performance.now();
+    dt = (currentTime - lastTime) / 1000.0; // milliseconds to seconds
+    lastTime = currentTime;
     moveCamera();
     clearBuffers();
 
