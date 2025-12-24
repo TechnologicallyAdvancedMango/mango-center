@@ -6,6 +6,7 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 let backfaceCulling = false;
+const lambertianShading = false;
 const lightDir = normalize({x: 1, y: 1, z: 1});
 
 class Camera {
@@ -389,7 +390,11 @@ function drawTriangleZBuffer(tri) {
 
                     const invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
                     const depth = 1 / invZ;
-                    setPixel(x, y, depth, shadedColor);
+                    if (lambertianShading) {
+                        setPixel(x, y, depth, shadedColor);
+                    } else {
+                        setPixel(x, y, depth, base);
+                    }
                 }
             }
         }
