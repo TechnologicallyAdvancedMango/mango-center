@@ -66,7 +66,7 @@ document.addEventListener("keyup", e => {
 
 function moveCamera() {
     const { forward, right, up } = getCameraBasis(camera);
-    const speed = 0.1;
+    const speed = 2;
 
     if (keys["KeyW"]) {
         camera.position.x += forward.x * speed * dt;
