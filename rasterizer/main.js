@@ -6,6 +6,7 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 let backfaceCulling = false;
+const lightDir = normalize({x: 0.3, y: 1, z: -0.5});
 
 class Camera {
     constructor (position = {x:0, y:0, z:0}, rotation) {
@@ -265,6 +266,25 @@ function drawTriangleZBuffer(tri) {
     const v1c = worldToCamera(tri.verts[1], camera);
     const v2c = worldToCamera(tri.verts[2], camera);
 
+    // Compute world-space normal
+    const e1 = sub(tri.verts[1], tri.verts[0]);
+    const e2 = sub(tri.verts[2], tri.verts[0]);
+    const normal = normalize({
+        x: e1.y * e2.z - e1.z * e2.y,
+        y: e1.z * e2.x - e1.x * e2.z,
+        z: e1.x * e2.y - e1.y * e2.x
+    });
+
+    let brightness = Math.max(0, dot(normal, lightDir));
+    brightness = 0.2 + brightness * 0.8; // add ambient
+
+    const base = tri.material.color;
+    const shadedColor = {
+        r: base.r * brightness,
+        g: base.g * brightness,
+        b: base.b * brightness
+    };
+
     // Near-plane clipping in camera space (z < 0 is in front)
     const NEAR = 0.01; // distance in front of camera
     const verts = [v0c, v1c, v2c];
@@ -369,7 +389,7 @@ function drawTriangleZBuffer(tri) {
 
                     const invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
                     const depth = 1 / invZ;
-                    setPixel(x, y, depth, tri.material.color);
+                    setPixel(x, y, depth, shadedColor);
                 }
             }
         }
