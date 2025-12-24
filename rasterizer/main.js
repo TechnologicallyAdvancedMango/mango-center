@@ -6,7 +6,7 @@ canvas.width  = Math.floor(canvas.clientWidth);
 canvas.height = Math.floor(canvas.clientHeight);
 
 let backfaceCulling = false;
-const lightDir = normalize({x: 0.3, y: 1, z: -0.5});
+const lightDir = normalize({x: 1, y: 1, z: 1});
 
 class Camera {
     constructor (position = {x:0, y:0, z:0}, rotation) {
