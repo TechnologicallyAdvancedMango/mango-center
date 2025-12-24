@@ -165,45 +165,70 @@ class Material {
     }
 }
 
+function rectangularPrism(p1, p2, materials) {
+    // p1 and p2 are opposite corners: {x,y,z}
+    // materials = [front, back, left, right, top, bottom]
+
+    const x1 = Math.min(p1.x, p2.x), x2 = Math.max(p1.x, p2.x);
+    const y1 = Math.min(p1.y, p2.y), y2 = Math.max(p1.y, p2.y);
+    const z1 = Math.min(p1.z, p2.z), z2 = Math.max(p1.z, p2.z);
+
+    const [front, back, left, right, top, bottom] = materials;
+
+    return [
+        // Front (z2)
+        { verts: [ {x:x1,y:y1,z:z2}, {x:x2,y:y1,z:z2}, {x:x2,y:y2,z:z2} ], material: front },
+        { verts: [ {x:x1,y:y1,z:z2}, {x:x2,y:y2,z:z2}, {x:x1,y:y2,z:z2} ], material: front },
+
+        // Back (z1)
+        { verts: [ {x:x2,y:y1,z:z1}, {x:x1,y:y1,z:z1}, {x:x1,y:y2,z:z1} ], material: back },
+        { verts: [ {x:x2,y:y1,z:z1}, {x:x1,y:y2,z:z1}, {x:x2,y:y2,z:z1} ], material: back },
+
+        // Left (x1)
+        { verts: [ {x:x1,y:y1,z:z1}, {x:x1,y:y1,z:z2}, {x:x1,y:y2,z:z2} ], material: left },
+        { verts: [ {x:x1,y:y1,z:z1}, {x:x1,y:y2,z:z2}, {x:x1,y:y2,z:z1} ], material: left },
+
+        // Right (x2)
+        { verts: [ {x:x2,y:y1,z:z2}, {x:x2,y:y1,z:z1}, {x:x2,y:y2,z:z1} ], material: right },
+        { verts: [ {x:x2,y:y1,z:z2}, {x:x2,y:y2,z:z1}, {x:x2,y:y2,z:z2} ], material: right },
+
+        // Top (y2)
+        { verts: [ {x:x1,y:y2,z:z2}, {x:x2,y:y2,z:z2}, {x:x2,y:y2,z:z1} ], material: top },
+        { verts: [ {x:x1,y:y2,z:z2}, {x:x2,y:y2,z:z1}, {x:x1,y:y2,z:z1} ], material: top },
+
+        // Bottom (y1)
+        { verts: [ {x:x1,y:y1,z:z1}, {x:x2,y:y1,z:z1}, {x:x2,y:y1,z:z2} ], material: bottom },
+        { verts: [ {x:x1,y:y1,z:z1}, {x:x2,y:y1,z:z2}, {x:x1,y:y1,z:z2} ], material: bottom }
+    ];
+}
+
 const whiteMat = new Material({r:255,g:255,b:255}, 0);
 const redMat = new Material({r:255,g:0,b:0}, 0);
+const yellowMat = new Material({r:255,g:255,b:0}, 0);
 const greenMat = new Material({r:0,g:255,b:0}, 0);
+const blueMat = new Material({r:0,g:0,b:255}, 0);
+const magentaMat = new Material({r:255,g:0,b:255}, 0);
 
 const camera = new Camera({x:0, y:0, z:0});
 
+let cube1 = rectangularPrism(
+    { x: -1, y: -1, z: -3 },
+    { x:  1, y:  1, z: -1 },
+    [whiteMat, redMat, greenMat, blueMat, yellowMat, magentaMat]
+);
+
+let cube2 = rectangularPrism(
+    { x: -1, y: -1, z: 1 },
+    { x:  1, y:  1, z: 3 },
+    [redMat, whiteMat, blueMat, greenMat, magentaMat, yellowMat]
+);
+
 let scene = {
     triangles: [
-        { 
-            verts: [ {x:1, y:-1, z:-2},
-                {x:-1, y:1, z:-2},
-                {x:-1, y:-1, z:-2}
-            ], 
-            material: whiteMat
-        },
-        { 
-            verts: [ {x:1, y:-1, z:-2},
-                {x:-1, y:1, z:-2},
-                {x:1, y:1, z:-2}
-            ], 
-            material: redMat
-        },
-        { 
-            verts: [ {x:1, y:-1, z:2},
-                {x:-1, y:1, z:2},
-                {x:-1, y:-1, z:2}
-            ], 
-            material: whiteMat
-        },
-        { 
-            verts: [ {x:1, y:-1, z:2},
-                {x:-1, y:1, z:2},
-                {x:1, y:1, z:2}
-            ], 
-            material: greenMat
-        }
+        ...cube1,
+        ...cube2
     ]
 };
-
 
 const imageData = ctx.createImageData(canvas.width, canvas.height);
 const depthBuffer = new Float32Array(canvas.width * canvas.height);
