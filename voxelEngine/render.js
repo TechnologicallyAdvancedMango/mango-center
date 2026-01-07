@@ -60,9 +60,13 @@ export function updateControls(delta) {
 // Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(20, 40, 20);
+sun.castShadow = true;
 scene.add(sun);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
 scene.background = new THREE.Color(0xffffff);
 scene.fog = new THREE.FogExp2(0xffffff, 0.01);
 
@@ -142,6 +146,8 @@ export function renderChunk(chunk, cx, cy, cz) {
     if (geometries.length > 0) {
         const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
         const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
+        chunkmesh.castShadow = true;
+        chunkmesh.receiveShadow = true;
         
         geometries.forEach(g => g.dispose());
         chunk.mesh = chunkMesh;
