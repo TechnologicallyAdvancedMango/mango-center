@@ -93,7 +93,7 @@ function generateFlatWorld(size) {
 function generateNoiseWorld(size) {
     for (let x = -size; x < size; x++) {
         for (let z = -size; z < size; z++) {
-            const height = Math.floor(Math.random() * 10 + 1);
+            const height = Math.floor(Math.random() * 5 + 1);
             for (let y = 0; y < height; y++) {
                 chunkManager.setVoxel(x, y, z, 1);
             }
