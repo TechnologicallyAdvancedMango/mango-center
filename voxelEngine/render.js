@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
-import { updateWorld, breakBlock, placeBlock } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, BLOCK, MATERIALS } from "./main.js";
 
 export const raycaster = new THREE.Raycaster();
 export const mouse = new THREE.Vector2(0, 0); // always center of screen
@@ -51,7 +51,7 @@ export const camera = new THREE.PerspectiveCamera(
     0.1,
     1000
 );
-camera.position.set(20, 20, 20);
+camera.position.set(0, 20, 0);
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -159,53 +159,59 @@ const FACES = [
 
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
-    // Clean up existing mesh/geometry if it exists
-    if (chunk.mesh) {
-        scene.remove(chunk.mesh);
-        chunk.mesh.geometry.dispose();
+    // Clean up old meshes
+    if (chunk.meshes) {
+        for (const m of chunk.meshes) {
+            scene.remove(m);
+            m.geometry.dispose();
+            // do NOT dispose material here — materials are shared
+        }
     }
+    chunk.meshes = [];
+
     const size = chunk.size;
-    const geometries = [];
     const faceGeo = new THREE.PlaneGeometry(1, 1);
 
-    // Helper to check if a block exists at local coordinates
+    const geoByType = {
+        [BLOCK.GRASS]: [],
+        [BLOCK.DIRT]: [],
+        [BLOCK.STONE]: [],
+        [BLOCK.SAND]: [],
+    };
+
     const getBlock = (x, y, z) => {
-        if (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size) {
-            return 0; // For now, treat out-of-bounds as empty (or check neighboring chunks)
-        }
+        if (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size)
+            return 0;
         return chunk.id[x + y * size + z * size * size];
     };
 
     for (let x = 0; x < size; x++) {
         for (let y = 0; y < size; y++) {
             for (let z = 0; z < size; z++) {
+
                 const blockId = getBlock(x, y, z);
                 if (blockId === 0) continue;
 
-                // Check all 6 neighbors
                 for (const face of FACES) {
                     const nx = x + face.dir[0];
                     const ny = y + face.dir[1];
                     const nz = z + face.dir[2];
 
-                    // If neighbor is transparent/empty, render this face
-                    if (getBlock(nx, ny, nz) === 0) {
-                        const clonedFace = faceGeo.clone();
-                        
-                        // Rotate face to point in correct direction
-                        clonedFace.rotateX(face.rot[0]);
-                        clonedFace.rotateY(face.rot[1]);
-                        clonedFace.rotateZ(face.rot[2]);
+                    if (getBlock(nx, ny, nz) !== 0) continue;
 
-                        // Move face to block position + half-unit offset
-                        clonedFace.translate(
-                            cx * size + x + 0.5 + face.dir[0] * 0.5,
-                            cy * size + y + 0.5 + face.dir[1] * 0.5,
-                            cz * size + z + 0.5 + face.dir[2] * 0.5
-                        );                        
+                    const g = faceGeo.clone();
 
-                        geometries.push(clonedFace);
-                    }
+                    g.rotateX(face.rot[0]);
+                    g.rotateY(face.rot[1]);
+                    g.rotateZ(face.rot[2]);
+
+                    g.translate(
+                        cx * size + x + 0.5 + face.dir[0] * 0.5,
+                        cy * size + y + 0.5 + face.dir[1] * 0.5,
+                        cz * size + z + 0.5 + face.dir[2] * 0.5
+                    );
+
+                    geoByType[blockId].push(g);
                 }
             }
         }
@@ -213,18 +219,24 @@ export function renderChunk(chunk, cx, cy, cz) {
 
     faceGeo.dispose();
 
-    if (geometries.length > 0) {
-        const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
-        const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
-        chunkMesh.castShadow = true;
-        chunkMesh.receiveShadow = true;
+    // Build meshes per block type
+    for (const type in geoByType) {
+        const list = geoByType[type];
+        if (list.length === 0) continue;
 
-        chunkMesh.raycast = THREE.Mesh.prototype.raycast;
-        chunkMesh.userData = { chunk };
-        
-        geometries.forEach(g => g.dispose());
-        chunk.mesh = chunkMesh;
-        scene.add(chunkMesh);
+        const merged = BufferGeometryUtils.mergeGeometries(list);
+        const mesh = new THREE.Mesh(merged, MATERIALS[type]);
+
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        mesh.raycast = THREE.Mesh.prototype.raycast;
+        mesh.userData = { chunk };
+
+        scene.add(mesh);
+        chunk.meshes.push(mesh);
+
+        list.forEach(g => g.dispose());
     }
 }
 

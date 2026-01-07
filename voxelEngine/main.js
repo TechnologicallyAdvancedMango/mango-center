@@ -1,5 +1,23 @@
 import { renderChunk, startRenderLoop, camera, scene } from "./render.js";
 import { createNoise2D } from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js";
+import * as THREE from "three";
+
+
+export const BLOCK = {
+    AIR: 0,
+    GRASS: 1,
+    DIRT: 2,
+    STONE: 3,
+    SAND: 4,
+};
+
+export const MATERIALS = {
+    [BLOCK.GRASS]: new THREE.MeshStandardMaterial({ color: 0x55aa33 }),
+    [BLOCK.DIRT]:  new THREE.MeshStandardMaterial({ color: 0x8b5a2b }),
+    [BLOCK.STONE]: new THREE.MeshStandardMaterial({ color: 0x888888 }),
+    [BLOCK.SAND]:  new THREE.MeshStandardMaterial({ color: 0xddd39b }),
+};
+
 
 const meshQueue = [];
 
@@ -22,7 +40,7 @@ class ChunkManager {
             cx, cy, cz,
             size,
             id: new Uint8Array(voxelCount),
-            mesh: null,
+            meshes: [],
             dirty: false
         };
     }
@@ -41,16 +59,21 @@ class ChunkManager {
                 const worldX = cx * size + x;
                 const worldZ = cz * size + z;
                 const height = getHeight(worldX, worldZ);
-    
+
                 for (let y = 0; y < size; y++) {
                     const worldY = cy * size + y;
-                    
-                    // Only place a voxel if worldY is below the generated terrain height
-                    if (worldY <= height) {
-                        const index = x + y * size + z * size * size;
-                        id[index] = 1;
-                        hasVoxels = true;
-                    }
+
+                    if (worldY > height) continue;
+
+                    let blockType = BLOCK.STONE;
+
+                    if (worldY === height) blockType = BLOCK.GRASS;
+                    else if (worldY >= height - 3) blockType = BLOCK.DIRT;
+
+                    const index = x + y * size + z * size * size;
+                    id[index] = blockType;
+
+                    hasVoxels = true;
                 }
             }
         }
@@ -186,19 +209,22 @@ export function updateWorld() {
     for (const key of unloadList) {
         const chunk = chunkManager.chunks.get(key);
         if (!chunk) continue;
-
+    
         // Save voxel data
         chunkManager.savedChunks.set(key, chunk.id.slice());
-
-        // Remove mesh
-        if (chunk.mesh) {
-            scene.remove(chunk.mesh);
-            chunk.mesh.geometry.dispose();
-            chunk.mesh.material.dispose();
+    
+        // Remove all meshes for this chunk
+        if (chunk.meshes) {
+            for (const m of chunk.meshes) {
+                scene.remove(m);
+                m.geometry.dispose();
+                // Don't dispose MATERIALS here; they are shared globals
+            }
+            chunk.meshes.length = 0;
         }
-
+    
         chunkManager.chunks.delete(key);
-    }
+    }    
 
     // Load / Ensure chunks in view
     for (let cy = 0; cy <= 2; cy++) { // Adjust 2 based on max height / chunkSize
