@@ -101,7 +101,7 @@ function generateNoiseWorld(size) {
     }
 }
 
-generateNoiseWorld(64);
+generateNoiseWorld(32);
 
 // After generating voxels, build all chunk meshes
 for (const chunk of chunkManager.chunks.values()) {
