@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import { updateWorld } from "./main.js";
+
 
 // -------------------------
 // THREE.JS SETUP
@@ -30,7 +32,17 @@ let debug = false;
 
 const keys = {};
 
-document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+
+    // Toggle Debug Mode
+    if (e.code === "KeyK") { 
+        debug = !debug;
+        axesHelper.visible = debug;
+        sunHelper.visible = debug;
+        console.log("Debug Mode:", debug ? "ON" : "OFF");
+    }
+});
 document.addEventListener("keyup",   e => keys[e.code] = false);
 
 // Click to lock the mouse
@@ -58,22 +70,6 @@ export function updateControls(delta) {
     camera.position.y += velocity.y;
 }
 
-document.addEventListener("keydown", (e) => {
-    // Only trigger if a specific key (like 'K') is pressed
-    if (e.code === "KeyK") { 
-        debug = !debug;
-
-        if (debug) {
-            scene.add(axesHelper);
-            scene.add(sunHelper);
-            console.log("Debug Mode: ON");
-        } else {
-            scene.remove(axesHelper);
-            scene.remove(sunHelper);
-            console.log("Debug Mode: OFF");
-        }
-    }
-});
 
 // Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -101,8 +97,12 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
 scene.background = new THREE.Color(0xffffff);
 scene.fog = new THREE.FogExp2(0xffffff, 0.01);
 
-const axesHelper = new THREE.AxesHelper(5);
+const axesHelper = new THREE.AxesHelper(0.1);
+scene.add(axesHelper);
+axesHelper.visible = debug;
 const sunHelper = new THREE.DirectionalLightHelper(sun, 10);
+scene.add(sunHelper);
+sunHelper.visible = debug;
 
 // -------------------------
 // CHUNK RENDERING
@@ -128,7 +128,7 @@ export function renderChunk(chunk, cx, cy, cz) {
         scene.remove(chunk.mesh);
         chunk.mesh.geometry.dispose();
     }
-    const size = 16;
+    const size = chunk.size;
     const geometries = [];
     const faceGeo = new THREE.PlaneGeometry(1, 1);
 
@@ -205,6 +205,7 @@ window.addEventListener('resize', () => {
 // ANIMATION LOOP
 // -------------------------
 const clock = new THREE.Clock();
+let worldTimer = 0;
 
 export function startRenderLoop() {
     function animate() {
@@ -212,6 +213,8 @@ export function startRenderLoop() {
 
         const delta = clock.getDelta();
         updateControls(delta);
+
+        camera.updateMatrixWorld();
         
         sun.position.set(
             camera.position.x + 20,
@@ -220,7 +223,23 @@ export function startRenderLoop() {
         );
         sun.target.position.set(camera.position.x, camera.position.y, camera.position.z);
         sun.target.updateMatrixWorld();
-        if (debug) sunHelper.update();
+        
+        if (debug) {
+            sunHelper.update();
+
+            const offset = new THREE.Vector3(0, 0, -1); 
+            
+            // Convert that local offset into world coordinates based on camera position/rotation
+            const helperPos = offset.applyMatrix4(camera.matrixWorld);
+
+            axesHelper.position.copy(helperPos);
+        }
+
+        worldTimer += delta;
+        if (worldTimer > 1/20) { // 20hz
+            updateWorld();
+            worldTimer = 0;
+        }
 
         renderer.render(scene, camera);
     }

@@ -1,11 +1,13 @@
-import { renderChunk, startRenderLoop } from "./render.js";
+import { renderChunk, startRenderLoop, camera, scene } from "./render.js";
+import { createNoise2D } from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js";
 
-const chunks = new Map();
+const meshQueue = [];
 
 class ChunkManager {
     constructor(chunkSize = 16) {
         this.chunkSize = chunkSize;
         this.chunks = new Map();
+        this.savedChunks = new Map(); // key => Uint8Array copy
     }
 
     chunkKey(cx, cy, cz) {
@@ -21,8 +23,43 @@ class ChunkManager {
             size,
             id: new Uint8Array(voxelCount),
             mesh: null,
-            dirty: true
+            dirty: false
         };
+    }
+
+    generateChunk(cx, cy, cz) {
+        const size = this.chunkSize;
+        const chunk = this.ensureChunk(cx, cy, cz);
+        const id = chunk.id;
+        
+        // Fill data silently (don't call setVoxel to avoid queue flooding)
+        id.fill(0); 
+    
+        let hasVoxels = false;
+        for (let x = 0; x < size; x++) {
+            for (let z = 0; z < size; z++) {
+                const worldX = cx * size + x;
+                const worldZ = cz * size + z;
+                const height = getHeight(worldX, worldZ);
+    
+                for (let y = 0; y < size; y++) {
+                    const worldY = cy * size + y;
+                    
+                    // Only place a voxel if worldY is below the generated terrain height
+                    if (worldY <= height) {
+                        const index = x + y * size + z * size * size;
+                        id[index] = 1;
+                        hasVoxels = true;
+                    }
+                }
+            }
+        }
+    
+        // Only queue for meshing if it's not empty and not already dirty
+        if (hasVoxels && !chunk.dirty) {
+            chunk.dirty = true;
+            meshQueue.push(chunk);
+        }
     }
 
     getChunk(cx, cy, cz) {
@@ -32,13 +69,24 @@ class ChunkManager {
 
     ensureChunk(cx, cy, cz) {
         const key = this.chunkKey(cx, cy, cz);
+    
+        // If chunk already loaded, return it
         let chunk = this.chunks.get(key);
-
-        if (!chunk) {
-            chunk = this.createChunk(cx, cy, cz);
-            this.chunks.set(key, chunk);
+        if (chunk) return chunk;
+    
+        // Create a new empty chunk
+        chunk = this.createChunk(cx, cy, cz);
+    
+        // Restore saved voxel data if it exists
+        if (this.savedChunks.has(key)) {
+            chunk.id = this.savedChunks.get(key).slice();
+            if (!chunk.dirty) {
+                chunk.dirty = true;
+                meshQueue.push(chunk);
+            }
         }
-
+    
+        this.chunks.set(key, chunk);
         return chunk;
     }
 
@@ -67,7 +115,11 @@ class ChunkManager {
 
         const index = this.worldToVoxelIndex(x, y, z);
         chunk.id[index] = id;
-        chunk.dirty = true;
+        
+        if (!chunk.dirty) {
+            chunk.dirty = true;
+            meshQueue.push(chunk);
+        }
     }
 
     getVoxel(x, y, z) {
@@ -81,34 +133,132 @@ class ChunkManager {
 }
 const chunkManager = new ChunkManager(16);
 
-
-function generateFlatWorld(size) {
-    for (let x = -size; x < size; x++) {
-        for (let z = -size; z < size; z++) {
-            chunkManager.setVoxel(x, 0, z, 1);
-        }
-    }
+function mulberry32(seed) {
+    return function() {
+        seed |= 0;
+        seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
 }
 
-function generateNoiseWorld(size) {
+const rand = mulberry32(12345);
+const noise2D = createNoise2D(rand);
+
+function getHeight(x, z) {
+    const scale = 40;
+    const amplitude = 20;
+
+    const n = noise2D(x / scale, z / scale);
+    return Math.floor((n + 1) * 0.5 * amplitude);
+}
+
+function generateSeededWorld(size) {
     for (let x = -size; x < size; x++) {
         for (let z = -size; z < size; z++) {
-            const height = Math.floor(Math.random() * 5 + 1);
-            for (let y = 0; y < height; y++) {
+            const height = getHeight(x, z);
+            for (let y = 0; y <= height; y++) {
                 chunkManager.setVoxel(x, y, z, 1);
             }
         }
     }
 }
 
-generateNoiseWorld(32);
+export function updateWorld() {
+    const size = chunkManager.chunkSize;
 
-// After generating voxels, build all chunk meshes
-for (const chunk of chunkManager.chunks.values()) {
-    if (chunk.dirty) {
+    const px = Math.floor(camera.position.x / size);
+    const pz = Math.floor(camera.position.z / size);
+
+    const viewDistance = 6;
+    const unloadDistance = viewDistance + 2;
+
+    // Unload chunks
+    const unloadList = [];
+
+    for (const [key, chunk] of chunkManager.chunks.entries()) {
+        const dx = chunk.cx - px;
+        const dz = chunk.cz - pz;
+
+        if (dx * dx + dz * dz > unloadDistance * unloadDistance) {
+            unloadList.push(key);
+        }
+    }
+
+    for (const key of unloadList) {
+        const chunk = chunkManager.chunks.get(key);
+        if (!chunk) continue;
+
+        // Save voxel data
+        chunkManager.savedChunks.set(key, chunk.id.slice());
+
+        // Remove mesh
+        if (chunk.mesh) {
+            scene.remove(chunk.mesh);
+            chunk.mesh.geometry.dispose();
+            chunk.mesh.material.dispose();
+        }
+
+        chunkManager.chunks.delete(key);
+    }
+
+    // Load / Ensure chunks in view
+    for (let cy = 0; cy <= 2; cy++) { // Adjust 2 based on max height / chunkSize
+        for (let cx = px - viewDistance; cx <= px + viewDistance; cx++) {
+            for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
+                const key = chunkManager.chunkKey(cx, cy, cz);
+                if (!chunkManager.chunks.has(key)) {
+                    const chunk = chunkManager.ensureChunk(cx, cy, cz);
+                    if (!chunkManager.savedChunks.has(key)) {
+                        chunkManager.generateChunk(cx, cy, cz);
+                    }
+                }
+            }
+        }
+    }
+
+    // Mesh Queue
+    let meshesThisTick = 0;
+    const maxMeshesPerTick = 2;
+
+    // Sort so closest chunks to the camera are first
+    if (meshQueue.length > 1) {
+        const size = chunkManager.chunkSize;
+        const camX = camera.position.x;
+        const camY = camera.position.y;
+        const camZ = camera.position.z;
+
+        meshQueue.sort((a, b) => {
+            const ax = a.cx * size + size * 0.5;
+            const ay = a.cy * size + size * 0.5;
+            const az = a.cz * size + size * 0.5;
+
+            const bx = b.cx * size + size * 0.5;
+            const by = b.cy * size + size * 0.5;
+            const bz = b.cz * size + size * 0.5;
+
+            const da =
+                (ax - camX) * (ax - camX) +
+                (ay - camY) * (ay - camY) +
+                (az - camZ) * (az - camZ);
+
+            const db =
+                (bx - camX) * (bx - camX) +
+                (by - camY) * (by - camY) +
+                (bz - camZ) * (bz - camZ);
+
+            return da - db; // smaller distance first
+        });
+    }
+
+    while (meshQueue.length > 0 && meshesThisTick < maxMeshesPerTick) {
+        const chunk = meshQueue.shift();
+        if (!chunk) break;
         renderChunk(chunk, chunk.cx, chunk.cy, chunk.cz);
         chunk.dirty = false;
+        meshesThisTick++;
     }
 }
 
-startRenderLoop(8);
+startRenderLoop();
