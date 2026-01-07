@@ -103,6 +103,18 @@ export function renderChunk(chunk, cx, cy, cz) {
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
+window.addEventListener('resize', () => {
+    // Update camera aspect ratio
+    camera.aspect = window.innerWidth / window.innerHeight;
+    // Update the camera's projection matrix
+    camera.updateProjectionMatrix();
+    // Update renderer size
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    // Handle High DPI devices (Retina displays)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+});
+
+
 // -------------------------
 // ANIMATION LOOP
 // -------------------------
