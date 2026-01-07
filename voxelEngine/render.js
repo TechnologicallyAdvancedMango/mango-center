@@ -58,9 +58,23 @@ export function updateControls(delta) {
 
 
 // Lighting
+// Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(20, 40, 20);
 sun.castShadow = true;
+
+// Define the shadow "box" (Left, Right, Top, Bottom, Near, Far)
+sun.shadow.camera.left = -100;
+sun.shadow.camera.right = 100;
+sun.shadow.camera.top = 100;
+sun.shadow.camera.bottom = -100;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 500;
+
+// Improve shadow quality (default is 512)
+sun.shadow.mapSize.width = 2048;
+sun.shadow.mapSize.height = 2048;
+
 scene.add(sun);
 
 renderer.shadowMap.enabled = true;
@@ -181,6 +195,14 @@ export function startRenderLoop() {
 
         const delta = clock.getDelta();
         updateControls(delta);
+        
+        sun.position.set(
+            camera.position.x + 20,
+            camera.position.y + 40,
+            camera.position.z + 20
+        );
+        sun.target.position.set(camera.position.x, camera.position.y, camera.position.z);
+        sun.target.updateMatrixWorld();
 
         renderer.render(scene, camera);
     }
