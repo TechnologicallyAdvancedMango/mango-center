@@ -1,7 +1,10 @@
 import { renderChunk, startRenderLoop, camera, scene } from "./render.js";
-import { createNoise2D } from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js";
+import { createNoise2D, createNoise3D } from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js";
 import * as THREE from "three";
 
+const rand = mulberry32(12345);
+const noise2D = createNoise2D(rand);
+const noise3D = createNoise3D(rand);
 
 export const BLOCK = {
     AIR: 0,
@@ -18,7 +21,8 @@ export const MATERIALS = {
     [BLOCK.SAND]:  new THREE.MeshStandardMaterial({ color: 0xddd39b }),
 };
 
-export const WORLD_HEIGHT_CHUNKS = 8; // or whatever you want
+export const WORLD_HEIGHT_CHUNKS = 8;
+const WORLD_Y_OFFSET = 32;
 
 const meshQueue = [];
 
@@ -72,6 +76,16 @@ class ChunkManager {
                     else if (worldY >= height - 3) blockType = BLOCK.DIRT;
 
                     const index = x + y * size + z * size * size;
+
+                    // Cave generation
+                    const caveNoise = noise3D(worldX / 40, worldY / 40, worldZ / 40);
+
+                    // Carve caves: threshold controls density
+                    if (caveNoise > 0.75) {
+                        id[index] = BLOCK.AIR;
+                        continue; // skip placing stone/dirt/grass
+                    }
+
                     id[index] = blockType;
 
                     hasVoxels = true;
@@ -157,6 +171,11 @@ class ChunkManager {
 }
 const chunkManager = new ChunkManager(16);
 
+export function getVoxelGlobal(x, y, z) {
+    return chunkManager.getVoxel(x, y, z);
+}
+
+
 function mulberry32(seed) {
     return function() {
         seed |= 0;
@@ -166,9 +185,6 @@ function mulberry32(seed) {
         return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
 }
-
-const rand = mulberry32(12345);
-const noise2D = createNoise2D(rand);
 
 function fractalNoise2D(x, z, octaves = 5, lacunarity = 2.0, gain = 0.5) {
     let value = 0;
@@ -196,11 +212,8 @@ function getHeight(x, z) {
     const maxHeight = 20;   // terrain amplitude
     const minHeight = 16;    // minimum terrain floor
 
-    return Math.floor(h * maxHeight) + minHeight;
+    return Math.floor(h * maxHeight) + minHeight + WORLD_Y_OFFSET;
 }
-
-
-
 
 export function breakBlock(x, y, z) {
     chunkManager.setVoxel(x, y, z, 0);

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
-import { updateWorld, breakBlock, placeBlock, BLOCK, MATERIALS } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, BLOCK, MATERIALS, getVoxelGlobal } from "./main.js";
 
 export const raycaster = new THREE.Raycaster();
 export const mouse = new THREE.Vector2(0, 0); // always center of screen
@@ -136,9 +136,19 @@ scene.fog = new THREE.FogExp2(0xffffff, 0.01);
 const axesHelper = new THREE.AxesHelper(0.1);
 scene.add(axesHelper);
 axesHelper.visible = debug;
+
 const sunHelper = new THREE.DirectionalLightHelper(sun, 10);
 scene.add(sunHelper);
 sunHelper.visible = debug;
+
+export const highlightBox = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)),
+    new THREE.LineBasicMaterial({ color: 0xd0d0d0 })
+);
+
+highlightBox.visible = false;
+scene.add(highlightBox);
+
 
 // -------------------------
 // CHUNK RENDERING
@@ -166,7 +176,12 @@ export function renderChunk(chunk, cx, cy, cz) {
 
     const size = chunk.size;
     const id = chunk.id;
-    const getVoxel = (x, y, z) => (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size) ? 0 : id[x + y * size + z * size * size];
+    const getVoxel = (x, y, z) => {
+        const worldX = cx * size + x;
+        const worldY = cy * size + y;
+        const worldZ = cz * size + z;
+        return getVoxelGlobal(worldX, worldY, worldZ);
+    };    
 
     const vertexDataByType = { 1: [], 2: [], 3: [], 4: [] };
 
@@ -302,9 +317,6 @@ window.addEventListener("mousedown", (e) => {
         // right click to place
         const hit = raycastBlock();
         if (hit) {
-            const px = hit.x + hit.normal.x;
-            const py = hit.y + hit.normal.y;
-            const pz = hit.z + hit.normal.z;
             placeBlock(hit.place.x, hit.place.y, hit.place.z);
         }
     }
@@ -345,6 +357,17 @@ export function startRenderLoop() {
 
             axesHelper.position.copy(helperPos);
         }
+
+        const hit = raycastBlock();
+
+        if (hit) {
+            const { x, y, z } = hit.break;
+            highlightBox.position.set(x + 0.5, y + 0.5, z + 0.5);
+            highlightBox.visible = true;
+        } else {
+            highlightBox.visible = false;
+        }
+
 
         worldTimer += delta;
         if (worldTimer > 1/20) { // 20hz
