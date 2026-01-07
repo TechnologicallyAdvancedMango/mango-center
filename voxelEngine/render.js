@@ -1,7 +1,43 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
-import { updateWorld } from "./main.js";
+import { updateWorld, breakBlock, placeBlock } from "./main.js";
+
+export const raycaster = new THREE.Raycaster();
+export const mouse = new THREE.Vector2(0, 0); // always center of screen
+
+export function raycastBlock() {
+    raycaster.setFromCamera(mouse, camera);
+
+    // Only raycast chunk meshes
+    const hits = raycaster.intersectObjects(
+        scene.children.filter(o => o.userData && o.userData.chunk),
+        false
+    );
+
+    if (hits.length === 0) return null;
+
+    const hit = hits[0];
+    const n = hit.face.normal;
+
+    const hx = Math.round(hit.point.x * 1000) / 1000;
+    const hy = Math.round(hit.point.y * 1000) / 1000;
+    const hz = Math.round(hit.point.z * 1000) / 1000;
+
+    const bx = Math.floor(hx - n.x * 0.5);
+    const by = Math.floor(hy - n.y * 0.5);
+    const bz = Math.floor(hz - n.z * 0.5);
+
+    const px = Math.floor(hx + n.x * 0.5);
+    const py = Math.floor(hy + n.y * 0.5);
+    const pz = Math.floor(hz + n.z * 0.5);
+
+    return {
+        break: { x: bx, y: by, z: bz },
+        place: { x: px, y: py, z: pz },
+        normal: n.clone()
+    };
+}
 
 
 // -------------------------
@@ -163,10 +199,10 @@ export function renderChunk(chunk, cx, cy, cz) {
 
                         // Move face to block position + half-unit offset
                         clonedFace.translate(
-                            cx * size + x + face.pos[0],
-                            cy * size + y + face.pos[1],
-                            cz * size + z + face.pos[2]
-                        );
+                            cx * size + x + 0.5 + face.dir[0] * 0.5,
+                            cy * size + y + 0.5 + face.dir[1] * 0.5,
+                            cz * size + z + 0.5 + face.dir[2] * 0.5
+                        );                        
 
                         geometries.push(clonedFace);
                     }
@@ -182,6 +218,9 @@ export function renderChunk(chunk, cx, cy, cz) {
         const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
         chunkMesh.castShadow = true;
         chunkMesh.receiveShadow = true;
+
+        chunkMesh.raycast = THREE.Mesh.prototype.raycast;
+        chunkMesh.userData = { chunk };
         
         geometries.forEach(g => g.dispose());
         chunk.mesh = chunkMesh;
@@ -200,6 +239,30 @@ window.addEventListener('resize', () => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
+window.addEventListener("mousedown", (e) => {
+    if (!controls.isLocked) return;
+
+    if (e.button === 0) {
+        // left click to break
+        const hit = raycastBlock();
+        if (hit) {
+            breakBlock(hit.break.x, hit.break.y, hit.break.z);
+        }
+    }
+
+    if (e.button === 2) {
+        // right click to place
+        const hit = raycastBlock();
+        if (hit) {
+            const px = hit.x + hit.normal.x;
+            const py = hit.y + hit.normal.y;
+            const pz = hit.z + hit.normal.z;
+            placeBlock(hit.place.x, hit.place.y, hit.place.z);
+        }
+    }
+});
+
+window.addEventListener("contextmenu", e => e.preventDefault());
 
 // -------------------------
 // ANIMATION LOOP

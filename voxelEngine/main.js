@@ -154,15 +154,12 @@ function getHeight(x, z) {
     return Math.floor((n + 1) * 0.5 * amplitude);
 }
 
-function generateSeededWorld(size) {
-    for (let x = -size; x < size; x++) {
-        for (let z = -size; z < size; z++) {
-            const height = getHeight(x, z);
-            for (let y = 0; y <= height; y++) {
-                chunkManager.setVoxel(x, y, z, 1);
-            }
-        }
-    }
+export function breakBlock(x, y, z) {
+    chunkManager.setVoxel(x, y, z, 0);
+}
+
+export function placeBlock(x, y, z) {
+    chunkManager.setVoxel(x, y, z, 1);
 }
 
 export function updateWorld() {
