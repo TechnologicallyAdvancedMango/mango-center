@@ -146,8 +146,8 @@ export function renderChunk(chunk, cx, cy, cz) {
     if (geometries.length > 0) {
         const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
         const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
-        chunkmesh.castShadow = true;
-        chunkmesh.receiveShadow = true;
+        chunkMesh.castShadow = true;
+        chunkMesh.receiveShadow = true;
         
         geometries.forEach(g => g.dispose());
         chunk.mesh = chunkMesh;
