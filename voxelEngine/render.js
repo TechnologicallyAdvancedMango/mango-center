@@ -63,6 +63,7 @@ sun.position.set(20, 40, 20);
 scene.add(sun);
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+scene.fog = new THREE.FogExp2(0xffffff, 0.0001);
 
 // -------------------------
 // CHUNK RENDERING
