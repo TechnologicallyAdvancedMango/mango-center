@@ -79,7 +79,7 @@ class ChunkManager {
         return chunk.id[index];
     }
 }
-const chunkManager = new ChunkManager();
+const chunkManager = new ChunkManager(16);
 
 
 function generateFlatWorld(size) {
@@ -101,7 +101,7 @@ function generateNoiseWorld(size) {
     }
 }
 
-generateNoiseWorld(32);
+generateNoiseWorld(64);
 
 // After generating voxels, build all chunk meshes
 for (const chunk of chunkManager.chunks.values()) {
