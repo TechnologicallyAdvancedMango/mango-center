@@ -18,6 +18,7 @@ export const MATERIALS = {
     [BLOCK.SAND]:  new THREE.MeshStandardMaterial({ color: 0xddd39b }),
 };
 
+export const WORLD_HEIGHT_CHUNKS = 8; // or whatever you want
 
 const meshQueue = [];
 
@@ -169,20 +170,44 @@ function mulberry32(seed) {
 const rand = mulberry32(12345);
 const noise2D = createNoise2D(rand);
 
-function getHeight(x, z) {
-    const scale = 40;
-    const amplitude = 20;
+function fractalNoise2D(x, z, octaves = 5, lacunarity = 2.0, gain = 0.5) {
+    let value = 0;
+    let amplitude = 1;
+    let frequency = 1;
 
-    const n = noise2D(x / scale, z / scale);
-    return Math.floor((n + 1) * 0.5 * amplitude);
+    for (let i = 0; i < octaves; i++) {
+        value += noise2D(x * frequency, z * frequency) * amplitude;
+        frequency *= lacunarity;
+        amplitude *= gain;
+    }
+
+    return value;
 }
+
+function getHeight(x, z) {
+    const n = fractalNoise2D(x / 80, z / 80, 5, 2.0, 0.5);
+
+    // Normalize [-1, 1] → [0, 1]
+    let h = (n + 1) * 0.5;
+
+    // Clamp to avoid dips below zero
+    h = Math.max(0, Math.min(1, h));
+
+    const maxHeight = 20;   // terrain amplitude
+    const minHeight = 16;    // minimum terrain floor
+
+    return Math.floor(h * maxHeight) + minHeight;
+}
+
+
+
 
 export function breakBlock(x, y, z) {
     chunkManager.setVoxel(x, y, z, 0);
 }
 
 export function placeBlock(x, y, z) {
-    chunkManager.setVoxel(x, y, z, 1);
+    chunkManager.setVoxel(x, y, z, 3);
 }
 
 export function updateWorld() {
@@ -227,7 +252,7 @@ export function updateWorld() {
     }    
 
     // Load / Ensure chunks in view
-    for (let cy = 0; cy <= 2; cy++) { // Adjust 2 based on max height / chunkSize
+    for (let cy = 0; cy < WORLD_HEIGHT_CHUNKS; cy++) {
         for (let cx = px - viewDistance; cx <= px + viewDistance; cx++) {
             for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
                 const key = chunkManager.chunkKey(cx, cy, cz);

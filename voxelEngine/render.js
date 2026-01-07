@@ -159,84 +159,120 @@ const FACES = [
 
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
-    // Clean up old meshes
     if (chunk.meshes) {
-        for (const m of chunk.meshes) {
-            scene.remove(m);
-            m.geometry.dispose();
-            // do NOT dispose material here — materials are shared
-        }
+        chunk.meshes.forEach(m => { scene.remove(m); m.geometry.dispose(); });
     }
     chunk.meshes = [];
 
     const size = chunk.size;
-    const faceGeo = new THREE.PlaneGeometry(1, 1);
+    const id = chunk.id;
+    const getVoxel = (x, y, z) => (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size) ? 0 : id[x + y * size + z * size * size];
 
-    const geoByType = {
-        [BLOCK.GRASS]: [],
-        [BLOCK.DIRT]: [],
-        [BLOCK.STONE]: [],
-        [BLOCK.SAND]: [],
-    };
+    const vertexDataByType = { 1: [], 2: [], 3: [], 4: [] };
 
-    const getBlock = (x, y, z) => {
-        if (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size)
-            return 0;
-        return chunk.id[x + y * size + z * size * size];
-    };
+    // Sweep across each of the 3 axes (0=X, 1=Y, 2=Z)
+    for (let d = 0; d < 3; d++) {
+        let u = (d + 1) % 3;
+        let v = (d + 2) % 3;
+        let x = [0, 0, 0];
+        let q = [0, 0, 0];
+        q[d] = 1;
 
-    for (let x = 0; x < size; x++) {
-        for (let y = 0; y < size; y++) {
-            for (let z = 0; z < size; z++) {
+        const mask = new Array(size * size).fill(0);
 
-                const blockId = getBlock(x, y, z);
-                if (blockId === 0) continue;
+        // Iterate through each slice along axis d
+        for (x[d] = -1; x[d] < size; ) {
+            let n = 0;
+            // Build mask for the current slice interface
+            for (x[v] = 0; x[v] < size; x[v]++) {
+                for (x[u] = 0; x[u] < size; x[u]++) {
+                    const a = getVoxel(x[0], x[1], x[2]);
+                    const b = getVoxel(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
 
-                for (const face of FACES) {
-                    const nx = x + face.dir[0];
-                    const ny = y + face.dir[1];
-                    const nz = z + face.dir[2];
+                    // Determine if we need a face and which way it points
+                    // Positive value = face points +d, Negative = face points -d
+                    if (a !== 0 && b !== 0) mask[n++] = 0;
+                    else if (a !== 0) mask[n++] = a;
+                    else if (b !== 0) mask[n++] = -b;
+                    else mask[n++] = 0;
+                }
+            }
 
-                    if (getBlock(nx, ny, nz) !== 0) continue;
+            x[d]++;
+            n = 0;
 
-                    const g = faceGeo.clone();
+            // Greedy mesh the generated mask
+            for (let j = 0; j < size; j++) {
+                for (let i = 0; i < size; ) {
+                    const type = mask[n];
+                    if (type === 0) { i++; n++; continue; }
 
-                    g.rotateX(face.rot[0]);
-                    g.rotateY(face.rot[1]);
-                    g.rotateZ(face.rot[2]);
+                    let w, h;
+                    for (w = 1; i + w < size && mask[n + w] === type; w++);
+                    
+                    outer: for (h = 1; j + h < size; h++) {
+                        for (let k = 0; k < w; k++) {
+                            if (mask[n + k + h * size] !== type) break outer;
+                        }
+                    }
 
-                    g.translate(
-                        cx * size + x + 0.5 + face.dir[0] * 0.5,
-                        cy * size + y + 0.5 + face.dir[1] * 0.5,
-                        cz * size + z + 0.5 + face.dir[2] * 0.5
-                    );
+                    // Define vertex positions
+                    x[u] = i; x[v] = j;
+                    let du = [0, 0, 0]; du[u] = w;
+                    let dv = [0, 0, 0]; dv[v] = h;
 
-                    geoByType[blockId].push(g);
+                    const worldX = cx * size + x[0];
+                    const worldY = cy * size + x[1];
+                    const worldZ = cz * size + x[2];
+
+                    const v1 = [worldX, worldY, worldZ];
+                    const v2 = [worldX + du[0], worldY + du[1], worldZ + du[2]];
+                    const v3 = [worldX + du[0] + dv[0], worldY + du[1] + dv[1], worldZ + du[2] + dv[2]];
+                    const v4 = [worldX + dv[0], worldY + dv[1], worldZ + dv[2]];
+
+                    // Use absolute type for material; direction determines winding
+                    const matType = Math.abs(type);
+
+                    if (type > 0) {
+                        // Face pointing +d → CCW winding
+                        vertexDataByType[matType].push(
+                            ...v1, ...v2, ...v4,
+                            ...v4, ...v2, ...v3
+                        );
+                    } else {
+                        // Face pointing -d → CCW winding (reverse quad)
+                        vertexDataByType[matType].push(
+                            ...v1, ...v4, ...v2,
+                            ...v2, ...v4, ...v3
+                        );
+                    }
+
+
+                    // Zero out processed mask area
+                    for (let l = 0; l < h; l++) {
+                        for (let k = 0; k < w; k++) mask[n + k + l * size] = 0;
+                    }
+                    i += w; n += w;
                 }
             }
         }
     }
 
-    faceGeo.dispose();
+    // Build Meshes
+    for (const type in vertexDataByType) {
+        const verts = vertexDataByType[type];
+        if (verts.length === 0) continue;
 
-    // Build meshes per block type
-    for (const type in geoByType) {
-        const list = geoByType[type];
-        if (list.length === 0) continue;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.computeVertexNormals();
 
-        const merged = BufferGeometryUtils.mergeGeometries(list);
-        const mesh = new THREE.Mesh(merged, MATERIALS[type]);
-
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-
+        const mesh = new THREE.Mesh(geo, MATERIALS[type]);
         mesh.raycast = THREE.Mesh.prototype.raycast;
         mesh.userData = { chunk };
 
         scene.add(mesh);
         chunk.meshes.push(mesh);
-
-        list.forEach(g => g.dispose());
     }
 }
 
