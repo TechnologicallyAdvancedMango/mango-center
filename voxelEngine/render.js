@@ -83,6 +83,11 @@ const FACES = [
 
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
+    // Clean up existing mesh/geometry if it exists
+    if (chunk.mesh) {
+        scene.remove(chunk.mesh);
+        chunk.mesh.geometry.dispose();
+    }
     const size = 16;
     const geometries = [];
     const faceGeo = new THREE.PlaneGeometry(1, 1);
