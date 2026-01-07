@@ -71,49 +71,72 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 // Simple cube material for testing
 const testMat = new THREE.MeshStandardMaterial({ color: 0x88cc88 });
 
+// Pre-calculate rotations/offsets for faces to avoid creating objects in loops
+const FACES = [
+    { dir: [ 0,  1,  0], pos: [0, 0.5, 0], rot: [-Math.PI/2, 0, 0] }, // Top
+    { dir: [ 0, -1,  0], pos: [0, -0.5, 0], rot: [Math.PI/2, 0, 0] },  // Bottom
+    { dir: [ 0,  0,  1], pos: [0, 0, 0.5], rot: [0, 0, 0] },           // Front
+    { dir: [ 0,  0, -1], pos: [0, 0, -0.5], rot: [0, Math.PI, 0] },    // Back
+    { dir: [-1,  0,  0], pos: [-0.5, 0, 0], rot: [0, -Math.PI/2, 0] }, // Left
+    { dir: [ 1,  0,  0], pos: [0.5, 0, 0], rot: [0, Math.PI/2, 0] },   // Right
+];
+
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
     const size = 16;
     const geometries = [];
+    const faceGeo = new THREE.PlaneGeometry(1, 1);
 
-    // Create a base geometry to clone from
-    const baseGeo = new THREE.BoxGeometry(1, 1, 1);
+    // Helper to check if a block exists at local coordinates
+    const getBlock = (x, y, z) => {
+        if (x < 0 || x >= size || y < 0 || y >= size || z < 0 || z >= size) {
+            return 0; // For now, treat out-of-bounds as empty (or check neighboring chunks)
+        }
+        return chunk.id[x + y * size + z * size * size];
+    };
 
     for (let x = 0; x < size; x++) {
         for (let y = 0; y < size; y++) {
             for (let z = 0; z < size; z++) {
-                const i = x + y * size + z * size * size;
+                const blockId = getBlock(x, y, z);
+                if (blockId === 0) continue;
 
-                if (chunk.id[i] !== 0) {
-                    const clonedGeo = baseGeo.clone();
-                    
-                    // Translate the individual geometry relative to the chunk position
-                    clonedGeo.translate(
-                        cx * size + x,
-                        cy * size + y,
-                        cz * size + z
-                    );
-                    
-                    geometries.push(clonedGeo);
+                // Check all 6 neighbors
+                for (const face of FACES) {
+                    const nx = x + face.dir[0];
+                    const ny = y + face.dir[1];
+                    const nz = z + face.dir[2];
+
+                    // If neighbor is transparent/empty, render this face
+                    if (getBlock(nx, ny, nz) === 0) {
+                        const clonedFace = faceGeo.clone();
+                        
+                        // Rotate face to point in correct direction
+                        clonedFace.rotateX(face.rot[0]);
+                        clonedFace.rotateY(face.rot[1]);
+                        clonedFace.rotateZ(face.rot[2]);
+
+                        // Move face to block position + half-unit offset
+                        clonedFace.translate(
+                            cx * size + x + face.pos[0],
+                            cy * size + y + face.pos[1],
+                            cz * size + z + face.pos[2]
+                        );
+
+                        geometries.push(clonedFace);
+                    }
                 }
             }
         }
     }
 
-    // Clean up baseGeo
-    baseGeo.dispose();
+    faceGeo.dispose();
 
     if (geometries.length > 0) {
-        // MERGE: This combines all geometries into one buffer
         const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
-        
-        // Create the single mesh
         const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
         
-        // Clean up individual cloned geometries to free memory
         geometries.forEach(g => g.dispose());
-
-        // Save and add to scene
         chunk.mesh = chunkMesh;
         scene.add(chunkMesh);
     }
