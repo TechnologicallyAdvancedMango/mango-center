@@ -72,10 +72,11 @@ const testMat = new THREE.MeshStandardMaterial({ color: 0x88cc88 });
 
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
-    const group = new THREE.Group();
+    const size = 16;
+    const geometries = [];
 
-    const size = 16; // chunk size
-    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+    // Create a base geometry to clone from
+    const baseGeo = new THREE.BoxGeometry(1, 1, 1);
 
     for (let x = 0; x < size; x++) {
         for (let y = 0; y < size; y++) {
@@ -83,21 +84,38 @@ export function renderChunk(chunk, cx, cy, cz) {
                 const i = x + y * size + z * size * size;
 
                 if (chunk.id[i] !== 0) {
-                    const cube = new THREE.Mesh(cubeGeo, testMat);
-                    cube.position.set(
+                    const clonedGeo = baseGeo.clone();
+                    
+                    // Translate the individual geometry relative to the chunk position
+                    clonedGeo.translate(
                         cx * size + x,
                         cy * size + y,
                         cz * size + z
                     );
-                    group.add(cube);
+                    
+                    geometries.push(clonedGeo);
                 }
             }
         }
     }
 
-    // Save the mesh so main.js can remove/update it later
-    chunk.mesh = group;
-    scene.add(group);
+    // Clean up baseGeo
+    baseGeo.dispose();
+
+    if (geometries.length > 0) {
+        // MERGE: This combines all geometries into one buffer
+        const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
+        
+        // Create the single mesh
+        const chunkMesh = new THREE.Mesh(mergedGeometry, testMat);
+        
+        // Clean up individual cloned geometries to free memory
+        geometries.forEach(g => g.dispose());
+
+        // Save and add to scene
+        chunk.mesh = chunkMesh;
+        scene.add(chunkMesh);
+    }
 }
 
 const axesHelper = new THREE.AxesHelper(5);
