@@ -26,7 +26,7 @@ const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const speed = 20;
 
-const debug = false;
+let debug = false;
 
 const keys = {};
 
@@ -50,18 +50,6 @@ export function updateControls(delta) {
     if (keys["Space"]) direction.y += 1;
     if (keys["ShiftLeft"]) direction.y -= 1;
 
-    if (keys["KeyF"]) {
-        debug = !debug;
-
-        if (debug) {
-            scene.add(axesHelper);
-            scene.add(sunHelper);
-        } else {
-            scene.remove(axesHelper);
-            scene.remove(sunHelper);
-        }
-    }
-
     direction.normalize();
     velocity.copy(direction).multiplyScalar(speed * delta);
 
@@ -69,6 +57,23 @@ export function updateControls(delta) {
     controls.moveForward(velocity.z);
     camera.position.y += velocity.y;
 }
+
+document.addEventListener("keydown", (e) => {
+    // Only trigger if a specific key (like 'K') is pressed
+    if (e.code === "KeyK") { 
+        debug = !debug;
+
+        if (debug) {
+            scene.add(axesHelper);
+            scene.add(sunHelper);
+            console.log("Debug Mode: ON");
+        } else {
+            scene.remove(axesHelper);
+            scene.remove(sunHelper);
+            console.log("Debug Mode: OFF");
+        }
+    }
+});
 
 // Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
