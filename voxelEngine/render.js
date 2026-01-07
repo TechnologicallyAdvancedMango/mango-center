@@ -26,6 +26,8 @@ const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const speed = 20;
 
+const debug = false;
+
 const keys = {};
 
 document.addEventListener("keydown", e => keys[e.code] = true);
@@ -48,6 +50,18 @@ export function updateControls(delta) {
     if (keys["Space"]) direction.y += 1;
     if (keys["ShiftLeft"]) direction.y -= 1;
 
+    if (keys["KeyF"]) {
+        debug = !debug;
+
+        if (debug) {
+            scene.add(axesHelper);
+            scene.add(sunHelper);
+        } else {
+            scene.remove(axesHelper);
+            scene.remove(sunHelper);
+        }
+    }
+
     direction.normalize();
     velocity.copy(direction).multiplyScalar(speed * delta);
 
@@ -56,8 +70,6 @@ export function updateControls(delta) {
     camera.position.y += velocity.y;
 }
 
-
-// Lighting
 // Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(20, 40, 20);
@@ -83,6 +95,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
 scene.background = new THREE.Color(0xffffff);
 scene.fog = new THREE.FogExp2(0xffffff, 0.01);
+
+const axesHelper = new THREE.AxesHelper(5);
+const sunHelper = new THREE.DirectionalLightHelper(sun, 10);
 
 // -------------------------
 // CHUNK RENDERING
@@ -169,9 +184,6 @@ export function renderChunk(chunk, cx, cy, cz) {
     }
 }
 
-const axesHelper = new THREE.AxesHelper(5);
-scene.add(axesHelper);
-
 window.addEventListener('resize', () => {
     // Update camera aspect ratio
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -203,6 +215,7 @@ export function startRenderLoop() {
         );
         sun.target.position.set(camera.position.x, camera.position.y, camera.position.z);
         sun.target.updateMatrixWorld();
+        if (debug) sunHelper.update();
 
         renderer.render(scene, camera);
     }
