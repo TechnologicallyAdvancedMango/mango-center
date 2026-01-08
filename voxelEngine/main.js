@@ -240,6 +240,10 @@ export function placeBlock(x, y, z) {
     chunkManager.setVoxel(x, y, z, selectedBlock);
 }
 
+export function pickBlock(x, y, z) {
+    selectedBlock = chunkManager.getVoxel(x, y, z);
+}
+
 export function updateWorld() {
     const size = chunkManager.chunkSize;
 
