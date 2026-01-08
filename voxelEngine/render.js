@@ -14,6 +14,8 @@ function makeTexture(fileName) {
     const tex = loader.load(`textures/${fileName}`);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
     return tex;
 }
 
@@ -111,8 +113,22 @@ document.addEventListener("keydown", (e) => {
         debug = !debug;
         axesHelper.visible = debug;
         sunHelper.visible = debug;
+    
+        if (debug) {
+            // Add borders for all currently loaded chunks
+            for (const obj of scene.children) {
+                if (obj.userData && obj.userData.chunk) {
+                    const chunk = obj.userData.chunk;
+                    addChunkBorder(chunk.cx, chunk.cy, chunk.cz, chunk.size);
+                }
+            }
+        } else {
+            // Hide all borders
+            chunkBorders.forEach(b => b.visible = false);
+        }
+    
         console.log("Debug Mode:", debug ? "ON" : "OFF");
-    }
+    }    
 });
 document.addEventListener("keyup",   e => keys[e.code] = false);
 
@@ -174,6 +190,40 @@ axesHelper.visible = debug;
 const sunHelper = new THREE.DirectionalLightHelper(sun, 10);
 scene.add(sunHelper);
 sunHelper.visible = debug;
+
+// Chunk border wireframe (16×16×16)
+const chunkBorderGeo = new THREE.EdgesGeometry(
+    new THREE.BoxGeometry(16, 16, 16)
+);
+const chunkBorderMat = new THREE.LineBasicMaterial({ color: 0xffaa00 });
+export const chunkBorders = []; // store all border meshes
+
+export function removeChunkBordersFor(cx, cy, cz) {
+    for (let i = chunkBorders.length - 1; i >= 0; i--) {
+        const b = chunkBorders[i];
+        const u = b.userData;
+        if (!u || !u.chunkBorder) continue;
+
+        if (u.cx === cx && u.cy === cy && u.cz === cz) {
+            scene.remove(b);
+            chunkBorders.splice(i, 1);
+        }
+    }
+}
+
+export function addChunkBorder(cx, cy, cz, size) {
+    const border = new THREE.LineSegments(chunkBorderGeo, chunkBorderMat);
+    border.position.set(
+        cx * size + size / 2,
+        cy * size + size / 2,
+        cz * size + size / 2
+    );
+
+    border.userData = { chunkBorder: true, cx, cy, cz };
+    scene.add(border);
+    chunkBorders.push(border);
+}
+
 
 export const highlightBox = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)),
@@ -326,11 +376,32 @@ export function renderChunk(chunk, cx, cy, cz) {
                         ...p1, ...p3, ...p4
                     );
 
-                    // Full-quad UVs (no atlas)
+                    // Determine UV axes based on face direction
+                    let uAxis, vAxis;
+
+                    if (d === 0) {          // X faces
+                        uAxis = 2;          // Z
+                        vAxis = 1;          // Y
+                    } else if (d === 1) {   // Y faces
+                        uAxis = 0;          // X
+                        vAxis = 2;          // Z
+                    } else {                // Z faces
+                        uAxis = 0;          // X
+                        vAxis = 1;          // Y
+                    }
+
+                    const tileU = Math.abs(du[uAxis] + dv[uAxis]);
+                    const tileV = Math.abs(du[vAxis] + dv[vAxis]);
+
                     uvDataByTexture[textureName].push(
-                        0, 0,  1, 0,  1, 1,
-                        0, 0,  1, 1,  0, 1
-                    );
+                        0,     0,
+                        tileU, 0,
+                        tileU, tileV,
+                    
+                        0,     0,
+                        tileU, tileV,
+                        0,     tileV
+                    );                    
 
                     // Zero out processed mask area
                     for (let l = 0; l < h; l++) {
@@ -365,6 +436,25 @@ export function renderChunk(chunk, cx, cy, cz) {
 
         scene.add(mesh);
         chunk.meshes.push(mesh);
+
+        if (debug) {
+            const border = new THREE.LineSegments(chunkBorderGeo, chunkBorderMat);
+            border.position.set(
+                cx * size + size / 2,
+                cy * size + size / 2,
+                cz * size + size / 2
+            );
+        
+            border.userData = {
+                chunkBorder: true,
+                cx,
+                cy,
+                cz
+            };
+        
+            scene.add(border);
+            chunkBorders.push(border);
+        }          
     }
 }
 

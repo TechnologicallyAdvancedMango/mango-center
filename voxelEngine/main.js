@@ -1,4 +1,4 @@
-import { renderChunk, startRenderLoop, camera, scene } from "./render.js";
+import { renderChunk, startRenderLoop, camera, scene, removeChunkBordersFor } from "./render.js";
 import { createNoise2D, createNoise3D } from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js";
 import * as THREE from "three";
 
@@ -75,11 +75,23 @@ class ChunkManager {
         id.fill(0); 
     
         let hasVoxels = false;
+
+        // Precompute heightmap
+        const heightmap = new Array(size * size);
+
         for (let x = 0; x < size; x++) {
             for (let z = 0; z < size; z++) {
                 const worldX = cx * size + x;
                 const worldZ = cz * size + z;
-                const height = getHeight(worldX, worldZ);
+                heightmap[x + z * size] = getHeight(worldX, worldZ);
+            }
+        }
+
+        for (let x = 0; x < size; x++) {
+            for (let z = 0; z < size; z++) {
+                const worldX = cx * size + x;
+                const worldZ = cz * size + z;
+                const height = heightmap[x + z * size];
 
                 for (let y = 0; y < size; y++) {
                     const worldY = cy * size + y;
@@ -94,14 +106,16 @@ class ChunkManager {
                     const index = x + y * size + z * size * size;
 
                     // Cave generation
-                    const caveNoise = noise3D(worldX / 40, worldY / 40, worldZ / 40);
+                    if (worldY < height - 1) {
+                        const caveNoise = noise3D(worldX / 60, worldY / 60, worldZ / 60);
 
-                    // Carve caves: threshold controls density
-                    if (caveNoise > 0.75) {
-                        id[index] = BLOCK.AIR;
-                        continue; // skip placing stone/dirt/grass
+                        // Carve caves: threshold controls density
+                        if (caveNoise > 0.75) {
+                            id[index] = BLOCK.AIR;
+                            continue; // skip placing stone/dirt/grass
+                        }
                     }
-
+                    
                     id[index] = blockType;
 
                     hasVoxels = true;
@@ -144,6 +158,17 @@ class ChunkManager {
         return chunk;
     }
 
+    markChunkDirty(cx, cy, cz) {
+        const key = this.chunkKey(cx, cy, cz);
+        const chunk = this.chunks.get(key);
+        if (!chunk) return;
+    
+        if (!chunk.dirty) {
+            chunk.dirty = true;
+            meshQueue.push(chunk);
+        }
+    }    
+
     worldToChunk(x, y, z) {
         const s = this.chunkSize;
         return {
@@ -152,6 +177,15 @@ class ChunkManager {
             cz: Math.floor(z / s)
         };
     }
+
+    worldToLocal(x, y, z) {
+        const s = this.chunkSize;
+        return {
+            lx: ((x % s) + s) % s,
+            ly: ((y % s) + s) % s,
+            lz: ((z % s) + s) % s
+        };
+    }    
 
     worldToVoxelIndex(x, y, z) {
         const s = this.chunkSize;
@@ -166,15 +200,28 @@ class ChunkManager {
     setVoxel(x, y, z, id) {
         const { cx, cy, cz } = this.worldToChunk(x, y, z);
         const chunk = this.ensureChunk(cx, cy, cz);
-
+    
         const index = this.worldToVoxelIndex(x, y, z);
         chunk.id[index] = id;
-        
-        if (!chunk.dirty) {
-            chunk.dirty = true;
-            meshQueue.push(chunk);
-        }
-    }
+    
+        // Mark this chunk dirty
+        this.markChunkDirty(cx, cy, cz);
+    
+        const s = this.chunkSize;
+        const { lx, ly, lz } = this.worldToLocal(x, y, z);
+    
+        // X borders
+        if (lx === 0) this.markChunkDirty(cx - 1, cy, cz);
+        if (lx === s - 1) this.markChunkDirty(cx + 1, cy, cz);
+    
+        // Y borders
+        if (ly === 0) this.markChunkDirty(cx, cy - 1, cz);
+        if (ly === s - 1) this.markChunkDirty(cx, cy + 1, cz);
+    
+        // Z borders
+        if (lz === 0) this.markChunkDirty(cx, cy, cz - 1);
+        if (lz === s - 1) this.markChunkDirty(cx, cy, cz + 1);
+    }    
 
     getVoxel(x, y, z) {
         const { cx, cy, cz } = this.worldToChunk(x, y, z);
@@ -217,7 +264,7 @@ function fractalNoise2D(x, z, octaves = 5, lacunarity = 2.0, gain = 0.5) {
 }
 
 function getHeight(x, z) {
-    const n = fractalNoise2D(x / 80, z / 80, 8, 2.0, 0.4);
+    const n = fractalNoise2D(x / 80, z / 80, 6, 2.0, 0.4);
 
     // Normalize [-1, 1] → [0, 1]
     let h = (n + 1) * 0.5;
@@ -231,6 +278,14 @@ function getHeight(x, z) {
     // Apply cutoff
     return Math.min(height, maxWorldHeight);
 }
+
+function getColumnMaxHeightForChunk(cx, cz, chunkSize) {
+    // Sample height at the center of the chunk column
+    const worldX = cx * chunkSize + chunkSize * 0.5;
+    const worldZ = cz * chunkSize + chunkSize * 0.5;
+    return getHeight(worldX, worldZ);
+}
+
 
 export function breakBlock(x, y, z) {
     chunkManager.setVoxel(x, y, z, 0);
@@ -279,6 +334,10 @@ export function updateWorld() {
                 m.geometry.dispose();
                 // Don't dispose MATERIALS here; they are shared globals
             }
+
+            // Remove debug chunk border if present
+            removeChunkBordersFor(chunk.cx, chunk.cy, chunk.cz);
+
             chunk.meshes.length = 0;
         }
     
@@ -286,9 +345,18 @@ export function updateWorld() {
     }    
 
     // Load / Ensure chunks in view
-    for (let cy = 0; cy < WORLD_HEIGHT_CHUNKS; cy++) {
-        for (let cx = px - viewDistance; cx <= px + viewDistance; cx++) {
-            for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
+    for (let cx = px - viewDistance; cx <= px + viewDistance; cx++) {
+        for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
+
+            // Compute max terrain height for this column
+            const columnMaxHeight = getColumnMaxHeightForChunk(cx, cz, size);
+            const maxChunkY = Math.min(
+                WORLD_HEIGHT_CHUNKS - 1,
+                Math.floor(columnMaxHeight / size) + 1
+            );
+
+            // Only iterate cy up to maxChunkY
+            for (let cy = 0; cy <= maxChunkY; cy++) {
                 const key = chunkManager.chunkKey(cx, cy, cz);
                 if (!chunkManager.chunks.has(key)) {
                     const chunk = chunkManager.ensureChunk(cx, cy, cz);
