@@ -40,6 +40,10 @@ export let selectedBlock = 1;
 export const WORLD_HEIGHT_CHUNKS = 16;
 const WORLD_Y_OFFSET = 32;
 
+const viewDistance = 8;
+
+const columnHeightOverrides = new Map(); // key: "cx,cz" → maxY
+
 const meshQueue = [];
 
 class ChunkManager {
@@ -238,6 +242,7 @@ export function getVoxelGlobal(x, y, z) {
     return chunkManager.getVoxel(x, y, z);
 }
 
+const genQueue = [];
 
 function mulberry32(seed) {
     return function() {
@@ -293,7 +298,16 @@ export function breakBlock(x, y, z) {
 
 export function placeBlock(x, y, z) {
     chunkManager.setVoxel(x, y, z, selectedBlock);
+
+    const { cx, cz } = chunkManager.worldToChunk(x, y, z);
+    const key = `${cx},${cz}`;
+
+    const current = columnHeightOverrides.get(key) ?? -Infinity;
+    if (y > current) {
+        columnHeightOverrides.set(key, y);
+    }
 }
+
 
 export function pickBlock(x, y, z) {
     selectedBlock = chunkManager.getVoxel(x, y, z);
@@ -303,9 +317,9 @@ export function updateWorld() {
     const size = chunkManager.chunkSize;
 
     const px = Math.floor(camera.position.x / size);
+    const py = Math.floor(camera.position.y / size);
     const pz = Math.floor(camera.position.z / size);
 
-    const viewDistance = 6;
     const unloadDistance = viewDistance + 2;
 
     // Unload chunks
@@ -314,8 +328,9 @@ export function updateWorld() {
     for (const [key, chunk] of chunkManager.chunks.entries()) {
         const dx = chunk.cx - px;
         const dz = chunk.cz - pz;
+        const dy = chunk.cy - py;
 
-        if (dx * dx + dz * dz > unloadDistance * unloadDistance) {
+        if (dx*dx + dy*dy + dz*dz > unloadDistance * unloadDistance) {
             unloadList.push(key);
         }
     }
@@ -341,34 +356,92 @@ export function updateWorld() {
             chunk.meshes.length = 0;
         }
     
+        chunk.dirty = false;
         chunkManager.chunks.delete(key);
+
+        // Remove from genQueue
+        for (let i = genQueue.length - 1; i >= 0; i--) {
+            const j = genQueue[i];
+            if (j.cx === chunk.cx && j.cy === chunk.cy && j.cz === chunk.cz) {
+                genQueue.splice(i, 1);
+            }
+        }
+
+        // Remove from meshQueue
+        for (let i = meshQueue.length - 1; i >= 0; i--) {
+            const c = meshQueue[i];
+            if (c.cx === chunk.cx && c.cy === chunk.cy && c.cz === chunk.cz) {
+                meshQueue.splice(i, 1);
+            }
+        }
     }    
 
     // Load / Ensure chunks in view
     for (let cx = px - viewDistance; cx <= px + viewDistance; cx++) {
-        for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
+        for (let cy = py - viewDistance; cy <= py + viewDistance; cy++) {
+            for (let cz = pz - viewDistance; cz <= pz + viewDistance; cz++) {
 
-            // Compute max terrain height for this column
-            const columnMaxHeight = getColumnMaxHeightForChunk(cx, cz, size);
-            const maxChunkY = Math.min(
-                WORLD_HEIGHT_CHUNKS - 1,
-                Math.floor(columnMaxHeight / size) + 1
-            );
+                // spherical distance check
+                const dx = cx - px;
+                const dy = cy - py;
+                const dz = cz - pz;
 
-            // Only iterate cy up to maxChunkY
-            for (let cy = 0; cy <= maxChunkY; cy++) {
+                if (dx*dx + dy*dy + dz*dz > viewDistance * viewDistance) continue;
+
+                // Compute max block height for this column
+                const terrainHeight = getColumnMaxHeightForChunk(cx, cz, size);
+                const overrideKey = `${cx},${cz}`;
+                const overrideHeight = columnHeightOverrides.get(overrideKey) ?? -Infinity;
+
+                const columnMaxHeight = Math.max(terrainHeight, overrideHeight);
+                const maxChunkY = Math.floor(columnMaxHeight / size) + 1;
+
+                // Skip chunks above the column's max height
+                if (cy > maxChunkY) continue;
+                
                 const key = chunkManager.chunkKey(cx, cy, cz);
-                if (!chunkManager.chunks.has(key)) {
-                    const chunk = chunkManager.ensureChunk(cx, cy, cz);
-                    if (!chunkManager.savedChunks.has(key)) {
-                        chunkManager.generateChunk(cx, cy, cz);
-                    }
+            
+                // If chunk is already loaded, skip
+                if (chunkManager.chunks.has(key)) continue;
+            
+                // saved chunk exists, load it immediately
+                if (chunkManager.savedChunks.has(key)) {
+                    chunkManager.ensureChunk(cx, cy, cz);
+                    continue;
+                }
+            
+                // not saved, queue generation
+                if (!genQueue.some(j => j.cx === cx && j.cy === cy && j.cz === cz)) {
+                    genQueue.push({ cx, cy, cz });
                 }
             }
         }
     }
 
-    // Mesh Queue
+    // Chunk gen queue
+    let gensThisTick = 0;
+    const maxGensPerTick = 5;
+
+    while (genQueue.length > 0 && gensThisTick < maxGensPerTick) {
+        // Sort by distance to camera (optional but recommended)
+        genQueue.sort((a, b) => {
+            const ax = a.cx * size + size * 0.5;
+            const az = a.cz * size + size * 0.5;
+            const bx = b.cx * size + size * 0.5;
+            const bz = b.cz * size + size * 0.5;
+
+            const da = (ax - camera.position.x)**2 + (az - camera.position.z)**2;
+            const db = (bx - camera.position.x)**2 + (bz - camera.position.z)**2;
+
+            return da - db;
+        });
+
+        const job = genQueue.shift();
+        chunkManager.generateChunk(job.cx, job.cy, job.cz);
+        gensThisTick++;
+    }
+
+    // Mesh queue
     let meshesThisTick = 0;
     const maxMeshesPerTick = 2;
 
