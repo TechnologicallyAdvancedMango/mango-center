@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { Sky } from "three/addons/objects/Sky.js";
-import { updateWorld, breakBlock, placeBlock, BLOCKS, getVoxelGlobal, selectedBlock } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, pickBlock, BLOCKS, getVoxelGlobal, selectedBlock } from "./main.js";
 
 // -------------------------
 // TEXTURES / MATERIALS
@@ -393,6 +393,13 @@ window.addEventListener("mousedown", (e) => {
         const hit = raycastBlock();
         if (hit) {
             placeBlock(hit.place.x, hit.place.y, hit.place.z);
+        }
+    }
+
+    if (e.button === 1) {
+        const hit = raycastBlock();
+        if (hit) {
+            pickBlock(hit.break.x, hit.break.y, hit.break.z);
         }
     }
 });
