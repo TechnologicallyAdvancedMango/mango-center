@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import { Sky } from "three/addons/objects/Sky.js";
 import { updateWorld, breakBlock, placeBlock, BLOCKS, getVoxelGlobal } from "./main.js";
 
 // -------------------------
@@ -181,6 +182,24 @@ export const highlightBox = new THREE.LineSegments(
 highlightBox.visible = false;
 scene.add(highlightBox);
 
+// Procedural gradient sky
+const sky = new Sky();
+sky.scale.setScalar(450000);
+scene.add(sky);
+
+// Sky uniforms
+const uniforms = sky.material.uniforms;
+
+// Controls how blue the top is
+uniforms.rayleigh.value = 0.5;
+
+// Controls how white the horizon is
+uniforms.turbidity.value = 2;
+
+// Sun position controls gradient direction
+uniforms.sunPosition.value.set(1, 2, 1);
+
+
 // -------------------------
 // CHUNK RENDERING
 // -------------------------
@@ -336,6 +355,8 @@ export function renderChunk(chunk, cx, cy, cz) {
         mesh.position.set(cx * size, cy * size, cz * size);
         mesh.raycast = THREE.Mesh.prototype.raycast;
         mesh.userData = { chunk };
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
 
         scene.add(mesh);
         chunk.meshes.push(mesh);
