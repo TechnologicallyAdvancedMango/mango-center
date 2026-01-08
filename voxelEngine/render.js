@@ -199,6 +199,10 @@ uniforms.turbidity.value = 2;
 // Sun position controls gradient direction
 uniforms.sunPosition.value.set(1, 2, 1);
 
+camera.position.x = 0;
+camera.position.y = 100;
+camera.position.z = 0;
+
 
 // -------------------------
 // CHUNK RENDERING

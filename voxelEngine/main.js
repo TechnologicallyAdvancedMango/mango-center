@@ -32,7 +32,7 @@ export const BLOCKS = {
 };
 
 
-export const WORLD_HEIGHT_CHUNKS = 8;
+export const WORLD_HEIGHT_CHUNKS = 16;
 const WORLD_Y_OFFSET = 32;
 
 const meshQueue = [];
@@ -212,18 +212,19 @@ function fractalNoise2D(x, z, octaves = 5, lacunarity = 2.0, gain = 0.5) {
 }
 
 function getHeight(x, z) {
-    const n = fractalNoise2D(x / 80, z / 80, 5, 2.0, 0.5);
+    const n = fractalNoise2D(x / 80, z / 80, 8, 2.0, 0.4);
 
     // Normalize [-1, 1] → [0, 1]
     let h = (n + 1) * 0.5;
 
-    // Clamp to avoid dips below zero
-    h = Math.max(0, Math.min(1, h));
+    const amplitude = 40; // how tall hills are
+    const baseHeight = 16; // minimum terrain level
+    const maxWorldHeight = 256; // hard cutoff
 
-    const maxHeight = 20;   // terrain amplitude
-    const minHeight = 16;    // minimum terrain floor
+    let height = Math.floor(h * amplitude) + baseHeight + WORLD_Y_OFFSET;
 
-    return Math.floor(h * maxHeight) + minHeight + WORLD_Y_OFFSET;
+    // Apply cutoff
+    return Math.min(height, maxWorldHeight);
 }
 
 export function breakBlock(x, y, z) {
