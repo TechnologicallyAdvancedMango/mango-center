@@ -1,7 +1,40 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
-import { updateWorld, breakBlock, placeBlock, BLOCK, MATERIALS, getVoxelGlobal } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, BLOCKS, getVoxelGlobal } from "./main.js";
+
+// -------------------------
+// TEXTURES / MATERIALS
+// -------------------------
+
+const loader = new THREE.TextureLoader();
+
+function makeTexture(fileName) {
+    const tex = loader.load(`textures/${fileName}`);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    return tex;
+}
+
+// Keys match the strings used in BLOCKS in main.js
+const TEXTURES = {
+    "dirt.png": makeTexture("dirt.png"),
+    "grass_block_side.png": makeTexture("grass_block_side.png"),
+    "grass_block_top.png": makeTexture("grass_block_top.png"),
+    "sand.png": makeTexture("sand.png"),
+    "stone.png": makeTexture("stone.png")
+};
+
+export const MATERIALS = {};
+for (const name in TEXTURES) {
+    MATERIALS[name] = new THREE.MeshStandardMaterial({
+        map: TEXTURES[name]
+    });
+}
+
+// -------------------------
+// RAYCASTING
+// -------------------------
 
 export const raycaster = new THREE.Raycaster();
 export const mouse = new THREE.Vector2(0, 0); // always center of screen
@@ -39,10 +72,10 @@ export function raycastBlock() {
     };
 }
 
-
 // -------------------------
 // THREE.JS SETUP
 // -------------------------
+
 export const scene = new THREE.Scene();
 
 export const camera = new THREE.PerspectiveCamera(
@@ -106,13 +139,12 @@ export function updateControls(delta) {
     camera.position.y += velocity.y;
 }
 
-
 // Lighting
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(20, 40, 20);
 sun.castShadow = true;
 
-// Define the shadow "box" (Left, Right, Top, Bottom, Near, Far)
+// Define the shadow "box"
 sun.shadow.camera.left = -100;
 sun.shadow.camera.right = 100;
 sun.shadow.camera.top = 100;
@@ -120,7 +152,7 @@ sun.shadow.camera.bottom = -100;
 sun.shadow.camera.near = 0.5;
 sun.shadow.camera.far = 500;
 
-// Improve shadow quality (default is 512)
+// Improve shadow quality
 sun.shadow.mapSize.width = 2048;
 sun.shadow.mapSize.height = 2048;
 
@@ -149,23 +181,9 @@ export const highlightBox = new THREE.LineSegments(
 highlightBox.visible = false;
 scene.add(highlightBox);
 
-
 // -------------------------
 // CHUNK RENDERING
 // -------------------------
-
-// Simple cube material for testing
-const testMat = new THREE.MeshStandardMaterial({ color: 0x88cc88 });
-
-// Pre-calculate rotations/offsets for faces to avoid creating objects in loops
-const FACES = [
-    { dir: [ 0,  1,  0], pos: [0, 0.5, 0], rot: [-Math.PI/2, 0, 0] }, // Top
-    { dir: [ 0, -1,  0], pos: [0, -0.5, 0], rot: [Math.PI/2, 0, 0] },  // Bottom
-    { dir: [ 0,  0,  1], pos: [0, 0, 0.5], rot: [0, 0, 0] },           // Front
-    { dir: [ 0,  0, -1], pos: [0, 0, -0.5], rot: [0, Math.PI, 0] },    // Back
-    { dir: [-1,  0,  0], pos: [-0.5, 0, 0], rot: [0, -Math.PI/2, 0] }, // Left
-    { dir: [ 1,  0,  0], pos: [0.5, 0, 0], rot: [0, Math.PI/2, 0] },   // Right
-];
 
 // This is called by main.js when a chunk is created or updated
 export function renderChunk(chunk, cx, cy, cz) {
@@ -176,6 +194,7 @@ export function renderChunk(chunk, cx, cy, cz) {
 
     const size = chunk.size;
     const id = chunk.id;
+
     const getVoxel = (x, y, z) => {
         const worldX = cx * size + x;
         const worldY = cy * size + y;
@@ -183,7 +202,9 @@ export function renderChunk(chunk, cx, cy, cz) {
         return getVoxelGlobal(worldX, worldY, worldZ);
     };    
 
-    const vertexDataByType = { 1: [], 2: [], 3: [], 4: [] };
+    // Group by texture name instead of block type
+    const vertexDataByTexture = {};
+    const uvDataByTexture = {};
 
     // Sweep across each of the 3 axes (0=X, 1=Y, 2=Z)
     for (let d = 0; d < 3; d++) {
@@ -204,7 +225,6 @@ export function renderChunk(chunk, cx, cy, cz) {
                     const a = getVoxel(x[0], x[1], x[2]);
                     const b = getVoxel(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
 
-                    // Determine if we need a face and which way it points
                     // Positive value = face points +d, Negative = face points -d
                     if (a !== 0 && b !== 0) mask[n++] = 0;
                     else if (a !== 0) mask[n++] = a;
@@ -224,7 +244,7 @@ export function renderChunk(chunk, cx, cy, cz) {
 
                     let w, h;
                     for (w = 1; i + w < size && mask[n + w] === type; w++);
-                    
+
                     outer: for (h = 1; j + h < size; h++) {
                         for (let k = 0; k < w; k++) {
                             if (mask[n + k + h * size] !== type) break outer;
@@ -236,32 +256,57 @@ export function renderChunk(chunk, cx, cy, cz) {
                     let du = [0, 0, 0]; du[u] = w;
                     let dv = [0, 0, 0]; dv[v] = h;
 
-                    const worldX = cx * size + x[0];
-                    const worldY = cy * size + x[1];
-                    const worldZ = cz * size + x[2];
-
-                    const v1 = [worldX, worldY, worldZ];
-                    const v2 = [worldX + du[0], worldY + du[1], worldZ + du[2]];
-                    const v3 = [worldX + du[0] + dv[0], worldY + du[1] + dv[1], worldZ + du[2] + dv[2]];
-                    const v4 = [worldX + dv[0], worldY + dv[1], worldZ + dv[2]];
-
-                    // Use absolute type for material; direction determines winding
+                    // Use absolute type for block lookup
                     const matType = Math.abs(type);
 
-                    if (type > 0) {
-                        // Face pointing +d → CCW winding
-                        vertexDataByType[matType].push(
-                            ...v1, ...v2, ...v4,
-                            ...v4, ...v2, ...v3
-                        );
-                    } else {
-                        // Face pointing -d → CCW winding (reverse quad)
-                        vertexDataByType[matType].push(
-                            ...v1, ...v4, ...v2,
-                            ...v2, ...v4, ...v3
-                        );
+                    // Canonical quad (u-right, v-up)
+                    let p1 = [x[0], x[1], x[2]];
+                    let p2 = [x[0] + du[0], x[1] + du[1], x[2] + du[2]];
+                    let p3 = [x[0] + du[0] + dv[0], x[1] + du[1] + dv[1], x[2] + du[2] + dv[2]];
+                    let p4 = [x[0] + dv[0], x[1] + dv[1], x[2] + dv[2]];
+
+                    // adjust quad orientation for +X and -Z faces
+                    if (d === 0 && type > 0) {
+                        // +X face → rotate 90° CW
+                        [p1, p2, p3, p4] = [p4, p1, p2, p3];
+                    }
+                    
+                    if (d === 2 && type < 0) {
+                        // -Z face → rotate 90° CW (flipped for some reason but it works so trust)
+                        [p1, p2, p3, p4] = [p2, p3, p4, p1];
+                    }                    
+
+                    // Flip for negative-facing faces (reverse winding)
+                    if (type < 0) {
+                        [p2, p4] = [p4, p2];
                     }
 
+                    // Determine texture file name for this face (matches BLOCKS in main.js)
+                    const block = BLOCKS[matType];
+                    let textureName;
+
+                    // d = axis (0=x, 1=y, 2=z)
+                    // type > 0 = +normal, type < 0 = -normal
+                    if (d === 1 && type > 0) textureName = block.top ?? block.all;
+                    else if (d === 1 && type < 0) textureName = block.bottom ?? block.all;
+                    else textureName = block.side ?? block.all;
+
+                    if (!vertexDataByTexture[textureName]) {
+                        vertexDataByTexture[textureName] = [];
+                        uvDataByTexture[textureName] = [];
+                    }
+
+                    // Push triangles
+                    vertexDataByTexture[textureName].push(
+                        ...p1, ...p2, ...p3,
+                        ...p1, ...p3, ...p4
+                    );
+
+                    // Full-quad UVs (no atlas)
+                    uvDataByTexture[textureName].push(
+                        0, 0,  1, 0,  1, 1,
+                        0, 0,  1, 1,  0, 1
+                    );
 
                     // Zero out processed mask area
                     for (let l = 0; l < h; l++) {
@@ -273,16 +318,22 @@ export function renderChunk(chunk, cx, cy, cz) {
         }
     }
 
-    // Build Meshes
-    for (const type in vertexDataByType) {
-        const verts = vertexDataByType[type];
-        if (verts.length === 0) continue;
+    // Build Meshes (one per texture)
+    for (const textureName in vertexDataByTexture) {
+        const verts = vertexDataByTexture[textureName];
+        if (!verts || verts.length === 0) continue;
+
+        const uvs = uvDataByTexture[textureName];
 
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geo.computeVertexNormals();
 
-        const mesh = new THREE.Mesh(geo, MATERIALS[type]);
+        const mat = MATERIALS[textureName];
+        const mesh = new THREE.Mesh(geo, mat);
+
+        mesh.position.set(cx * size, cy * size, cz * size);
         mesh.raycast = THREE.Mesh.prototype.raycast;
         mesh.userData = { chunk };
 
@@ -291,14 +342,14 @@ export function renderChunk(chunk, cx, cy, cz) {
     }
 }
 
+// -------------------------
+// RESIZE / INPUT / LOOP
+// -------------------------
+
 window.addEventListener('resize', () => {
-    // Update camera aspect ratio
     camera.aspect = window.innerWidth / window.innerHeight;
-    // Update the camera's projection matrix
     camera.updateProjectionMatrix();
-    // Update renderer size
     renderer.setSize(window.innerWidth, window.innerHeight);
-    // Handle High DPI devices (Retina displays)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
@@ -306,7 +357,6 @@ window.addEventListener("mousedown", (e) => {
     if (!controls.isLocked) return;
 
     if (e.button === 0) {
-        // left click to break
         const hit = raycastBlock();
         if (hit) {
             breakBlock(hit.break.x, hit.break.y, hit.break.z);
@@ -314,7 +364,6 @@ window.addEventListener("mousedown", (e) => {
     }
 
     if (e.button === 2) {
-        // right click to place
         const hit = raycastBlock();
         if (hit) {
             placeBlock(hit.place.x, hit.place.y, hit.place.z);
@@ -327,6 +376,7 @@ window.addEventListener("contextmenu", e => e.preventDefault());
 // -------------------------
 // ANIMATION LOOP
 // -------------------------
+
 const clock = new THREE.Clock();
 let worldTimer = 0;
 
@@ -351,15 +401,11 @@ export function startRenderLoop() {
             sunHelper.update();
 
             const offset = new THREE.Vector3(0, 0, -1); 
-            
-            // Convert that local offset into world coordinates based on camera position/rotation
             const helperPos = offset.applyMatrix4(camera.matrixWorld);
-
             axesHelper.position.copy(helperPos);
         }
 
         const hit = raycastBlock();
-
         if (hit) {
             const { x, y, z } = hit.break;
             highlightBox.position.set(x + 0.5, y + 0.5, z + 0.5);
@@ -368,9 +414,8 @@ export function startRenderLoop() {
             highlightBox.visible = false;
         }
 
-
         worldTimer += delta;
-        if (worldTimer > 1/20) { // 20hz
+        if (worldTimer > 1/20) {
             updateWorld();
             worldTimer = 0;
         }

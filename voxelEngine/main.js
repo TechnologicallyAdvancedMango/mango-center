@@ -14,12 +14,23 @@ export const BLOCK = {
     SAND: 4,
 };
 
-export const MATERIALS = {
-    [BLOCK.GRASS]: new THREE.MeshStandardMaterial({ color: 0x55aa33 }),
-    [BLOCK.DIRT]:  new THREE.MeshStandardMaterial({ color: 0x8b5a2b }),
-    [BLOCK.STONE]: new THREE.MeshStandardMaterial({ color: 0x888888 }),
-    [BLOCK.SAND]:  new THREE.MeshStandardMaterial({ color: 0xddd39b }),
+export const BLOCKS = {
+    [BLOCK.GRASS]: {
+        top: "grass_block_top.png",
+        bottom: "dirt.png",
+        side: "grass_block_side.png"
+    },
+    [BLOCK.DIRT]: {
+        all: "dirt.png"
+    },
+    [BLOCK.STONE]: {
+        all: "stone.png"
+    },
+    [BLOCK.SAND]: {
+        all: "sand.png"
+    }
 };
+
 
 export const WORLD_HEIGHT_CHUNKS = 8;
 const WORLD_Y_OFFSET = 32;
