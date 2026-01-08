@@ -12,6 +12,7 @@ export const BLOCK = {
     DIRT: 2,
     STONE: 3,
     SAND: 4,
+    GLOWSTONE: 5
 };
 
 export const BLOCKS = {
@@ -28,9 +29,13 @@ export const BLOCKS = {
     },
     [BLOCK.SAND]: {
         all: "sand.png"
+    },
+    [BLOCK.GLOWSTONE]: {
+        all: "glowstone.png"
     }
 };
 
+export let selectedBlock = 1;
 
 export const WORLD_HEIGHT_CHUNKS = 16;
 const WORLD_Y_OFFSET = 32;
@@ -232,7 +237,7 @@ export function breakBlock(x, y, z) {
 }
 
 export function placeBlock(x, y, z) {
-    chunkManager.setVoxel(x, y, z, 3);
+    chunkManager.setVoxel(x, y, z, selectedBlock);
 }
 
 export function updateWorld() {

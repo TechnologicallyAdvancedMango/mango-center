@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { Sky } from "three/addons/objects/Sky.js";
-import { updateWorld, breakBlock, placeBlock, BLOCKS, getVoxelGlobal } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, BLOCKS, getVoxelGlobal, selectedBlock } from "./main.js";
 
 // -------------------------
 // TEXTURES / MATERIALS
@@ -23,7 +23,8 @@ const TEXTURES = {
     "grass_block_side.png": makeTexture("grass_block_side.png"),
     "grass_block_top.png": makeTexture("grass_block_top.png"),
     "sand.png": makeTexture("sand.png"),
-    "stone.png": makeTexture("stone.png")
+    "stone.png": makeTexture("stone.png"),
+    "glowstone.png": makeTexture("glowstone.png")
 };
 
 export const MATERIALS = {};
