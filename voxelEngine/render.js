@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { Sky } from "three/addons/objects/Sky.js";
-import { updateWorld, breakBlock, placeBlock, pickBlock, BLOCKS, getVoxelGlobal, selectedBlock } from "./main.js";
+import { updateWorld, breakBlock, placeBlock, pickBlock, BLOCKS, getVoxelGlobal, selectedBlock, isChunkLoaded } from "./main.js";
 
 // -------------------------
 // TEXTURES / MATERIALS
@@ -296,14 +296,43 @@ export function renderChunk(chunk, cx, cy, cz) {
             // Build mask for the current slice interface
             for (x[v] = 0; x[v] < size; x[v]++) {
                 for (x[u] = 0; x[u] < size; x[u]++) {
-                    const a = getVoxel(x[0], x[1], x[2]);
-                    const b = getVoxel(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
+                    const aLocalX = x[0];
+                    const aLocalY = x[1];
+                    const aLocalZ = x[2];
 
-                    // Positive value = face points +d, Negative = face points -d
-                    if (a !== 0 && b !== 0) mask[n++] = 0;
-                    else if (a !== 0) mask[n++] = a;
-                    else if (b !== 0) mask[n++] = -b;
-                    else mask[n++] = 0;
+                    const bLocalX = x[0] + q[0];
+                    const bLocalY = x[1] + q[1];
+                    const bLocalZ = x[2] + q[2];
+
+                    // world coords for neighbor sampling
+                    const aWorldX = cx * size + aLocalX;
+                    const aWorldY = cy * size + aLocalY;
+                    const aWorldZ = cz * size + aLocalZ;
+
+                    const bWorldX = cx * size + bLocalX;
+                    const bWorldY = cy * size + bLocalY;
+                    const bWorldZ = cz * size + bLocalZ;
+
+                    // compute chunk coords for the neighbor voxel b
+                    const bChunkX = Math.floor(bWorldX / size);
+                    const bChunkY = Math.floor(bWorldY / size);
+                    const bChunkZ = Math.floor(bWorldZ / size);
+
+                    // If neighbor chunk is not loaded, skip emitting a face here (treat as "unknown")
+                    // This prevents border quads until neighbor chunk is present.
+                    if (!isChunkLoaded(bChunkX, bChunkY, bChunkZ)) {
+                        // treat as no face for now
+                        mask[n++] = 0;
+                    } else {
+                        // safe to sample both voxels via getVoxel (which uses world coords)
+                        const a = getVoxel(aLocalX, aLocalY, aLocalZ);
+                        const b = getVoxel(bLocalX, bLocalY, bLocalZ);
+
+                        if (a !== 0 && b !== 0) mask[n++] = 0;
+                        else if (a !== 0)       mask[n++] = a;
+                        else if (b !== 0)       mask[n++] = -b;
+                        else                    mask[n++] = 0;
+                    }
                 }
             }
 

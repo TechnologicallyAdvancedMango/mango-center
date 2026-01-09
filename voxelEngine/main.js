@@ -131,6 +131,7 @@ class ChunkManager {
         if (hasVoxels && !chunk.dirty) {
             chunk.dirty = true;
             meshQueue.push(chunk);
+            markNeighborChunksForRebuild(cx, cy, cz);
         }
     }
 
@@ -159,6 +160,7 @@ class ChunkManager {
         }
     
         this.chunks.set(key, chunk);
+        markNeighborChunksForRebuild(cx, cy, cz);
         return chunk;
     }
 
@@ -240,6 +242,26 @@ const chunkManager = new ChunkManager(16);
 
 export function getVoxelGlobal(x, y, z) {
     return chunkManager.getVoxel(x, y, z);
+}
+
+export function isChunkLoaded(cx, cy, cz) {
+    const key = `${cx},${cy},${cz}`;
+    return chunkManager.chunks.has(key);
+}
+
+// after chunk is created/loaded, mark neighbors dirty so borders get rebuilt
+function markNeighborChunksForRebuild(cx, cy, cz) {
+    const deltas = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    for (const [dx,dy,dz] of deltas) {
+        const nx = cx + dx, ny = cy + dy, nz = cz + dz;
+        if (chunkManager.chunks.has(`${nx},${ny},${nz}`)) {
+            const neighbor = chunkManager.chunks.get(`${nx},${ny},${nz}`);
+            if (!neighbor.dirty) {
+                neighbor.dirty = true;
+                meshQueue.push(neighbor);
+            }
+        }
+    }
 }
 
 const genQueue = [];
