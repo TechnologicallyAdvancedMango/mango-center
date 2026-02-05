@@ -71,10 +71,17 @@ fn reflect3(d: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
 fn refract3(d: vec3<f32>, n: vec3<f32>, etai: f32, etat: f32) -> vec3<f32> {
     var cosi = clamp(dot(d, n), -1.0, 1.0);
     var nn = n;
-    if (cosi > 0.0) { nn = -n; }
+    if (cosi < 0.0) {
+        cosi = -cosi;
+    } else {
+        nn = -n;
+    }
     let eta = etai / etat;
     let k = 1.0 - eta * eta * (1.0 - cosi * cosi);
-    if (k < 0.0) { return vec3<f32>(0.0,0.0,0.0); }
+    if (k < 0.0) {
+        // total internal reflection → “null”
+        return vec3<f32>(0.0, 0.0, 0.0);
+    }
     return normalize(d * eta + nn * (eta * cosi - sqrt(k)));
 }
 
@@ -82,7 +89,8 @@ fn fresnel_schlick(d: vec3<f32>, n: vec3<f32>, ior: f32) -> f32 {
     var cosi = clamp(dot(d, n), -1.0, 1.0);
     var etai = 1.0;
     var etat = ior;
-    if (cosi > 0.0) {
+    if (dot(d, n) > 0.0) {
+        // exiting
         let tmp = etai;
         etai = etat;
         etat = tmp;
@@ -655,8 +663,11 @@ fn trace(rayOrig_in: vec3<f32>, rayDir_in: vec3<f32>, seed: u32) -> vec3<f32> {
         // Dielectric (glass): Fresnel split with roughness scattering
         if (ior > 0.0) {
             let entering = dot(rayDir, normal) < 0.0;
-            let etai = select(ior, 1.0, entering); // 1.0 if entering, else ior
-            let etat = select(1.0, ior, entering); // ior if entering, else 1.0
+            // entering: etai = 1.0, etat = ior
+            // exiting:  etai = ior, etat = 1.0
+            let etai = select(ior, 1.0, entering); // when entering=true → 1.0
+            let etat = select(1.0, ior, entering); // when entering=true → ior
+
 
             // Fresnel reflectance at interface
             let kr = fresnel_schlick(rayDir, normal, ior);

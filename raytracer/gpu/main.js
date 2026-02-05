@@ -1,7 +1,9 @@
 const canvas = document.getElementById("canvas");
 const context = canvas.getContext("webgpu");
 
-const adapter = await navigator.gpu.requestAdapter();
+const adapter = await navigator.gpu.requestAdapter({
+    powerPreference: "high-performance"
+});
 const device = await adapter.requestDevice({
     requiredLimits: { // request higher limits if needed
         maxBufferSize: adapter.limits.maxBufferSize,
