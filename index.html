@@ -10,8 +10,7 @@
       #description {
         font-size: medium;
       }
-      #search {
-        margin-top: 160px;
+      .search {
         margin-left: 15px;
         padding: 5px;
         field-sizing: content;
@@ -62,12 +61,13 @@
         font-family: Arial, Helvetica, sans-serif;
         padding: 0;
         margin: 0;
+        margin-top: 170px;
       }
       #title {
         color:black;
         text-align: center;
       }
-      #games {
+      .projects {
         display: flex;
         flex-flow: row wrap;
         justify-content: center;
@@ -76,7 +76,7 @@
         padding: 5px;
         font-size: 50px;
       }
-      #games a {
+      .projects a {
         padding: 10px;
         margin: 10px;
         border: solid;
@@ -126,26 +126,31 @@
         text-decoration: none;
         font-size: 25px;
       }
+      .section {
+        color: black;
+        margin-left: 15px;
+        padding: 5px;
+      }
     </style>
   </head>
 <body>
   <div id="headerDiv">
     <h1 id="title">Mango Center</h1>
-    <h2 id="description">A collection of stuff I have made</h2>
+    <h2 id="description">A collection of my projects</h2>
 
     <div id="headerLinks">
       <div id="clock">
         <span id="span"></span>
       </div>
       <div id="navLinks">
-        <a href="https://github.com/TechnologicallyAdvancedMango/mango-center/">Github Repo</a>
-        <a href="/credits.html">Credits</a>
+        <a href="/development.html">Development</a>
       </div>
     </div>
   </div>
-  <input type="text" id="search" onkeyup="searchGames()" placeholder="Search..." title="Search">
+  <h1 class="section">My Projects</h1>
+  <input type="text" class="search" id="search1" onkeyup="searchSection('search1', 'projects1')" placeholder="Search..." title="Search">
   <br>
-  <div id="games">
+  <div id="projects1" class="projects">
     <a href="/dodge.html?tutorial=true">Dodge</a>
     <a href="/raytracer/gpu/">Ray Tracer</a>
     <a href="/voxelEngine/">Voxel Engine</a>
@@ -159,31 +164,31 @@
     <a href="/clock.html">Clock</a>
     <a href="/jsConsole.html">JS Console</a>
     <a href="/globalClicker/">Global Clicker</a>
-    <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4">Maneuver</a>
-    <a href="https://studio.code.org/projects/gamelab/47O4blo7QERQkVSgb9DmQuCnjb57ucA6es6HLUEGWm8">Galactic Defender</a>
     <a href="/bad-apple/">HTML5 Bad Apple</a>
     <a href="/mangoclicker.html">Mango Clicker</a>
     <a href="/magic8ball.html">Magic 8 Ball</a>
     <a href="https://freemcserver.net/server/1777905">My Minecraft Server</a>
-    <!--
-    Broken/bad
-      <a href="/mangojumper.html">Mango Jumper</a>
-      <a href="/pong/index.html">Pong</a>
-    -->
+  </div>
+  <hr>
+  <h1 class="section">Collaborations</h1>
+  <input type="text" class="search" id="search2" onkeyup="searchSection('search2', 'projects2')" placeholder="Search..." title="Search">
+  <div id="projects2" class="projects">
+    <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4">Maneuver</a>
+    <a href="https://studio.code.org/projects/gamelab/47O4blo7QERQkVSgb9DmQuCnjb57ucA6es6HLUEGWm8">Galactic Defender</a>
   </div>
 <script>
-function searchGames() {
-  var input = document.getElementById("search");
-  var filter = input.value.toUpperCase();
-  var container = document.getElementById("games");
-  var links = container.getElementsByTagName("a");
+function searchSection(searchId, containerId) {
+  var input = document.getElementById(searchId);
+      var filter = input.value.toUpperCase();
+      var container = document.getElementById(containerId);
+      var links = container.getElementsByTagName("a");
 
-  for (var i = 0; i < links.length; i++) {
+      for (var i = 0; i < links.length; i++) {
     var a = links[i];
     if (a.textContent.toUpperCase().indexOf(filter) > -1) {
-      a.style.display = "";
+        a.style.display = "";
     } else {
-      a.style.display = "none";
+        a.style.display = "none";
     }
   }
 }
