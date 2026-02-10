@@ -7,9 +7,6 @@
       h1 {
         font-size: 40px;
       }
-      #description {
-        font-size: medium;
-      }
       .search {
         margin-left: 15px;
         padding: 5px;
@@ -21,7 +18,7 @@
         font-size: 30px;
         background-color: white;
       }
-      #span {
+      #clockBox {
         color: black;
         background-color: white;
         border-style: solid;
@@ -38,6 +35,7 @@
         color: black;
       }
       #description {
+        font-size: medium;
         text-align: center;
       }
       #soon {
@@ -71,14 +69,17 @@
         display: flex;
         flex-flow: row wrap;
         justify-content: center;
-        align-items: flex-start;
+        align-items: center;
+        gap: 20px;
         background-color: white;
         padding: 5px;
         font-size: 50px;
       }
       .projects a {
+        flex-grow: 1;
+        white-space: nowrap;
+        text-align: center;
         padding: 10px;
-        margin: 10px;
         border: solid;
         border-color: black;
         border-width: 4px;
@@ -88,6 +89,12 @@
         text-decoration: none;
         font-size: 50px;
       }
+      .projects a:hover {
+        background-color: rgb(60, 170, 220);
+        transform: scale(1.03);
+        transition: 0.15s;
+      }
+
       #headerDiv {
         background-color: rgb(82, 196, 248);
         width: 100%;
@@ -129,53 +136,60 @@
       .section {
         color: black;
         margin-left: 15px;
+        margin-top: 40px;
         padding: 5px;
       }
     </style>
   </head>
 <body>
-  <div id="headerDiv">
-    <h1 id="title">Mango Center</h1>
-    <h2 id="description">A collection of my projects</h2>
-
-    <div id="headerLinks">
-      <div id="clock">
-        <span id="span"></span>
+  <header>
+    <div id="headerDiv">
+      <h1 id="title">Mango Center</h1>
+      <h2 id="description">A collection of my projects</h2>
+    
+      <div id="headerLinks">
+        <div id="clock">
+          <span id="clockBox"></span>
+        </div>
+        <div id="navLinks">
+          <a href="/development.html">Development</a>
+        </div>
       </div>
-      <div id="navLinks">
-        <a href="/development.html">Development</a>
       </div>
+  </header>
+  <section>
+    <h1 class="section">My Projects</h1>
+    <input type="text" class="search" id="search1" onkeyup="searchSection('search1', 'projects1')" placeholder="Search..."
+      title="Search">
+    <div id="projects1" class="projects">
+      <a href="/dodge.html?tutorial=true">Dodge</a>
+      <a href="/raytracer/gpu/">Ray Tracer</a>
+      <a href="/voxelEngine/">Voxel Engine</a>
+      <a href="/physicsEngine/">Physics Engine</a>
+      <a href="/particleLife/">Particle Life</a>
+      <a href="/mangoJumper/">Mango Jumper</a>
+      <a href="/gameOfLife.html">Game of Life</a>
+      <a href="/bouncingRectangle/">Bouncing Rectangle</a>
+      <a href="/snake.html">Snake</a>
+      <a href="/rasterizer/">Rasterizer</a>
+      <a href="/clock.html">Clock</a>
+      <a href="/jsConsole.html">JS Console</a>
+      <a href="/globalClicker/">Global Clicker</a>
+      <a href="/bad-apple/">HTML5 Bad Apple</a>
+      <a href="/mangoclicker.html">Mango Clicker</a>
+      <a href="/magic8ball.html">Magic 8 Ball</a>
+      <a href="https://freemcserver.net/server/1777905">My Minecraft Server</a>
     </div>
-  </div>
-  <h1 class="section">My Projects</h1>
-  <input type="text" class="search" id="search1" onkeyup="searchSection('search1', 'projects1')" placeholder="Search..." title="Search">
-  <br>
-  <div id="projects1" class="projects">
-    <a href="/dodge.html?tutorial=true">Dodge</a>
-    <a href="/raytracer/gpu/">Ray Tracer</a>
-    <a href="/voxelEngine/">Voxel Engine</a>
-    <a href="/physicsEngine/">Physics Engine</a>
-    <a href="/particleLife/">Particle Life</a>
-    <a href="/mangoJumper/">Mango Jumper</a>
-    <a href="/gameOfLife.html">Game of Life</a>
-    <a href="/bouncingRectangle/">Bouncing Rectangle</a>
-    <a href="/snake.html">Snake</a>
-    <a href="/rasterizer/">Rasterizer</a>
-    <a href="/clock.html">Clock</a>
-    <a href="/jsConsole.html">JS Console</a>
-    <a href="/globalClicker/">Global Clicker</a>
-    <a href="/bad-apple/">HTML5 Bad Apple</a>
-    <a href="/mangoclicker.html">Mango Clicker</a>
-    <a href="/magic8ball.html">Magic 8 Ball</a>
-    <a href="https://freemcserver.net/server/1777905">My Minecraft Server</a>
-  </div>
+  </section>
   <hr>
-  <h1 class="section">Community Projects</h1>
-  <input type="text" class="search" id="search2" onkeyup="searchSection('search2', 'projects2')" placeholder="Search..." title="Search">
-  <div id="projects2" class="projects">
-    <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4">Maneuver</a>
-    <a href="https://studio.code.org/projects/gamelab/47O4blo7QERQkVSgb9DmQuCnjb57ucA6es6HLUEGWm8">Galactic Defender</a>
-  </div>
+  <section>
+    <h1 class="section">Community Projects</h1>
+    <input type="text" class="search" id="search2" onkeyup="searchSection('search2', 'projects2')" placeholder="Search..." title="Search">
+    <div id="projects2" class="projects">
+      <a href="https://studio.code.org/projects/gamelab/cUmpWmkO4WWAkPm8wwZxvB7l-ODY0hI88Wtj36O7sd4">Maneuver</a>
+      <a href="https://studio.code.org/projects/gamelab/47O4blo7QERQkVSgb9DmQuCnjb57ucA6es6HLUEGWm8">Galactic Defender</a>
+    </div>
+</section>
 <script>
 function searchSection(searchId, containerId) {
   var input = document.getElementById(searchId);
@@ -193,17 +207,18 @@ function searchSection(searchId, containerId) {
   }
 }
 
-var span = document.getElementById('span');
+var clockBox = document.getElementById('clockBox');
 
 function time() {
   var d = new Date();
   var s = d.getSeconds();
   var m = d.getMinutes();
   var h = d.getHours();
-  span.textContent =
+  clockBox.textContent =
     ("0" + h).substr(-2) + ":" + ("0" + m).substr(-2) + ":" + ("0" + s).substr(-2);
 }
 setInterval(time, 1000);
+time();
 </script>
 </body>
 </html>
