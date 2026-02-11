@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Neural Network Trainer</title>
+    <style>
+        body {
+            background: #000;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            font-family: sans-serif;
+        }
+
+        .container {
+            width: 100%;
+            background-color: #0f172a;
+            max-width: 600px;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+            color: #30c0f0;
+        }
+
+        .controlGroup {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        select,
+        input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #304050;
+            background: #203050;
+            color: white;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #30c0f0;
+            border: none;
+            border-radius: 6px;
+            color: #0f172a;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .outputBox {
+            margin-top: 15px;
+            padding: 10px;
+            background: #101020;
+            border-left: 4px solid #30c0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Neural Network Trainer</h1>
+        <div class="controlGroup">
+            <label>Current Task</label>
+            <select id="taskSelect">
+                <option value="xor">XOR</option>
+                <option value="add">Addition</option>
+            </select>
+            <button onclick="runTraining()">Train</button>
+        </div>
+        <hr style="border: 0.5px solid #304050; margin: 2rem 0;">
+        <div class="controlGroup">
+            <label>Test</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="num1" value="1">
+                <input type="number" id="num2" value="0">
+            </div>
+            <button id="predictBtn" style="background: #30c0f0; color: white;">Ask</button>
+        </div>
+        <div class="outputBox">
+            <strong>Thinks:</strong>
+            <h2 id="answer" style="margin: 5px 0;">--</h2>
+        </div>
+    </div>
+    <script src="index.js"></script>
+</body>
+</html>
