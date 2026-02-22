@@ -16,7 +16,7 @@ function clock() {
             break;
 
         default:
-            console.log("Unknown opcode:", opcode);
+            console.log("Unknown opcode:", opCode);
             break;
     }
 }
