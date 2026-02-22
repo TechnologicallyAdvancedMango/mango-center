@@ -3,9 +3,14 @@ const registers = new Uint8Array(8);
 let pc = 0; // Program counter
 let interval;
 
-memory[0] = 0x01;
-memory[1] = 0x02;
-memory[2] = 0x01;
+memory[1] = 0x10;
+memory[2] = 0x00;
+memory[3] = 69;
+
+memory[4] = 0x40;
+memory[5] = 0x00;
+
+memory[6] = 0xFF;
 
 function clock() {
     const opCode = memory[pc];
@@ -20,14 +25,32 @@ function clock() {
             clearInterval(interval);
             break;
 
-
-        case 0x01:
-            console.log("Hello World");
+        case 0x10: { // LOAD r, immediate
+            const r = memory[pc++];
+            const value = memory[pc++];
+            registers[r] = value;
             break;
+        }
 
-        case 0x02:
-            console.log("I am a robot!");
+        case 0x11: { // LOAD r, addr
+            const r = memory[pc++];
+            const addr = memory[pc++];
+            registers[r] = memory[addr];
             break;
+        }
+
+        case 0x12: { // STORE r, addr
+            const r = memory[pc++];
+            const addr = memory[pc++];
+            memory[addr] = registers[r];
+            break;
+        }
+
+        case 0x40: { // PRINT r
+            const r = memory[pc++];
+            console.log(registers[r]);
+            break;
+        }        
 
         default:
             console.log("Unknown opcode:", opCode);
