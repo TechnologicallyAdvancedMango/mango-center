@@ -6,7 +6,7 @@ function clock() {
     const opCode = memory[pc];
     pc++;
 
-    switch (opcode) {
+    switch (opCode) {
         case 0x01: 
             console.log("Hello World");
             break;
